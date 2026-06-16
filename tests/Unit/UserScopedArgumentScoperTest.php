@@ -28,10 +28,26 @@ final class UserScopedArgumentScoperTest extends TestCase
         self::assertSame('42', $scoped['user_id']);
     }
 
-    public function test_leaves_arguments_untouched_when_principal_is_null(): void
+    public function test_throws_when_principal_is_null_and_owner_key_is_present(): void
     {
-        $scoped = (new UserScopedArgumentScoper(['user_id']))->scope(['user_id' => '999'], principalId: null);
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageMatches('/user_id/');
 
-        self::assertSame('999', $scoped['user_id']);
+        (new UserScopedArgumentScoper(['user_id']))->scope(['user_id' => '999'], principalId: null);
+    }
+
+    public function test_returns_arguments_unchanged_when_principal_is_null_and_no_owner_keys_configured(): void
+    {
+        $scoped = (new UserScopedArgumentScoper([]))->scope(['order_id' => 'A1'], principalId: null);
+
+        self::assertSame(['order_id' => 'A1'], $scoped);
+    }
+
+    public function test_returns_arguments_unchanged_when_principal_is_null_and_no_owner_keys_in_arguments(): void
+    {
+        // owner key configured but not present in the call → safe to pass through
+        $scoped = (new UserScopedArgumentScoper(['user_id']))->scope(['order_id' => 'A1'], principalId: null);
+
+        self::assertSame(['order_id' => 'A1'], $scoped);
     }
 }

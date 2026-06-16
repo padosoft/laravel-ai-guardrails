@@ -71,7 +71,7 @@ final readonly class SchemaToolArgumentValidator implements ToolArgumentValidato
             'boolean' => is_bool($value),
             'array' => is_array($value),
             'object' => is_array($value),
-            default => true, // unknown schema type → do not block (fail-open on type only)
+            default => false, // unknown schema type → reject (fail-closed; prevents bypass on schema extensions)
         };
     }
 }

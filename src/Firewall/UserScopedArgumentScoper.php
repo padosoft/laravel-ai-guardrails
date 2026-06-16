@@ -21,6 +21,17 @@ final readonly class UserScopedArgumentScoper implements ArgumentScoper
     public function scope(array $arguments, int|string|null $principalId): array
     {
         if ($principalId === null) {
+            // If any configured owner key is present in the arguments we cannot re-scope it,
+            // so we refuse rather than silently pass attacker-controlled values through.
+            foreach ($this->ownerKeys as $key) {
+                if (array_key_exists($key, $arguments)) {
+                    throw new \LogicException(
+                        "Cannot scope owner key [{$key}]: no authenticated principal. ".
+                        'Ensure the request is authenticated before invoking a firewalled tool.'
+                    );
+                }
+            }
+
             return $arguments;
         }
 

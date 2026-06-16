@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
+use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
+use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeOwnedTool;
@@ -38,5 +41,30 @@ final class FirewallBindingsTest extends TestCase
         $this->app->forgetInstance(ToolArgumentValidator::class);
         $strict = $this->resolve(ToolArgumentValidator::class)->validate(new FakeOwnedTool, ['order_id' => 'A1', 'x' => 1]);
         self::assertArrayHasKey('x', $strict);
+    }
+
+    public function test_firewall_enabled_false_binds_passthrough_null_objects(): void
+    {
+        $this->app['config']->set('ai-guardrails.tool_firewall.enabled', false);
+        $this->app->forgetInstance(ArgumentScoper::class);
+        $this->app->forgetInstance(ToolArgumentValidator::class);
+
+        // Re-register to pick up the new config value.
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        self::assertInstanceOf(PassthroughArgumentScoper::class, $this->resolve(ArgumentScoper::class));
+        self::assertInstanceOf(PermissiveToolArgumentValidator::class, $this->resolve(ToolArgumentValidator::class));
+    }
+
+    public function test_firewall_enabled_true_binds_real_implementations(): void
+    {
+        $this->app['config']->set('ai-guardrails.tool_firewall.enabled', true);
+        $this->app->forgetInstance(ArgumentScoper::class);
+        $this->app->forgetInstance(ToolArgumentValidator::class);
+
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        self::assertInstanceOf(UserScopedArgumentScoper::class, $this->resolve(ArgumentScoper::class));
+        self::assertInstanceOf(SchemaToolArgumentValidator::class, $this->resolve(ToolArgumentValidator::class));
     }
 }

@@ -63,7 +63,13 @@
 - Tool contract import: `schema(\Illuminate\Contracts\JsonSchema\JsonSchema $schema): array`, `handle(\Laravel\Ai\Tools\Request): Stringable|string`, `description(): Stringable|string`.
 - PHP 8.5 deprecation: `ReflectionProperty::setAccessible()` is deprecated/no-op — don't call it.
 
-### To verify during implementation (do not invent)
+### Control A security fixes (2026-06-16, post-review remediation)
+- **Null-principal IDOR bypass (HIGH):** `UserScopedArgumentScoper::scope()` originally returned args untouched when `$principalId === null`. Any unauthenticated request with an owner-key argument (e.g. `user_id`) bypassed all IDOR defence. Fixed: throw `\LogicException` when `$principalId === null` AND an owner key is present in the arguments. Safe pass-through only when no owner keys appear (e.g. anonymous context with no owned resources). Updated test to assert the exception; added two safe-null tests.
+- **Type validator fail-open (MEDIUM):** `SchemaToolArgumentValidator::matchesType()` had `default => true` so any unrecognised type keyword (e.g. `"null"`, `"date"`, typo `"int"`) silently accepted every value. Changed to `default => false` (fail-closed). Test uses `ReflectionMethod` to cover the `default` arm directly (no factory path produces unknown types in v0.8.1).
+- **`tool_firewall.enabled` dead config (MEDIUM):** `AiGuardrailsServiceProvider::register()` never read the `enabled` flag, so `AI_GUARDRAILS_TOOL_FIREWALL_ENABLED=false` had no effect. Fixed: gate the real bindings on the flag; bind `PassthroughArgumentScoper` + `PermissiveToolArgumentValidator` (new null-object classes) when false. Both-states tests added to `FirewallBindingsTest` (re-instantiates the provider to pick up the config change).
+- **`PermissiveToolArgumentValidator` / `PassthroughArgumentScoper`:** created as null-objects in `src/Firewall/`. Both are `final` classes with trivial implementations.
+
+
 - `padosoft/laravel-flow` config keys to enable persistence + lock store in Testbench, migration dir name, `FlowRun->id` property.
 - Screener matched-span byte offsets (PCRE without `/u` = byte offsets; with `/u` careful with multibyte).
 - Trend `GROUP BY` day dialect (sqlite/mysql `substr`+`blocked=1` vs Postgres `to_char`/`case when`).

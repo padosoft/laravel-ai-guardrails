@@ -35,6 +35,18 @@ final class SchemaToolArgumentValidatorTest extends TestCase
         self::assertArrayHasKey('amount', $errors);
     }
 
+    public function test_rejects_argument_with_unrecognised_schema_type(): void
+    {
+        $validator = new SchemaToolArgumentValidator(rejectUnknown: false);
+        $matchesType = new \ReflectionMethod($validator, 'matchesType');
+
+        // Unknown type keywords must fail-closed (return false) to prevent bypass on schema extensions.
+        self::assertFalse($matchesType->invoke($validator, 'null', null));
+        self::assertFalse($matchesType->invoke($validator, 'date', '2026-01-01'));
+        self::assertFalse($matchesType->invoke($validator, 'int', 1));   // typo of 'integer'
+        self::assertFalse($matchesType->invoke($validator, 'custom', 'value'));
+    }
+
     public function test_unknown_keys_allowed_when_reject_unknown_is_false(): void
     {
         $errors = (new SchemaToolArgumentValidator(rejectUnknown: false))
