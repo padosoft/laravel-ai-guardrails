@@ -27,7 +27,8 @@ final class InjectionAuditRecord extends Model
 
     protected $table = 'ai_guardrails_injection_audit';
 
-    protected $guarded = [];
+    /** @var list<string> */
+    protected $fillable = ['prompt', 'blocked', 'rule_id', 'principal_id', 'occurred_at'];
 
     /** @var array<string,string> */
     protected $casts = [
@@ -35,9 +36,19 @@ final class InjectionAuditRecord extends Model
         'occurred_at' => 'immutable_datetime',
     ];
 
+    public function newEloquentBuilder($query): InjectionAuditRecordBuilder
+    {
+        return new InjectionAuditRecordBuilder($query);
+    }
+
     protected function performUpdate(Builder $query): bool
     {
         throw new LogicException('The injection audit is append-only; records cannot be updated.');
+    }
+
+    protected function performDelete(): bool
+    {
+        throw new LogicException('The injection audit is append-only; records cannot be deleted.');
     }
 
     public function delete(): bool
