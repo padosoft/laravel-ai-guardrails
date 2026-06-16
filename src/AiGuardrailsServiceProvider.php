@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
@@ -36,5 +37,26 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../config/ai-guardrails.php' => config_path('ai-guardrails.php'),
         ], 'ai-guardrails-config');
+
+        // Warn operators when guardrails are declared enabled but null-object scaffolding is still active.
+        // Skip during unit tests to avoid noise; stops automatically once real implementations replace null objects.
+        if (
+            (bool) config('ai-guardrails.enabled') &&
+            ! $this->app->runningUnitTests() &&
+            $this->app->make(InjectionScreener::class) instanceof NullInjectionScreener
+        ) {
+            Log::warning(
+                'laravel-ai-guardrails: package is enabled but running with null-object placeholder implementations. '.
+                'Real controls (A–D) are not yet active. Do NOT use in production until the feature implementations are bound.'
+            );
+        }
+
+        // Refuse to boot with an open API surface that has no middleware.
+        if ((bool) config('ai-guardrails.api.enabled') && config('ai-guardrails.api.middleware') === []) {
+            throw new \RuntimeException(
+                'laravel-ai-guardrails: api.enabled is true but api.middleware is empty. '.
+                'Set at least one middleware (e.g. "auth:sanctum") in config/ai-guardrails.php to protect the API surface.'
+            );
+        }
     }
 }

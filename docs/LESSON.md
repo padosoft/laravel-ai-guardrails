@@ -25,7 +25,15 @@
 - **EMPIRICALLY VERIFIED on PR #1 (2026-06-16):** the `requestReviewsByLogin`/`botLogins` mutation **works** — it returned `{"data":{"requestReviewsByLogin":{"clientMutationId":null}}}` and the Copilot bot appeared in `requested_reviewers` and actually reviewed the PR. A Copilot PR comment claimed this mutation "does not exist in the public schema" — that claim is **false** (refuted by the successful call). It is an undocumented-but-functional GitHub mutation, also used by the reference repo. Keep using it; do not switch to `requestReviews(userIds)` (the Copilot bot has no stable userId to pass).
 - Do not use `@codex review` as a Copilot substitute unless explicitly asked.
 
-### Governance doc fixes (2026-06-16 review)
+### Review fixes applied to `feature/v0.1.0` (2026-06-16, Copilot /review)
+- **`ScreenVerdict` invariant fix:** made `__construct` `private` so `blocked=true, ruleId=null` is impossible. The only entry points are `allow()` and `block()` (both named constructors). Added `ScreenVerdictTest` asserting constructor is private.
+- **Service provider boot guards:** added two checks in `AiGuardrailsServiceProvider::boot()`:
+  1. `Log::warning()` when `enabled=true` + `runningUnitTests()===false` + `InjectionScreener` still resolves to `NullInjectionScreener` (stops automatically once real impls are bound). Note: `isEnvironment()` does NOT exist on `Illuminate\Foundation\Application` in Laravel 13 — use `runningUnitTests()` instead.
+  2. `throw RuntimeException` when `api.enabled=true` AND `api.middleware===[]` (fail-hard: open API surface is a security misconfiguration). Tested in `ApiGuardBootTest`: set config in test body after app boots, then call `boot()` on a fresh provider — do NOT use `defineEnvironment()` because it fires before boot causing `setUp()` to throw.
+- **PHPStan raised to level 8** (`phpstan.neon`). Passes cleanly.
+- **`composer.json` scripts** fixed to `vendor/bin/phpunit` etc.
+- **`require-dev` ranges** tightened to `orchestra/testbench: ^11.0` and `phpunit: ^12.0` (match CI matrix).
+- 10 tests / 20 assertions green; pint clean; phpstan level 8 clean.
 - `php85` (bare) won't resolve on Windows; always use `php85.bat` or the full `%USERPROFILE%\.config\herd\bin\php85.bat` path.
 - `copilot-review-loop/SKILL.md` was bash-only. Rewrote step 1 as PowerShell-first with a Git Bash alternative. `/tmp/branch.diff` → `$env:TEMP\branch.diff`.
 - Hardcoded username `lopad` in `padosoft-package-tdd/SKILL.md` toolchain path replaced with `$env:USERPROFILE` / `$HOME`.

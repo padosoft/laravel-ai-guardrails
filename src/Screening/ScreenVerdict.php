@@ -6,15 +6,15 @@ namespace Padosoft\AiGuardrails\Screening;
 
 final readonly class ScreenVerdict
 {
-    public function __construct(
+    private function __construct(
         public bool $blocked,
-        public ?string $ruleId = null,
-        public ?string $refusalMessage = null,
+        public ?string $ruleId,
+        public ?string $refusalMessage,
     ) {}
 
     public static function allow(): self
     {
-        return new self(false);
+        return new self(false, null, null);
     }
 
     public static function block(string $ruleId, string $refusalMessage): self
