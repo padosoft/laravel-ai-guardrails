@@ -81,4 +81,12 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
         $this->expectException(LogicException::class);
         InjectionAuditRecord::query()->delete();
     }
+
+    public function test_builder_mass_update_throws(): void
+    {
+        $this->store()->append(new InjectionAttempt('x', true, 'r', null, new DateTimeImmutable));
+
+        $this->expectException(LogicException::class);
+        InjectionAuditRecord::query()->update(['prompt' => 'tampered']);
+    }
 }
