@@ -6,9 +6,13 @@ namespace Padosoft\AiGuardrails;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
+use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
+use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
@@ -23,6 +27,18 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         $this->app->singleton(InjectionScreener::class, NullInjectionScreener::class);
         $this->app->singleton(OutputSanitizer::class, PassthroughSanitizer::class);
         $this->app->singleton(PiiRedaction::class, NullPiiRedaction::class);
+
+        // Control A — Tool firewall collaborators (configured from the tool_firewall block).
+        $this->app->singleton(ArgumentScoper::class, static function ($app): ArgumentScoper {
+            $ownerKeys = $app['config']->get('ai-guardrails.tool_firewall.owner_keys', []);
+
+            return new UserScopedArgumentScoper(is_array($ownerKeys) ? array_values($ownerKeys) : []);
+        });
+        $this->app->singleton(ToolArgumentValidator::class, static function ($app): ToolArgumentValidator {
+            $rejectUnknown = (bool) $app['config']->get('ai-guardrails.tool_firewall.reject_unknown_arguments', true);
+
+            return new SchemaToolArgumentValidator($rejectUnknown);
+        });
 
         $this->app->singleton(AiGuardrails::class, static fn ($app): AiGuardrails => new AiGuardrails(
             $app->make(InjectionScreener::class),

@@ -55,8 +55,15 @@
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
+### Control A — laravel/ai v0.8.1 JSON Schema model (VERIFIED 2026-06-16, diverges from the plan)
+- The object passed to `Tool::schema(Illuminate\Contracts\JsonSchema\JsonSchema $schema)` at runtime is an **`Illuminate\JsonSchema\JsonSchemaTypeFactory`** (it implements the contract with INSTANCE methods `string()/integer()/object()/...`). The `Illuminate\JsonSchema\JsonSchema` class is NOT it — that one only has STATIC `__callStatic`. In the validator, instantiate `new JsonSchemaTypeFactory` to call `$tool->schema(...)`.
+- **`Type::toArray()` on a LEAF type does NOT contain `required`.** `string()->required()->toArray()` === `['type' => 'string']`. The plan's `$definition['required']` assumption is WRONG for v0.8.1.
+- **Read `required` from the parent object instead:** `$factory->object($schemaMap)->toArray()` yields `{ "properties": {key:{"type":...}}, "type":"object", "required":[<required key names>] }`. So: `properties` = key→leaf-def (has `type`), `required` = list of required key names. This is the public-API way; do NOT reflect on the protected `$required` prop.
+- `Laravel\Ai\Tools\Request`: `__construct(protected array $arguments = [])`, `implements Arrayable, ArrayAccess`, `all(mixed $keys=null): array`, `toArray(): array`. Construct new args via `new Request([...])` (no setter).
+- Tool contract import: `schema(\Illuminate\Contracts\JsonSchema\JsonSchema $schema): array`, `handle(\Laravel\Ai\Tools\Request): Stringable|string`, `description(): Stringable|string`.
+- PHP 8.5 deprecation: `ReflectionProperty::setAccessible()` is deprecated/no-op — don't call it.
+
 ### To verify during implementation (do not invent)
-- `Illuminate\JsonSchema\Types\Type::toArray()` exact key names (`type`, `required`?) — measure with `dd()`.
 - `padosoft/laravel-flow` config keys to enable persistence + lock store in Testbench, migration dir name, `FlowRun->id` property.
 - Screener matched-span byte offsets (PCRE without `/u` = byte offsets; with `/u` careful with multibyte).
 - Trend `GROUP BY` day dialect (sqlite/mysql `substr`+`blocked=1` vs Postgres `to_char`/`case when`).
