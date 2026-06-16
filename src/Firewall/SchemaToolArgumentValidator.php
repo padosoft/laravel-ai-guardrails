@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\AiGuardrails\Firewall;
+
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Laravel\Ai\Contracts\Tool;
+use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+
+/**
+ * Deterministic, offline validation of model-chosen tool arguments against the tool's own
+ * JSON schema. Untrusted-input posture: required keys must be present, declared types must
+ * match, and (optionally) keys not declared in the schema are rejected.
+ *
+ * The schema shape is read via the public laravel/ai API: `Tool::schema()` returns a map of
+ * argument-name => Type; wrapping that map in `object()->toArray()` yields a JSON-schema
+ * fragment whose `properties` carry each leaf `type` and whose top-level `required` lists the
+ * required argument names (the leaf `toArray()` does NOT carry `required` in laravel/ai v0.8).
+ */
+final readonly class SchemaToolArgumentValidator implements ToolArgumentValidator
+{
+    public function __construct(private bool $rejectUnknown = true) {}
+
+    public function validate(Tool $tool, array $arguments): array
+    {
+        $factory = new JsonSchemaTypeFactory;
+        $schema = $factory->object($tool->schema($factory))->toArray();
+
+        /** @var array<string,array<string,mixed>> $properties */
+        $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+        /** @var list<string> $required */
+        $required = is_array($schema['required'] ?? null) ? array_values($schema['required']) : [];
+
+        $errors = [];
+
+        foreach ($required as $key) {
+            if (! array_key_exists($key, $arguments)) {
+                $errors[$key] = "Missing required argument [{$key}].";
+            }
+        }
+
+        foreach ($properties as $key => $definition) {
+            if (! array_key_exists($key, $arguments)) {
+                continue;
+            }
+
+            $expected = $definition['type'] ?? null;
+            $value = $arguments[$key];
+
+            if (is_string($expected)) {
+                if (! $this->matchesType($expected, $value)) {
+                    $errors[$key] = "Argument [{$key}] must be of type [{$expected}].";
+                }
+            } elseif (is_array($expected) && $expected !== []) {
+                // Union / nullable types serialize as an array, e.g. ['string', 'null'].
+                // The value is valid if it matches at least one declared member type.
+                $matchesAny = false;
+                foreach ($expected as $member) {
+                    if (is_string($member) && $this->matchesType($member, $value)) {
+                        $matchesAny = true;
+                        break;
+                    }
+                }
+                if (! $matchesAny) {
+                    $errors[$key] = "Argument [{$key}] must be one of types [".implode('|', array_map('strval', $expected)).'].';
+                }
+            }
+        }
+
+        if ($this->rejectUnknown) {
+            foreach (array_keys($arguments) as $key) {
+                if (! array_key_exists($key, $properties)) {
+                    $errors[$key] = "Unknown argument [{$key}] is not declared in the tool schema.";
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    private function matchesType(string $expected, mixed $value): bool
+    {
+        return match ($expected) {
+            'string' => is_string($value),
+            'integer' => is_int($value),
+            'number' => is_int($value) || is_float($value),
+            'boolean' => is_bool($value),
+            // JSON 'array' is a list; 'object' is a map. In PHP both are arrays, so distinguish by
+            // list-ness (an empty array is ambiguous and accepted by either).
+            'array' => is_array($value) && array_is_list($value),
+            'object' => is_array($value) && ($value === [] || ! array_is_list($value)),
+            'null' => $value === null,
+            default => false, // unknown schema type → reject (fail-closed; prevents bypass on schema extensions)
+        };
+    }
+}

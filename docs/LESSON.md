@@ -52,11 +52,30 @@
 - **illuminate constraint narrowed `^12|^13` → `^13.0`** to match what CI actually tests (don't advertise untested Laravel 12 support). `laravel/ai ^0.8` still allows 12|13 but composer picks 13.
 - **`TestCase::resolve()` is `class-string<T>`-typed** — do NOT call it with a container alias string (`'ai-guardrails'`). Resolve aliases via the `app('alias')` helper instead. Split FacadeResolvesTest into a class-string test + an alias test.
 
+### Control A PR #3 review fixes (2026-06-17, codex — 3 real security findings, CI was already green)
+- **P1 (real bug): owner-key injection must be schema-restricted.** The scoper injected ALL configured `owner_keys` (default 4) even for tools that declare only a subset → the validator then rejected the injected-but-undeclared keys as "unknown" → **every tool failed under the default config**. Fix: `FirewalledTool` passes the tool's schema property→type map to `scope()`, which only injects owner keys the tool declares. Verified the bug reproduced before the fix.
+- **P2a: preserve integer principals.** The scoper hard-cast the principal to `(string)`; an `integer` owner field then failed type validation. Fix: `coerce()` casts to int when the declared type is `integer` (or an integer-only union).
+- **P2b: nullable/union types serialize as an ARRAY.** `string()->nullable()->toArray()` → `{"type":["string","null"]}`; `union([...])` likewise. The validator must treat an array `type` as "match ANY member" and recognise `'null'` as a real type (value === null). A scalar `is_string($type)` check silently skipped validation for these.
+- General: the scoper↔validator interaction is where firewall bugs hide — always test the decorator end-to-end with the DEFAULT config, not just hand-picked owner keys.
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
-### To verify during implementation (do not invent)
-- `Illuminate\JsonSchema\Types\Type::toArray()` exact key names (`type`, `required`?) — measure with `dd()`.
+### Control A — laravel/ai v0.8.1 JSON Schema model (VERIFIED 2026-06-16, diverges from the plan)
+- The object passed to `Tool::schema(Illuminate\Contracts\JsonSchema\JsonSchema $schema)` at runtime is an **`Illuminate\JsonSchema\JsonSchemaTypeFactory`** (it implements the contract with INSTANCE methods `string()/integer()/object()/...`). The `Illuminate\JsonSchema\JsonSchema` class is NOT it — that one only has STATIC `__callStatic`. In the validator, instantiate `new JsonSchemaTypeFactory` to call `$tool->schema(...)`.
+- **`Type::toArray()` on a LEAF type does NOT contain `required`.** `string()->required()->toArray()` === `['type' => 'string']`. The plan's `$definition['required']` assumption is WRONG for v0.8.1.
+- **Read `required` from the parent object instead:** `$factory->object($schemaMap)->toArray()` yields `{ "properties": {key:{"type":...}}, "type":"object", "required":[<required key names>] }`. So: `properties` = key→leaf-def (has `type`), `required` = list of required key names. This is the public-API way; do NOT reflect on the protected `$required` prop.
+- `Laravel\Ai\Tools\Request`: `__construct(protected array $arguments = [])`, `implements Arrayable, ArrayAccess`, `all(mixed $keys=null): array`, `toArray(): array`. Construct new args via `new Request([...])` (no setter).
+- Tool contract import: `schema(\Illuminate\Contracts\JsonSchema\JsonSchema $schema): array`, `handle(\Laravel\Ai\Tools\Request): Stringable|string`, `description(): Stringable|string`.
+- PHP 8.5 deprecation: `ReflectionProperty::setAccessible()` is deprecated/no-op — don't call it.
+
+### Control A security fixes (2026-06-16, post-review remediation)
+- **Null-principal IDOR bypass (HIGH):** `UserScopedArgumentScoper::scope()` originally returned args untouched when `$principalId === null`. Any unauthenticated request with an owner-key argument (e.g. `user_id`) bypassed all IDOR defence. Fixed: throw `\LogicException` when `$principalId === null` AND an owner key is present in the arguments. Safe pass-through only when no owner keys appear (e.g. anonymous context with no owned resources). Updated test to assert the exception; added two safe-null tests.
+- **Type validator fail-open (MEDIUM):** `SchemaToolArgumentValidator::matchesType()` had `default => true` so any unrecognised type keyword (e.g. `"null"`, `"date"`, typo `"int"`) silently accepted every value. Changed to `default => false` (fail-closed). Test uses `ReflectionMethod` to cover the `default` arm directly (no factory path produces unknown types in v0.8.1).
+- **`tool_firewall.enabled` dead config (MEDIUM):** `AiGuardrailsServiceProvider::register()` never read the `enabled` flag, so `AI_GUARDRAILS_TOOL_FIREWALL_ENABLED=false` had no effect. Fixed: gate the real bindings on the flag; bind `PassthroughArgumentScoper` + `PermissiveToolArgumentValidator` (new null-object classes) when false. Both-states tests added to `FirewallBindingsTest` (re-instantiates the provider to pick up the config change).
+- **`PermissiveToolArgumentValidator` / `PassthroughArgumentScoper`:** created as null-objects in `src/Firewall/`. Both are `final` classes with trivial implementations.
+
+
 - `padosoft/laravel-flow` config keys to enable persistence + lock store in Testbench, migration dir name, `FlowRun->id` property.
 - Screener matched-span byte offsets (PCRE without `/u` = byte offsets; with `/u` careful with multibyte).
 - Trend `GROUP BY` day dialect (sqlite/mysql `substr`+`blocked=1` vs Postgres `to_char`/`case when`).
