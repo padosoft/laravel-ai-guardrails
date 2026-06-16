@@ -18,10 +18,14 @@
 - [x] src/AiGuardrailsServiceProvider.php (skeleton: mergeConfigFrom + publish), tests/TestCase.php, tests/Feature/PackageBootsTest.php.
 - [x] .github/workflows/ci.yml (PHP 8.3/8.4/8.5 × Laravel 13: validate → pint → phpstan → phpunit).
 - [x] composer update OK (laravel/ai v0.8.1, flow v1.0.0, pii v1.2.0 from Packagist). phpunit GREEN (2 tests), pint passed, phpstan no errors, composer validate --strict OK.
-- [ ] DoD loop: local copilot review → push → PR `feature/v0.1.0` → Copilot reviewer → CI green → (continue with Task 1 on same macro branch).
+### Task 1 — Facade + core service shell (DONE locally, branch `feature/v0.1.0`)
+- [x] Contracts `InjectionScreener`/`OutputSanitizer`/`PiiRedaction`, `Screening/ScreenVerdict`, null impls (`NullInjectionScreener`, `NullPiiRedaction`, `PassthroughSanitizer`), `AiGuardrails` core service, `Facades/AiGuardrails`.
+- [x] Provider binds the three contracts (null-object) + `AiGuardrails` singleton + `ai-guardrails` alias.
+- [x] `FacadeResolvesTest` green. Full suite: 5 tests / 10 assertions GREEN; pint passed; phpstan no errors.
+- [ ] DoD loop for macro `feature/v0.1.0` (= Task 0 + Task 1): local copilot review → push → PR → main → Copilot reviewer → CI green → merge.
 
 ### Next
-- Task 1 — Facade + core service shell (`AiGuardrails.php`, `Facades/AiGuardrails.php`, contract stubs, null bindings). Same macro branch `feature/v0.1.0`.
+- After merge: Task 2 — Control A (Tool Firewall) on new macro branch `feature/control-a-tool-firewall` off main.
 
 ### Roadmap macro status
 - [ ] Task -1 governance · [ ] Task 0 scaffold · [ ] Task 1 facade/core · [ ] Task 2 Control A · [ ] Task 3 Control B · [ ] Task 4 Control C · [ ] Task 5 Control D · [ ] Task 6 Artisan · [ ] Task 7 arch tests · [ ] Task 8 README/docs · [ ] Tasks 9–18 HTTP API · [ ] E1–E9 hardening · [ ] E9-API · [ ] E10 release.

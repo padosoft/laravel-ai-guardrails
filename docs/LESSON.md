@@ -7,7 +7,7 @@
 ### Environment (this machine)
 - PHP 8.5.7 + Composer 2.9.7 are available via **Herd**, NOT in the bash PATH. Use the explicit path `"$env:USERPROFILE\.config\herd\bin\php85.bat"` (PowerShell) / `"$HOME/.config/herd/bin/php85.bat"` (Git Bash), and `composer.bat`. To use bare names, first `export PATH="$PATH:$HOME/.config/herd/bin"` (bash) once per shell.
 - GitHub: remote `git@github.com:padosoft/laravel-ai-guardrails.git`, SSH. `gh` is authenticated (verify with `gh auth status`). `copilot` CLI v1.0.63 present.
-- `resources/` contains `laravel-ai-guardrails-Banner.png` (banner) + `laravel-ai-guardrails-admin-Dashboard-Dark.png` (screenshot) **in the working tree but untracked** until Task 8 commits them with the README. README image work must reference these exact filenames (the plan said `banner.png` generically). Do NOT add README image links before Task 8 commits the assets.
+- `resources/` contains `laravel-ai-guardrails-Banner.png` (banner) + `laravel-ai-guardrails-admin-Dashboard-Dark.png` (screenshot), **committed in Task 0** (`feature/v0.1.0`). Reference these exact filenames in the README at Task 8 (the plan said `banner.png` generically).
 
 ### Local dependency clones (for composer path repositories during dev)
 - `laravel/ai` → `../AskMyDocs/vendor/laravel/ai` (verified `src/` present).
