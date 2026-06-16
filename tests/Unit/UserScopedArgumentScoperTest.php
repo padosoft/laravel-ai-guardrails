@@ -75,4 +75,18 @@ final class UserScopedArgumentScoperTest extends TestCase
 
         self::assertSame(42, $scoped['account_id']); // int, not '42'
     }
+
+    public function test_non_numeric_principal_is_not_silently_cast_to_zero_for_integer_owner(): void
+    {
+        // A UUID principal must NOT become 0 for an integer owner field (that would scope to the
+        // wrong user). It stays a string so the integer schema validation rejects it (fail-closed).
+        $scoped = (new UserScopedArgumentScoper(['account_id']))->scope(
+            [],
+            principalId: '550e8400-e29b-41d4-a716-446655440000',
+            schemaTypes: ['account_id' => 'integer'],
+        );
+
+        self::assertSame('550e8400-e29b-41d4-a716-446655440000', $scoped['account_id']);
+        self::assertNotSame(0, $scoped['account_id']);
+    }
 }

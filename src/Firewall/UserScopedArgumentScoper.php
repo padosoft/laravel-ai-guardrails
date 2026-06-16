@@ -63,6 +63,9 @@ final readonly class UserScopedArgumentScoper implements ArgumentScoper
         $isInteger = $type === 'integer'
             || (is_array($type) && in_array('integer', $type, true) && ! in_array('string', $type, true));
 
-        return $isInteger ? (int) $principalId : (string) $principalId;
+        // Only cast to int when the principal is actually numeric. A non-numeric principal (e.g. a
+        // UUID) must NOT be silently coerced to 0 — keep it as a string so the integer schema
+        // validation rejects it (fail-closed) rather than scoping to the wrong (zero) principal.
+        return $isInteger && is_numeric($principalId) ? (int) $principalId : (string) $principalId;
     }
 }
