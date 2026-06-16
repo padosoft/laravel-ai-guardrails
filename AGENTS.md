@@ -28,7 +28,7 @@ For each macro task: branch off `main` (e.g. `feature/control-a-tool-firewall`).
 
 ## Definition of Done (DoD) — run this loop on EVERY sub-task/PR
 
-1. All local tests green: `php85.bat vendor/bin/phpunit` (Unit/Feature/Architecture). Then mutation coverage: `php85.bat vendor/bin/infection --min-msi=80`.
+1. All local tests green: `"%USERPROFILE%\.config\herd\bin\php85.bat" vendor/bin/phpunit` (Unit/Feature/Architecture). Then mutation coverage: `"%USERPROFILE%\.config\herd\bin\php85.bat" vendor/bin/infection --min-msi=80`. (Herd PHP is not on PATH — use the explicit path, or `export PATH` once per shell.)
 2. Local Copilot review: generate the full branch diff and pass it to Copilot. If too large, write to a temp file first:
    ```powershell
    # PowerShell

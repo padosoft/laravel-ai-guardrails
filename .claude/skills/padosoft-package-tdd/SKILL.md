@@ -7,12 +7,12 @@ description: Use when implementing any task in this Laravel package — the stri
 
 ## The cadence (every code task)
 1. Write the failing test first (Unit for pure logic, Feature for container/middleware/HTTP).
-2. Run it — confirm it FAILS for the right reason: `php85.bat vendor/bin/phpunit --filter <Test>`.
+2. Run it — confirm it FAILS for the right reason: `& "$env:USERPROFILE\.config\herd\bin\php85.bat" vendor/bin/phpunit --filter <Test>` (Herd PHP is not on PATH; see Toolchain below).
 3. Write the MINIMAL real implementation (no placeholders, no TODO).
 4. Run — PASS.
 5. Add the both-states test (toggle ON and OFF; for modes: enforce/monitor/off).
 6. `pint --test` + `phpstan analyse` clean.
-7. Mutation gate: `php85.bat vendor/bin/infection --min-msi=80` green.
+7. Mutation gate: `& "$env:USERPROFILE\.config\herd\bin\php85.bat" vendor/bin/infection --min-msi=80` green.
 8. Commit (small, coherent). Then the copilot-review-loop skill closes the sub-task.
 
 ## Toolchain

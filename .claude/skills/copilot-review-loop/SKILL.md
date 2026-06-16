@@ -15,9 +15,10 @@ The Definition of Done for every sub-task. Do not skip; do not fake.
 # from repo root
 git fetch origin
 
-# run tests + mutation coverage (must both pass)
-php85.bat vendor/bin/phpunit
-php85.bat vendor/bin/infection --min-msi=80
+# run tests + mutation coverage (must both pass). Herd PHP is not on PATH → call it explicitly:
+$php = "$env:USERPROFILE\.config\herd\bin\php85.bat"
+& $php vendor/bin/phpunit
+& $php vendor/bin/infection --min-msi=80
 
 # generate FULL branch diff (not just uncommitted changes) and pipe to Copilot
 git diff origin/main...HEAD | Out-File "$env:TEMP\branch.diff" -Encoding utf8
@@ -26,8 +27,9 @@ copilot --autopilot --yolo -p "/review the changes in $env:TEMP\branch.diff for 
 
 **Git Bash equivalent:**
 ```bash
-git diff origin/main...HEAD > "$TEMP/branch.diff"
-copilot --autopilot --yolo -p "/review the changes in $TEMP/branch.diff ..."
+DIFF="${TMPDIR:-/tmp}/branch.diff"
+git diff origin/main...HEAD > "$DIFF"
+copilot --autopilot --yolo -p "/review the changes in $DIFF ..."
 ```
 
 Resolve EVERY comment. Re-run until zero comments. Only then `git push`.
