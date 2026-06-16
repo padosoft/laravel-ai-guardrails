@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Tests\Unit;
 
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeOwnedTool;
+use Padosoft\AiGuardrails\Tests\Doubles\FakeTypedTool;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 final class SchemaToolArgumentValidatorTest extends TestCase
@@ -41,10 +42,13 @@ final class SchemaToolArgumentValidatorTest extends TestCase
         $matchesType = new \ReflectionMethod($validator, 'matchesType');
 
         // Unknown type keywords must fail-closed (return false) to prevent bypass on schema extensions.
-        self::assertFalse($matchesType->invoke($validator, 'null', null));
         self::assertFalse($matchesType->invoke($validator, 'date', '2026-01-01'));
         self::assertFalse($matchesType->invoke($validator, 'int', 1));   // typo of 'integer'
         self::assertFalse($matchesType->invoke($validator, 'custom', 'value'));
+
+        // 'null' IS a recognised JSON-schema type (used in nullable unions like ['string','null']).
+        self::assertTrue($matchesType->invoke($validator, 'null', null));
+        self::assertFalse($matchesType->invoke($validator, 'null', 'not-null'));
     }
 
     public function test_unknown_keys_allowed_when_reject_unknown_is_false(): void
@@ -53,5 +57,22 @@ final class SchemaToolArgumentValidatorTest extends TestCase
             ->validate(new FakeOwnedTool, ['order_id' => 'A1', 'extra' => 'y']);
 
         self::assertSame([], $errors);
+    }
+
+    public function test_nullable_union_type_accepts_null_and_member_type(): void
+    {
+        $validator = new SchemaToolArgumentValidator(rejectUnknown: true);
+
+        // note is nullable string → ['string','null']: null and string both valid.
+        self::assertSame([], $validator->validate(new FakeTypedTool, ['account_id' => 5, 'note' => null]));
+        self::assertSame([], $validator->validate(new FakeTypedTool, ['account_id' => 5, 'note' => 'hi']));
+    }
+
+    public function test_union_type_rejects_value_matching_no_member(): void
+    {
+        $errors = (new SchemaToolArgumentValidator(rejectUnknown: true))
+            ->validate(new FakeTypedTool, ['account_id' => 5, 'note' => 123]); // int is neither string nor null
+
+        self::assertArrayHasKey('note', $errors);
     }
 }

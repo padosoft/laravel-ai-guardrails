@@ -45,9 +45,26 @@ final readonly class SchemaToolArgumentValidator implements ToolArgumentValidato
                 continue;
             }
 
-            $expected = is_string($definition['type'] ?? null) ? $definition['type'] : null;
-            if ($expected !== null && ! $this->matchesType($expected, $arguments[$key])) {
-                $errors[$key] = "Argument [{$key}] must be of type [{$expected}].";
+            $expected = $definition['type'] ?? null;
+            $value = $arguments[$key];
+
+            if (is_string($expected)) {
+                if (! $this->matchesType($expected, $value)) {
+                    $errors[$key] = "Argument [{$key}] must be of type [{$expected}].";
+                }
+            } elseif (is_array($expected) && $expected !== []) {
+                // Union / nullable types serialize as an array, e.g. ['string', 'null'].
+                // The value is valid if it matches at least one declared member type.
+                $matchesAny = false;
+                foreach ($expected as $member) {
+                    if (is_string($member) && $this->matchesType($member, $value)) {
+                        $matchesAny = true;
+                        break;
+                    }
+                }
+                if (! $matchesAny) {
+                    $errors[$key] = "Argument [{$key}] must be one of types [".implode('|', array_map('strval', $expected)).'].';
+                }
             }
         }
 
@@ -71,6 +88,7 @@ final readonly class SchemaToolArgumentValidator implements ToolArgumentValidato
             'boolean' => is_bool($value),
             'array' => is_array($value),
             'object' => is_array($value),
+            'null' => $value === null,
             default => false, // unknown schema type → reject (fail-closed; prevents bypass on schema extensions)
         };
     }

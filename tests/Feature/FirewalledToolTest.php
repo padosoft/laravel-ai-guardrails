@@ -11,6 +11,7 @@ use Padosoft\AiGuardrails\Firewall\FirewalledTool;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeOwnedTool;
+use Padosoft\AiGuardrails\Tests\Doubles\FakeTypedTool;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 final class FirewalledToolTest extends TestCase
@@ -56,5 +57,40 @@ final class FirewalledToolTest extends TestCase
 
         self::assertSame('Issue a refund for an order.', (string) $wrapped->description());
         self::assertArrayHasKey('order_id', $wrapped->schema(new JsonSchemaTypeFactory));
+    }
+
+    public function test_default_owner_keys_not_declared_by_the_tool_do_not_break_the_call(): void
+    {
+        // Regression: with the full default owner_keys, only the keys the tool declares (user_id)
+        // are injected — the rest must not be injected and then rejected as unknown.
+        $tool = new FakeOwnedTool;
+        $wrapped = new FirewalledTool(
+            $tool,
+            new UserScopedArgumentScoper(['user_id', 'owner_id', 'account_id', 'customer_id']),
+            new SchemaToolArgumentValidator(rejectUnknown: true),
+            principalResolver: static fn (): string => '42',
+        );
+
+        $result = $wrapped->handle(new Request(['order_id' => 'A1']));
+
+        self::assertSame('ok', (string) $result);
+        self::assertSame('42', $tool->received['user_id']);
+        self::assertArrayNotHasKey('owner_id', $tool->received);
+        self::assertArrayNotHasKey('account_id', $tool->received);
+    }
+
+    public function test_integer_owner_key_receives_integer_principal(): void
+    {
+        $tool = new FakeTypedTool;
+        $wrapped = new FirewalledTool(
+            $tool,
+            new UserScopedArgumentScoper(['account_id']),
+            new SchemaToolArgumentValidator(rejectUnknown: true),
+            principalResolver: static fn (): string => '42',
+        );
+
+        $wrapped->handle(new Request(['account_id' => 999, 'note' => 'hi']));
+
+        self::assertSame(42, $tool->received['account_id']); // int, passes integer validation
     }
 }

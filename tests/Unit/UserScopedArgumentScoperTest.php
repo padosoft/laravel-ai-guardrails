@@ -50,4 +50,29 @@ final class UserScopedArgumentScoperTest extends TestCase
 
         self::assertSame(['order_id' => 'A1'], $scoped);
     }
+
+    public function test_schema_aware_scoping_skips_owner_keys_not_declared_by_the_tool(): void
+    {
+        // account_id is a configured owner key but NOT in the tool schema → must not be injected
+        // (otherwise the validator would reject it as an unknown argument).
+        $scoped = (new UserScopedArgumentScoper(['user_id', 'account_id']))->scope(
+            ['order_id' => 'A1'],
+            principalId: '42',
+            schemaTypes: ['user_id' => 'string', 'order_id' => 'string'],
+        );
+
+        self::assertSame('42', $scoped['user_id']);
+        self::assertArrayNotHasKey('account_id', $scoped);
+    }
+
+    public function test_schema_aware_scoping_coerces_principal_to_integer_owner_type(): void
+    {
+        $scoped = (new UserScopedArgumentScoper(['account_id']))->scope(
+            [],
+            principalId: '42',
+            schemaTypes: ['account_id' => 'integer'],
+        );
+
+        self::assertSame(42, $scoped['account_id']); // int, not '42'
+    }
 }

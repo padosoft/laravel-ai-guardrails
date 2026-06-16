@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Firewall;
 
 use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -37,7 +38,11 @@ final readonly class FirewalledTool implements Tool
 
     public function handle(Request $request): Stringable|string
     {
-        $scoped = $this->scoper->scope($request->toArray(), ($this->principalResolver)());
+        $scoped = $this->scoper->scope(
+            $request->toArray(),
+            ($this->principalResolver)(),
+            $this->schemaTypes(),
+        );
 
         $violations = $this->validator->validate($this->delegate, $scoped);
         if ($violations !== []) {
@@ -45,6 +50,26 @@ final readonly class FirewalledTool implements Tool
         }
 
         return $this->delegate->handle(new Request($scoped));
+    }
+
+    /**
+     * The delegate's schema property names mapped to their declared JSON-schema type, used by the
+     * scoper to restrict owner-key re-scoping to declared keys and coerce the principal's type.
+     *
+     * @return array<string,string|array<int,string>|null>
+     */
+    private function schemaTypes(): array
+    {
+        $factory = new JsonSchemaTypeFactory;
+        $schema = $factory->object($this->delegate->schema($factory))->toArray();
+        $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+
+        $types = [];
+        foreach ($properties as $key => $definition) {
+            $types[$key] = is_array($definition) ? ($definition['type'] ?? null) : null;
+        }
+
+        return $types;
     }
 
     /** @return array<string, Type> */

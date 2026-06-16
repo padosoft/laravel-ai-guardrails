@@ -12,7 +12,7 @@ use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
  */
 final class PassthroughArgumentScoper implements ArgumentScoper
 {
-    public function scope(array $arguments, int|string|null $principalId): array
+    public function scope(array $arguments, int|string|null $principalId, array $schemaTypes = []): array
     {
         return $arguments;
     }

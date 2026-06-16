@@ -52,6 +52,12 @@
 - **illuminate constraint narrowed `^12|^13` → `^13.0`** to match what CI actually tests (don't advertise untested Laravel 12 support). `laravel/ai ^0.8` still allows 12|13 but composer picks 13.
 - **`TestCase::resolve()` is `class-string<T>`-typed** — do NOT call it with a container alias string (`'ai-guardrails'`). Resolve aliases via the `app('alias')` helper instead. Split FacadeResolvesTest into a class-string test + an alias test.
 
+### Control A PR #3 review fixes (2026-06-17, codex — 3 real security findings, CI was already green)
+- **P1 (real bug): owner-key injection must be schema-restricted.** The scoper injected ALL configured `owner_keys` (default 4) even for tools that declare only a subset → the validator then rejected the injected-but-undeclared keys as "unknown" → **every tool failed under the default config**. Fix: `FirewalledTool` passes the tool's schema property→type map to `scope()`, which only injects owner keys the tool declares. Verified the bug reproduced before the fix.
+- **P2a: preserve integer principals.** The scoper hard-cast the principal to `(string)`; an `integer` owner field then failed type validation. Fix: `coerce()` casts to int when the declared type is `integer` (or an integer-only union).
+- **P2b: nullable/union types serialize as an ARRAY.** `string()->nullable()->toArray()` → `{"type":["string","null"]}`; `union([...])` likewise. The validator must treat an array `type` as "match ANY member" and recognise `'null'` as a real type (value === null). A scalar `is_string($type)` check silently skipped validation for these.
+- General: the scoper↔validator interaction is where firewall bugs hide — always test the decorator end-to-end with the DEFAULT config, not just hand-picked owner keys.
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
