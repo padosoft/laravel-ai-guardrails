@@ -12,13 +12,26 @@ final class ApiGuardBootTest extends TestCase
 {
     public function test_boot_throws_when_api_enabled_with_empty_middleware(): void
     {
-        // App boots normally (api.enabled=false by default).
-        // Now enable the API surface with no middleware and re-run boot on a fresh provider.
         $this->app['config']->set('ai-guardrails.api.enabled', true);
         $this->app['config']->set('ai-guardrails.api.middleware', []);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/api\.middleware is empty/');
+        $this->expectExceptionMessageMatches('/api\.middleware is not a non-empty array/');
+
+        (new AiGuardrailsServiceProvider($this->app))->boot();
+    }
+
+    /**
+     * Fail CLOSED: a partial package-config merge can leave api.middleware as null
+     * (nested defaults are not restored), which must still be treated as "open".
+     */
+    public function test_boot_throws_when_api_enabled_with_null_middleware(): void
+    {
+        $this->app['config']->set('ai-guardrails.api.enabled', true);
+        $this->app['config']->set('ai-guardrails.api.middleware', null);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/not a non-empty array/');
 
         (new AiGuardrailsServiceProvider($this->app))->boot();
     }

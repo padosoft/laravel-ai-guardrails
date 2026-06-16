@@ -47,6 +47,11 @@
 - Clarified `resources/` assets are present-but-untracked until Task 8 (avoids broken README links).
 - **REFUTED Copilot P1** ("requestReviewsByLogin doesn't exist"): empirically false — the mutation succeeded on PR #1 and added the reviewer. Kept it; see the Environment > Copilot reviewer note above. Lesson: verify review claims against evidence; do not blindly comply.
 
+### PR #2 review fixes (2026-06-16, Copilot + codex on the macro PR — CI all 3 legs green)
+- **API guard fail-CLOSED:** Laravel's package config merge does NOT recursively restore nested defaults, so a host partial config like `['api' => ['enabled' => true]]` leaves `config('ai-guardrails.api.middleware')` as `null`, not `[]`. The guard's `=== []` check skipped that case → open API. Fixed to `! is_array($mw) || $mw === []`. Added `test_boot_throws_when_api_enabled_with_null_middleware`. **General lesson: never rely on nested package-config defaults being present; treat missing/non-array as the unsafe state.**
+- **illuminate constraint narrowed `^12|^13` → `^13.0`** to match what CI actually tests (don't advertise untested Laravel 12 support). `laravel/ai ^0.8` still allows 12|13 but composer picks 13.
+- **`TestCase::resolve()` is `class-string<T>`-typed** — do NOT call it with a container alias string (`'ai-guardrails'`). Resolve aliases via the `app('alias')` helper instead. Split FacadeResolvesTest into a class-string test + an alias test.
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 

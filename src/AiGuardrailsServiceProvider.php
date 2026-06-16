@@ -51,10 +51,13 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             );
         }
 
-        // Refuse to boot with an open API surface that has no middleware.
-        if ((bool) config('ai-guardrails.api.enabled') && config('ai-guardrails.api.middleware') === []) {
+        // Refuse to boot with an open API surface. Fail CLOSED: any value that is not a
+        // non-empty array of middleware (empty array, null, scalar — e.g. from a partial
+        // package-config merge that does not restore nested defaults) is treated as "open".
+        $apiMiddleware = config('ai-guardrails.api.middleware');
+        if ((bool) config('ai-guardrails.api.enabled') && (! is_array($apiMiddleware) || $apiMiddleware === [])) {
             throw new \RuntimeException(
-                'laravel-ai-guardrails: api.enabled is true but api.middleware is empty. '.
+                'laravel-ai-guardrails: api.enabled is true but api.middleware is not a non-empty array. '.
                 'Set at least one middleware (e.g. "auth:sanctum") in config/ai-guardrails.php to protect the API surface.'
             );
         }

@@ -17,9 +17,16 @@ final class FacadeResolvesTest extends TestCase
         return ['AiGuardrails' => AiGuardrailsFacade::class];
     }
 
-    public function test_facade_resolves_to_core_service(): void
+    public function test_core_service_resolves_by_class(): void
     {
-        self::assertInstanceOf(AiGuardrails::class, $this->resolve('ai-guardrails'));
+        self::assertInstanceOf(AiGuardrails::class, $this->resolve(AiGuardrails::class));
+    }
+
+    public function test_alias_resolves_to_core_service(): void
+    {
+        // The 'ai-guardrails' alias is a container string, not a class-string, so it is
+        // resolved via the app() helper rather than the class-string-typed resolve() helper.
+        self::assertInstanceOf(AiGuardrails::class, app('ai-guardrails'));
     }
 
     public function test_screen_returns_a_verdict(): void
