@@ -86,8 +86,10 @@ final readonly class SchemaToolArgumentValidator implements ToolArgumentValidato
             'integer' => is_int($value),
             'number' => is_int($value) || is_float($value),
             'boolean' => is_bool($value),
-            'array' => is_array($value),
-            'object' => is_array($value),
+            // JSON 'array' is a list; 'object' is a map. In PHP both are arrays, so distinguish by
+            // list-ness (an empty array is ambiguous and accepted by either).
+            'array' => is_array($value) && array_is_list($value),
+            'object' => is_array($value) && ($value === [] || ! array_is_list($value)),
             'null' => $value === null,
             default => false, // unknown schema type → reject (fail-closed; prevents bypass on schema extensions)
         };

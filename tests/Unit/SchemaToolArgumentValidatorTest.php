@@ -59,6 +59,17 @@ final class SchemaToolArgumentValidatorTest extends TestCase
         self::assertSame([], $errors);
     }
 
+    public function test_array_and_object_types_are_distinguished(): void
+    {
+        $validator = new SchemaToolArgumentValidator(rejectUnknown: false);
+        $matchesType = new \ReflectionMethod($validator, 'matchesType');
+
+        self::assertTrue($matchesType->invoke($validator, 'array', [1, 2, 3]));   // list
+        self::assertFalse($matchesType->invoke($validator, 'array', ['a' => 1])); // map is not a list
+        self::assertTrue($matchesType->invoke($validator, 'object', ['a' => 1])); // map
+        self::assertFalse($matchesType->invoke($validator, 'object', [1, 2, 3])); // list is not an object
+    }
+
     public function test_nullable_union_type_accepts_null_and_member_type(): void
     {
         $validator = new SchemaToolArgumentValidator(rejectUnknown: true);

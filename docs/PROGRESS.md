@@ -29,8 +29,8 @@
 - [x] Verified laravel/ai v0.8.1 JSON Schema model (see LESSON "Control A"): `Type::toArray()` leaf has NO `required`; read required via `object($map)->toArray()['required']`. Runtime schema arg is `JsonSchemaTypeFactory`.
 - [x] `Contracts/{ArgumentScoper,ToolArgumentValidator}`, `Firewall/{UserScopedArgumentScoper,SchemaToolArgumentValidator,FirewalledTool}`, `Exceptions/ToolArgumentRejection`, `Doubles/FakeOwnedTool`.
 - [x] Provider binds `ArgumentScoper`/`ToolArgumentValidator` from `tool_firewall` config (owner_keys, reject_unknown — both-states tested).
-- [x] Tests: validator (4), scoper (3), decorator (3), bindings (3). Full suite 25 tests / 45 assertions GREEN; pint + phpstan level 8 clean.
-- [ ] DoD loop: local copilot review → push → PR `feature/control-a-tool-firewall` → main → Copilot reviewer → CI → merge.
+- [x] Schema-aware scoping (owner-key injection restricted to declared keys; integer principal coercion), union/nullable validation, array/object distinction, master kill-switch degrades firewall. Full suite **38 tests / 74 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] DoD loop: local + PR review (2 rounds, codex P1 owner-key bug + Copilot array/object + master-switch) all resolved; CI green on PR #3.
 
 ### Next
 - Task 3 — Control B (Input middleware + append-only injection audit) on `feature/control-b-input-screen` off main.

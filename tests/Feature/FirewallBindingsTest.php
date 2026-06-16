@@ -67,4 +67,18 @@ final class FirewallBindingsTest extends TestCase
         self::assertInstanceOf(UserScopedArgumentScoper::class, $this->resolve(ArgumentScoper::class));
         self::assertInstanceOf(SchemaToolArgumentValidator::class, $this->resolve(ToolArgumentValidator::class));
     }
+
+    public function test_master_kill_switch_off_degrades_firewall_to_passthrough(): void
+    {
+        // Master off must degrade the firewall even when tool_firewall.enabled is true.
+        $this->app['config']->set('ai-guardrails.enabled', false);
+        $this->app['config']->set('ai-guardrails.tool_firewall.enabled', true);
+        $this->app->forgetInstance(ArgumentScoper::class);
+        $this->app->forgetInstance(ToolArgumentValidator::class);
+
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        self::assertInstanceOf(PassthroughArgumentScoper::class, $this->resolve(ArgumentScoper::class));
+        self::assertInstanceOf(PermissiveToolArgumentValidator::class, $this->resolve(ToolArgumentValidator::class));
+    }
 }

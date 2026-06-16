@@ -31,7 +31,10 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         $this->app->singleton(PiiRedaction::class, NullPiiRedaction::class);
 
         // Control A — Tool firewall collaborators (configured from the tool_firewall block).
-        if ((bool) config('ai-guardrails.tool_firewall.enabled', true)) {
+        // The master kill-switch (ai-guardrails.enabled) degrades every control to pass-through.
+        $firewallActive = (bool) config('ai-guardrails.enabled', true)
+            && (bool) config('ai-guardrails.tool_firewall.enabled', true);
+        if ($firewallActive) {
             $this->app->singleton(ArgumentScoper::class, static function ($app): ArgumentScoper {
                 $ownerKeys = $app['config']->get('ai-guardrails.tool_firewall.owner_keys', []);
 
