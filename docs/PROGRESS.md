@@ -7,9 +7,10 @@
 ### Task -1 — Governance bootstrap (IN PROGRESS, branch `feature/governance-bootstrap`)
 - [x] Environment recon: Herd PHP 8.5.7, Composer 2.9.7, gh authenticated, copilot CLI, remote origin set, dependency clones located, banner+screenshot present in `resources/`.
 - [x] Wrote `AGENTS.md`, `CLAUDE.md`, `.claude/rules/{00-working-method,10-padosoft-conventions,20-security-posture}.md`, `.claude/skills/{copilot-review-loop,padosoft-package-tdd}/SKILL.md`, `docs/LESSON.md`, `docs/PROGRESS.md`.
-- [x] Commit (bf01cda) + local Copilot review (auto-fixed php85.bat/PowerShell/username/Infection-gate issues) committed (7f9ff15).
-- [x] Pushed; **PR #1** open `feature/governance-bootstrap → main`; Copilot reviewer requested via GraphQL (confirmed in requested_reviewers).
-- [ ] AWAITING: Copilot PR review (no CI on this docs-only branch — CI workflow arrives in Task 0). Resume = poll `gh pr view 1 --json reviews` + `gh api .../pulls/1/comments`; resolve comments; merge; then start Task 0.
+- [x] Local Copilot review run + fixes applied + committed.
+- [x] Pushed; **PR #1** `feature/governance-bootstrap → main`; Copilot reviewer requested via GraphQL (confirmed).
+- [x] Copilot/codex PR review received; all actionable comments resolved (the recurring GraphQL "P1" is empirically refuted — see LESSON; kept as-is).
+- [ ] AWAITING: final review pass clean → **merge PR #1**, then start Task 0. (No CI on this docs-only branch — CI workflow arrives in Task 0.) Resume = `gh pr view 1 --json reviewDecision,comments`; if clean, `gh pr merge 1 --squash`.
 
 ### Next
 - Task 0 — Package scaffold (composer.json with `laravel/ai` path repo, pint/phpstan/phpunit/CI, provider, config, testbench, first boot test). Macro branch `feature/v0.1.0` (scaffold+core per plan).

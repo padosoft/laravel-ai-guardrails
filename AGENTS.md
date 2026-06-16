@@ -6,8 +6,11 @@ The companion admin SPA lives in the sibling repo `../laravel-ai-guardrails-admi
 
 ## Durable context (read these first if context is missing)
 
-- Implementation plan: `%USERPROFILE%\.claude\plans\2026-06-16-laravel-ai-guardrails.md` (Tasks -1 → E10).
-- Admin plan: `%USERPROFILE%\.claude\plans\2026-06-16-laravel-ai-guardrails-admin.md`.
+In-repo (versioned, always available): `docs/PROGRESS.md`, `docs/LESSON.md`, `.claude/rules/`, `.claude/skills/`, this file, `CLAUDE.md`.
+
+Local-only (on the maintainer's machine, NOT versioned — may be absent for other contributors/CI): the implementation plans below. If present, read them first; if absent, the in-repo files above are authoritative.
+- Implementation plan (local): `%USERPROFILE%\.claude\plans\2026-06-16-laravel-ai-guardrails.md` (Tasks -1 → E10).
+- Admin plan (local): `%USERPROFILE%\.claude\plans\2026-06-16-laravel-ai-guardrails-admin.md`.
 - `docs/PROGRESS.md` — where work currently stands (resume point after any interruption).
 - `docs/LESSON.md` — everything learned / every bug+fix / every Copilot fix. **Pass this into every sub-agent and every new session.**
 - `.claude/rules/` — the binding rules (working method, conventions, security posture).

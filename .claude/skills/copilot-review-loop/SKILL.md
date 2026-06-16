@@ -29,7 +29,7 @@ copilot --autopilot --yolo -p "/review the changes in $env:TEMP\branch.diff for 
 ```bash
 DIFF="${TMPDIR:-/tmp}/branch.diff"
 git diff origin/main...HEAD > "$DIFF"
-copilot --autopilot --yolo -p "/review the changes in $DIFF ..."
+copilot --autopilot --yolo -p "/review the changes in $DIFF for the laravel-ai-guardrails package. Focus on security posture, untrusted-input handling, append-only invariants, and test coverage."
 ```
 
 Resolve EVERY comment. Re-run until zero comments. Only then `git push`.
