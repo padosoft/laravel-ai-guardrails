@@ -13,7 +13,11 @@
 - `laravel/ai` → `../AskMyDocs/vendor/laravel/ai` (verified `src/` present).
 - `padosoft/laravel-flow` → `../padosoft-laravel-flow`.
 - `padosoft/laravel-pii-redactor` → `../padosoft-laravel-pii-redactor`.
-- TODO (Task 0): decide path-repository vs Packagist resolution for `laravel/ai` and record the final composer.json `repositories` block here.
+- **RESOLVED (Task 0): use Packagist, NOT path repos.** All three deps are published on Packagist (HTTP 200) AND public on GitHub: `laravel/ai` (stable tag `v0.8.1`), `padosoft/laravel-flow` (`v1.0.0`), `padosoft/laravel-pii-redactor` (`v1.2.0`). composer.json uses `"laravel/ai": "^0.8"` (require), flow/pii `^1.0` (require-dev), `minimum-stability: stable` + `prefer-stable: true`, NO `repositories` block → resolves identically locally and on CI. The local clones were only used for the initial API research (the clone was a newer dev branch `dev-feat/v8_15-...`; published stable is v0.8.1).
+- **Verify v0.8.1 contracts during Task 2** (the plan's API was read from the dev clone): confirmed `Laravel\Ai\Contracts\Tool` in v0.8.1 = `description(): Stringable|string`, `handle(Request): Stringable|string`, `schema(JsonSchema): array` (matches plan). Still TODO: `Request` ctor, `AgentPrompt`, `AgentResponse`, and `Illuminate\JsonSchema\Types\Type::toArray()` shape against v0.8.1.
+- Stack confirmed working together: PHP 8.5.7 + PHPUnit 12.5.30 + Orchestra Testbench 11.x + Laravel framework (pulled by testbench). `illuminate/json-schema` ships inside `laravel/framework`.
+- Default screening patterns use the `/u` (unicode) PCRE flag from the start (E1 foresight) — remember byte-vs-char offset implications for the matched-span feature (Task 11).
+- `infection/infection` deferred to Task E9 (avoid a PHPUnit 12 peer conflict during scaffolding); the DoD mutation gate activates from E9 onward.
 
 ### Governance (ported from product_image_discovery_admin)
 - The reference repo keeps governance in `AGENTS.md` + `docs/RULES.md` (+ `.agents/`), not `.claude/`. We use Claude format: `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `.claude/skills/`.
