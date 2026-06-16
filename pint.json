@@ -1,0 +1,7 @@
+{
+    "preset": "laravel",
+    "rules": {
+        "ordered_imports": { "sort_algorithm": "alpha" },
+        "declare_strict_types": true
+    }
+}

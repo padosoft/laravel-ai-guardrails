@@ -1,0 +1,33 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  php:
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4', '8.5']
+        laravel: ['13.*']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+      - name: Validate composer metadata
+        run: composer validate --strict --no-interaction --no-ansi
+      - name: Pin Laravel matrix
+        run: composer require "laravel/framework:${{ matrix.laravel }}" --dev --no-update --no-interaction --no-ansi
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress --no-ansi
+      - name: Pint
+        run: vendor/bin/pint --test
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+      - name: PHPUnit
+        run: vendor/bin/phpunit
