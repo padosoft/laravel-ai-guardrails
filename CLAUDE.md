@@ -17,7 +17,7 @@ Project memory. Read `AGENTS.md` for the full working method, `.claude/rules/` f
 - Every behaviour-changing feature is a config toggle, default-OFF where it changes behaviour, and **tested in BOTH states** (and three states for enforce/monitor/off).
 - Audit stores are **append-only** (model throws on update/delete).
 - Docs must match code: every config key / command / class quoted in README must exist.
-- TDD always: failing test → run (FAIL) → minimal impl → run (PASS) → both-states test → commit.
+- TDD always: failing test → run (FAIL) → minimal impl → run (PASS) → both-states test → mutation gate (`infection --min-msi=80`) → commit.
 
 ## Surfaces (tri-surface discipline)
 

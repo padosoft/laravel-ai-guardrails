@@ -12,10 +12,12 @@ description: Use when implementing any task in this Laravel package — the stri
 4. Run — PASS.
 5. Add the both-states test (toggle ON and OFF; for modes: enforce/monitor/off).
 6. `pint --test` + `phpstan analyse` clean.
-7. Commit (small, coherent). Then the copilot-review-loop skill closes the sub-task.
+7. Mutation gate: `php85.bat vendor/bin/infection --min-msi=80` green.
+8. Commit (small, coherent). Then the copilot-review-loop skill closes the sub-task.
 
 ## Toolchain
-- `export PATH="$PATH:/c/Users/lopad/.config/herd/bin"` then use `php85.bat`, `composer.bat`.
+- PowerShell: `& "$env:USERPROFILE\.config\herd\bin\php85.bat" vendor/bin/phpunit`
+- Git Bash: `export PATH="$PATH:$HOME/.config/herd/bin"` then use `php85.bat`, `composer.bat`.
 - Or invoke directly: `"%USERPROFILE%\.config\herd\bin\php85.bat" vendor/bin/phpunit`.
 
 ## Invariants to honor

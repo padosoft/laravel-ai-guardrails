@@ -2,7 +2,7 @@
 
 ## Branch & PR loop
 - One branch per MACRO task (off `main`). Each sub-task → its own PR into the macro branch. Macro task green → macro PR into `main`.
-- Definition of Done loop (per sub-task/PR): local tests green → local `copilot --autopilot --yolo /review <full branch diff vs origin/main>` with ZERO comments → push → open PR → request **Copilot** reviewer → wait CI green + Copilot comments → fix loop → merge. Only then advance.
+- Definition of Done loop (per sub-task/PR): local tests green (`php85.bat vendor/bin/phpunit`) → mutation gate green (`php85.bat vendor/bin/infection --min-msi=80`) → local `copilot --autopilot --yolo /review <full branch diff vs origin/main, written to $env:TEMP\branch.diff>` with ZERO comments → push → open PR → request **Copilot** reviewer → wait CI green + Copilot comments → fix loop → merge. Only then advance.
 - Request the Copilot reviewer via the GraphQL `requestReviewsByLogin` mutation (bot `copilot-pull-request-reviewer[bot]`); `gh pr edit --add-reviewer @copilot` and the REST endpoint are unreliable. See `AGENTS.md`.
 - Never fake the loop. If GitHub/Copilot is unavailable, record the local status + next remote step in `docs/PROGRESS.md`.
 

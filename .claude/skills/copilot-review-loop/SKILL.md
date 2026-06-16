@@ -8,12 +8,28 @@ description: Use when closing any sub-task/PR in this repo — runs the local Co
 The Definition of Done for every sub-task. Do not skip; do not fake.
 
 ## 1. Local gate (before push)
-```bash
-# from repo root, with Herd PHP on PATH
+
+> **Shell note:** Run from PowerShell (or adapt to Git Bash). Commands below are PowerShell.
+
+```powershell
+# from repo root
 git fetch origin
-git diff origin/main...HEAD > /tmp/branch.diff   # FULL branch diff, not just uncommitted
-copilot --autopilot --yolo -p "/review the changes in /tmp/branch.diff for the laravel-ai-guardrails package. Focus on security posture, untrusted-input handling, append-only invariants, and test coverage."
+
+# run tests + mutation coverage (must both pass)
+php85.bat vendor/bin/phpunit
+php85.bat vendor/bin/infection --min-msi=80
+
+# generate FULL branch diff (not just uncommitted changes) and pipe to Copilot
+git diff origin/main...HEAD | Out-File "$env:TEMP\branch.diff" -Encoding utf8
+copilot --autopilot --yolo -p "/review the changes in $env:TEMP\branch.diff for the laravel-ai-guardrails package. Focus on security posture, untrusted-input handling, append-only invariants, and test coverage."
 ```
+
+**Git Bash equivalent:**
+```bash
+git diff origin/main...HEAD > "$TEMP/branch.diff"
+copilot --autopilot --yolo -p "/review the changes in $TEMP/branch.diff ..."
+```
+
 Resolve EVERY comment. Re-run until zero comments. Only then `git push`.
 
 ## 2. Open PR (toward the branch you are working on / macro branch)

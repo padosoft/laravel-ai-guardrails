@@ -28,8 +28,14 @@ For each macro task: branch off `main` (e.g. `feature/control-a-tool-firewall`).
 
 ## Definition of Done (DoD) — run this loop on EVERY sub-task/PR
 
-1. All local tests green: `php85 vendor/bin/phpunit` (Unit/Feature/Architecture). Where JS/Vite assets exist, the Vite build/tests too.
-2. Local Copilot review: `copilot --autopilot --yolo -p "/review <diff of THIS branch vs origin/main>"`. Pass the FULL branch diff (not just uncommitted files); if too large, write to a temp file and pass the path. Resolve **every** comment.
+1. All local tests green: `php85.bat vendor/bin/phpunit` (Unit/Feature/Architecture). Then mutation coverage: `php85.bat vendor/bin/infection --min-msi=80`.
+2. Local Copilot review: generate the full branch diff and pass it to Copilot. If too large, write to a temp file first:
+   ```powershell
+   # PowerShell
+   git diff origin/main...HEAD | Out-File "$env:TEMP\branch.diff" -Encoding utf8
+   copilot --autopilot --yolo -p "/review the changes in $env:TEMP\branch.diff for the laravel-ai-guardrails package. Focus on security posture, untrusted-input handling, append-only invariants, and test coverage."
+   ```
+   Resolve **every** comment.
 3. Only when local tests pass AND local Copilot review has **zero** comments → `git push`.
 4. Open the PR toward the branch you are working on; set **Copilot as reviewer** and confirm the review actually started (see GraphQL note below).
 5. Wait for BOTH: all CI checks green AND Copilot's PR comments.

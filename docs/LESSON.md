@@ -20,6 +20,13 @@
 - **Copilot reviewer gotcha (important):** request via GraphQL `requestReviewsByLogin` with bot login `copilot-pull-request-reviewer[bot]`. `gh pr edit --add-reviewer @copilot` can fail (needs `read:project`) and REST `reviewers[]=copilot` can 200 without creating a visible review. See `.claude/skills/copilot-review-loop`.
 - Do not use `@codex review` as a Copilot substitute unless explicitly asked.
 
+### Governance doc fixes (2026-06-16 review)
+- `php85` (bare) won't resolve on Windows; always use `php85.bat` or the full `%USERPROFILE%\.config\herd\bin\php85.bat` path.
+- `copilot-review-loop/SKILL.md` was bash-only. Rewrote step 1 as PowerShell-first with a Git Bash alternative. `/tmp/branch.diff` → `$env:TEMP\branch.diff`.
+- Hardcoded username `lopad` in `padosoft-package-tdd/SKILL.md` toolchain path replaced with `$env:USERPROFILE` / `$HOME`.
+- Infection/MSI gate (`vendor/bin/infection --min-msi=80`) was absent from every DoD checklist despite Rule 20 mandating it. Added to: `AGENTS.md` step 1, `CLAUDE.md` TDD cycle, `padosoft-package-tdd/SKILL.md` step 7, `00-working-method.md` DoD summary.
+- AGENTS.md DoD step 1 mentioned "JS/Vite assets" — removed (pure PHP/API package, no JS/Vite).
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
