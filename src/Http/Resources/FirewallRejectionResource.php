@@ -49,9 +49,15 @@ final class FirewallRejectionResource
                 break;
             }
             $boundedKey = self::bounded(self::utf8((string) $key), self::KEY_LIMIT);
-            // A truncated key could collide with another; disambiguate so no entry is silently dropped.
+            // A truncated key could collide with another (or with a literal key already ending in the
+            // suffix); keep incrementing until unique so no entry is silently dropped.
             if (array_key_exists($boundedKey, $clean)) {
-                $boundedKey .= ' ('.(count($clean) + 1).')';
+                $base = $boundedKey;
+                $n = 2;
+                do {
+                    $boundedKey = $base.' ('.$n.')';
+                    $n++;
+                } while (array_key_exists($boundedKey, $clean));
             }
             $clean[$boundedKey] = self::bounded(self::utf8($reason), self::VIOLATION_LIMIT);
         }

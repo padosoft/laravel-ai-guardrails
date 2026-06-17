@@ -91,6 +91,21 @@ final class FirewallRejectionResourceTest extends TestCase
         self::assertCount(2, $result['violations']);
     }
 
+    public function test_multiple_truncated_key_collisions_all_survive_via_incrementing_suffix(): void
+    {
+        // Three distinct keys that all truncate to the same bounded key must all survive: the loop
+        // keeps incrementing the suffix (base, "base (2)", "base (3)") rather than overwriting.
+        $base = str_repeat('k', 200);
+        $result = FirewallRejectionResource::summary($this->rejection(violations: [
+            $base.'AAA' => 'r1',
+            $base.'BBB' => 'r2',
+            $base.'CCC' => 'r3',
+        ]));
+
+        self::assertCount(3, $result['violations']);
+        self::assertSame(['r1', 'r2', 'r3'], array_values($result['violations']));
+    }
+
     public function test_violation_entry_count_is_capped_but_true_total_reported(): void
     {
         $violations = [];

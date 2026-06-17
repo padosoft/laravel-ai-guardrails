@@ -16,8 +16,8 @@ use LogicException;
  *
  * Defense-in-depth only: code that drops to the base query builder (`->toBase()->update(...)`) or
  * issues raw SQL can still bypass these. The ultimate append-only guarantee is at the database layer
- * (e.g. revoke UPDATE/DELETE on the table). GDPR erasure goes through the sanctioned
- * `ai-guardrails:purge` maintenance command (Task E5), never through this builder.
+ * (e.g. revoke UPDATE/DELETE on the table). GDPR erasure is performed out-of-band by a sanctioned,
+ * audited maintenance path (planned as the `ai-guardrails:purge` command, Task E5) — never here.
  *
  * @template TModel of Model
  *

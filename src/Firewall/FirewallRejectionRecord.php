@@ -11,8 +11,8 @@ use LogicException;
 
 /**
  * Append-only Eloquent model for the firewall rejection table. Updates and deletes throw — the log
- * is immutable. Rows may only be inserted (and read). GDPR erasure goes through the sanctioned
- * `ai-guardrails:purge` maintenance command (Task E5), never through this model.
+ * is immutable. Rows may only be inserted (and read). GDPR erasure is performed out-of-band by a
+ * sanctioned, audited maintenance path (planned as the `ai-guardrails:purge` command, Task E5).
  *
  * @property int $id
  * @property string $tool_description
