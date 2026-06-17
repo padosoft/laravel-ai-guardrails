@@ -117,12 +117,12 @@ Everything is reachable from the `AiGuardrails` facade:
 ```php
 use Padosoft\AiGuardrails\Facades\AiGuardrails;
 
-AiGuardrails::screen(string $prompt): ScreenVerdict;            // Control B
-AiGuardrails::sanitize(string $text): string;                  // Control C
-AiGuardrails::guard(Tool $tool, ?Closure $principal): Tool;    // Control A (wrap a tool)
-AiGuardrails::routeForApproval(Tool $tool, string $name): Tool; // Control D (gate a destructive tool)
+AiGuardrails::screen(string $prompt): ScreenVerdict;                                  // Control B
+AiGuardrails::sanitize(string $text): string;                                        // Control C
+AiGuardrails::guard(Tool $tool, ?Closure $principalResolver = null): Tool;           // Control A
+AiGuardrails::routeForApproval(Tool $tool, string $toolName, ?Closure $principalResolver = null): Tool; // Control D
 AiGuardrails::isDestructive(string $toolName): bool;
-AiGuardrails::validateStructured(array $output, array $schema, bool $rejectUnknown = false): array;
+AiGuardrails::validateStructured(array $output, array $schema, bool $rejectUnknown = false): array; // Control C
 ```
 
 ## Wiring the agent middleware
@@ -163,7 +163,7 @@ php artisan ai-guardrails:audit --limit=50
 
 ## Configuration
 
-Every behaviour is a config toggle (`config/ai-guardrails.php`); default-OFF where it changes behaviour, and a master kill-switch on top.
+Every behaviour is a config toggle (`config/ai-guardrails.php`). The four controls are **on by default** (that is the point); the **HITL bridge** (`hitl.enabled`) and the **HTTP API** (`api.enabled`) are **default-OFF** because they need optional dependencies / explicit opt-in. A master kill-switch sits on top.
 
 | Key | Default | Purpose |
 |---|---|---|
@@ -178,9 +178,10 @@ Every behaviour is a config toggle (`config/ai-guardrails.php`); default-OFF whe
 | `hitl.enabled` | `false` | Enable the HITL approval bridge (needs `laravel-flow`). |
 | `hitl.destructive_tools` | `refund, delete, send_email` | Tool names treated as destructive. |
 | `hitl.fallback` | `deny` | When approval is unavailable: `deny` (refuse) or `pass` (execute). |
-| `audit.store` | `null` | `null` \| `array` \| `database`. |
-| `audit_hygiene.prompt_storage` | `redact` | Keep PII/secrets out of the immutable audit (`redact`/`hash`/`truncate`/`raw`). |
+| `audit.store` | `'null'` | `'null'` \| `'array'` \| `'database'` (string tokens). |
 | `api.enabled` | `false` | The default-OFF HTTP admin API surface. |
+
+> The `modes`, `audit_hygiene`, `retention`, and `tool_authorization` config blocks are scaffolded for the enterprise-hardening line and are documented as they are wired in.
 
 ## Composing laravel-flow & laravel-pii-redactor
 
@@ -195,7 +196,7 @@ When a package is absent, `class_exists` guards bind null-object implementations
 
 ## The append-only injection audit
 
-The audit is the product value of Control B. Every screening attempt — blocked *and* allowed — is appended to an immutable store. The Eloquent model and its query builder **throw on update / delete / upsert / touch / increment / truncate**; the table has no `updated_at`. Timestamps are stored in UTC. GDPR erasure goes through a sanctioned, audited maintenance command — never an in-place mutation.
+The audit is the product value of Control B. Every screening attempt — blocked *and* allowed — is appended to an immutable store. The Eloquent model and its query builder **throw on update / delete / upsert / touch / increment / truncate**; the table has no `updated_at`. Timestamps are stored in UTC. (A sanctioned, audited retention/erasure maintenance command is part of the enterprise-hardening line.)
 
 ## Security & threat model
 
