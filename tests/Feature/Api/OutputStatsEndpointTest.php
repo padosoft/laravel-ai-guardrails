@@ -44,4 +44,23 @@ final class OutputStatsEndpointTest extends TestCase
             ->assertJsonPath('data.counts.markdown_sanitized', 0)
             ->assertJsonPath('data.total', 5);
     }
+
+    public function test_from_to_window_bounds_filter_the_totals(): void
+    {
+        $store = $this->app->make(OutputStatStore::class);
+        $store->record(OutputStatKind::HtmlStripped); // recorded at "now"
+
+        // A window entirely in the past must exclude the just-recorded event.
+        $this->getJson('/ai-guardrails/api/output/stats?from=1999-01-01&to=2000-01-01')
+            ->assertOk()
+            ->assertJsonPath('data.total', 0)
+            ->assertJsonPath('data.from', '1999-01-01T00:00:00+00:00')
+            ->assertJsonPath('data.to', '2000-01-01T00:00:00+00:00');
+
+        // An open-ended window starting in the past must include it.
+        $this->getJson('/ai-guardrails/api/output/stats?from=2000-01-01')
+            ->assertOk()
+            ->assertJsonPath('data.counts.html_stripped', 1)
+            ->assertJsonPath('data.total', 1);
+    }
 }

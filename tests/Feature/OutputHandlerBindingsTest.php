@@ -14,6 +14,7 @@ use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\NullOutputStatStore;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
+use Padosoft\AiGuardrails\Output\OutputStatKind;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Output\RealPiiRedaction;
 use Padosoft\AiGuardrails\Tests\TestCase;
@@ -89,17 +90,27 @@ final class OutputHandlerBindingsTest extends TestCase
 
     public function test_empty_store_connection_and_table_degrade_to_defaults(): void
     {
-        // Empty env vars (present but blank) must not reach DB::connection('')/table('').
+        // Empty env vars (present but blank) must not reach DB::connection('')/table(''). Prove the
+        // store degrades to the DEFAULT connection + DEFAULT table by exercising it end-to-end.
+        $this->app['config']->set('database.default', 'testing');
+        $this->app['config']->set('database.connections.testing', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+        $migration = require __DIR__.'/../../database/migrations/create_ai_guardrails_output_stats_table.php.stub';
+        $migration->up();
+
         $this->app['config']->set('ai-guardrails.output_stats.store', 'database');
-        $this->app['config']->set('ai-guardrails.output_stats.connection', '');
-        $this->app['config']->set('ai-guardrails.output_stats.table', '');
+        $this->app['config']->set('ai-guardrails.output_stats.connection', ''); // empty → default connection
+        $this->app['config']->set('ai-guardrails.output_stats.table', '');       // empty → default table
         $this->app->forgetInstance(OutputStatStore::class);
 
         $store = $this->resolve(OutputStatStore::class);
         self::assertInstanceOf(DatabaseOutputStatStore::class, $store);
 
-        $ref = new \ReflectionObject($store);
-        self::assertNull($ref->getProperty('connection')->getValue($store));
-        self::assertSame('ai_guardrails_output_stats', $ref->getProperty('table')->getValue($store));
+        // If the empty values had reached DB::connection('')/table(''), this would throw.
+        $store->record(OutputStatKind::HtmlStripped);
+        self::assertSame(1, $store->count());
     }
 }
