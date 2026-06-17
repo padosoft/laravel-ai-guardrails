@@ -38,7 +38,11 @@ final class ApprovalsEndpointTest extends TestCase
         // Run the real flow migrations on the in-memory connection (loadMigrationsFrom is not wired
         // in this package's test harness; the DB store tests migrate manually too).
         $dir = __DIR__.'/../../../vendor/padosoft/laravel-flow/database/migrations';
-        foreach (glob($dir.'/*.php') ?: [] as $file) {
+        $files = glob($dir.'/*.php') ?: [];
+        // Fail fast if the dependency layout moved — otherwise migrations silently skip and the real
+        // failure surfaces later as a confusing "no such table" error.
+        self::assertNotEmpty($files, "No laravel-flow migrations found at {$dir}");
+        foreach ($files as $file) {
             (require $file)->up();
         }
     }
@@ -97,5 +101,19 @@ final class ApprovalsEndpointTest extends TestCase
         $this->postJson('/ai-guardrails/api/approvals/not-a-real-token/approve')
             ->assertStatus(422)
             ->assertJsonPath('data.error', 'decision_failed');
+    }
+
+    public function test_list_is_empty_when_hitl_disabled_even_with_a_pending_row(): void
+    {
+        $this->park(); // a real pending row now exists in flow_approvals
+
+        // Disable HITL and rebind the router → NullApprovalRouter (unavailable).
+        config(['ai-guardrails.hitl.enabled' => false]);
+        $this->app->forgetInstance(ApprovalRouter::class);
+
+        // The queue must not leak the pending row when HITL is disabled.
+        $this->getJson('/ai-guardrails/api/approvals')
+            ->assertOk()
+            ->assertJsonPath('data.pending', []);
     }
 }

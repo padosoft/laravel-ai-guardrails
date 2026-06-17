@@ -18,10 +18,14 @@ use Padosoft\AiGuardrails\Http\Support\Envelope;
  */
 final class ApprovalsController
 {
-    public function index(ApprovalReadModel $readModel): JsonResponse
+    public function index(ApprovalReadModel $readModel, ApprovalRouter $router): JsonResponse
     {
+        // Gate the read on availability too: if flow is installed+migrated but HITL is disabled, the
+        // queue must not leak pending approvals (consistent with approve/reject returning 409).
+        $pending = $router->isAvailable() ? $readModel->pending() : [];
+
         return Envelope::make(ApiSchema::SCHEMA_APPROVAL_LIST, [
-            'pending' => $readModel->pending(),
+            'pending' => $pending,
         ]);
     }
 
