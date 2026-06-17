@@ -83,5 +83,11 @@
 - LESSON: laravel-flow classes (FlowRun/FlowDefinitionBuilder) are `final` → cannot Mockery-mock; test the adapter via `Flow::swap(<plain anonymous spy>)`. Full flow persistence integration is the host's setup (plan Assumption #2).
 - [ ] DoD loop → PR. Then Task 6 (Artisan + composing helper).
 
+### Task 6 — Artisan + composing helpers (DONE locally, branch `feature/task-6-artisan`)
+- [x] `AiGuardrails` gains `guard()` (wrap with FirewalledTool), `routeForApproval()` (wrap with ApprovalGatedTool), `isDestructive()`, `validateStructured()`. Master-off → wrappers return the tool untouched. Provider builds it with all collaborators + config.
+- [x] Console: `ai-guardrails:screen` (screen+audit a prompt), `ai-guardrails:sanitize`, `ai-guardrails:audit` (list recent). Registered when runningInConsole.
+- [x] **145 tests / 261 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then Task 7 (architecture tests + master-toggle both-states).
+
 ### Next
-- Task 6 — Artisan surface (`ai-guardrails:screen|sanitize|audit`) + `AiGuardrails` composing helpers (guard/routeForApproval/validateStructured) on `feature/task-6-artisan` off main. Then arch tests (T7), README (T8), HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
+- Task 7 — Architecture conventions tests + package-wide master-toggle both-states on `feature/task-7-arch-tests`. Then README (T8), HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
