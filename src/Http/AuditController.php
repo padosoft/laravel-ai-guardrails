@@ -87,7 +87,9 @@ final class AuditController
         }
 
         try {
-            return (new DateTimeImmutable($value))->setTimezone($utc);
+            // $utc is the default zone for inputs without an explicit offset (e.g. a bare date), so a
+            // date-only bound isn't shifted by the server timezone; setTimezone normalises the rest.
+            return (new DateTimeImmutable($value, $utc))->setTimezone($utc);
         } catch (\Throwable) {
             return null;
         }

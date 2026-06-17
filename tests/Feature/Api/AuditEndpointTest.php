@@ -148,14 +148,43 @@ final class AuditEndpointTest extends TestCase
         self::assertNotEmpty($response->json('data.to'));
     }
 
+    public function test_trend_bare_date_bound_is_anchored_to_utc_midnight(): void
+    {
+        $this->seedAttempts();
+
+        // Under a non-UTC server timezone, a bare date must still anchor at UTC midnight (not be
+        // shifted into the previous/next day, which would silently move the window boundary).
+        $original = date_default_timezone_get();
+        date_default_timezone_set('America/New_York');
+
+        try {
+            $response = $this->getJson('/ai-guardrails/api/audit/trend?from=2026-01-01&to=2026-01-03')->assertOk();
+
+            self::assertSame('2026-01-01T00:00:00+00:00', $response->json('data.from'));
+            self::assertSame('2026-01-03T00:00:00+00:00', $response->json('data.to'));
+        } finally {
+            date_default_timezone_set($original);
+        }
+    }
+
     public function test_list_from_date_rejects_relative_string(): void
     {
         $this->seedAttempts();
 
-        // A relative "from" like "0000-01-01" (the zero year) is invalid per our strict ISO check
-        // and should be silently ignored (no from filter applied).
         // "tomorrow" should also be silently ignored.
         $this->getJson('/ai-guardrails/api/audit?from=tomorrow')->assertOk();
         $this->getJson('/ai-guardrails/api/audit?from=%2B100+years')->assertOk();
+    }
+
+    public function test_invalid_blocked_param_is_treated_as_absent_not_false(): void
+    {
+        $this->seedAttempts();
+
+        // An unrecognised blocked value must not silently apply blocked=false (which would hide
+        // blocked attempts). FILTER_NULL_ON_FAILURE ensures it is treated as absent (all rows).
+        $response = $this->getJson('/ai-guardrails/api/audit?blocked=garbage')->assertOk();
+
+        $entries = $response->json('data.entries');
+        self::assertCount(2, $entries, 'All entries must be returned when blocked param is invalid');
     }
 }

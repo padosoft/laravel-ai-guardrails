@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Audit;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Http\Request;
 
 /**
@@ -33,7 +34,7 @@ final readonly class AuditQueryFilters
         $to = self::parseDate($request->query('to'));
 
         return new self(
-            blocked: $blocked === null ? null : filter_var($blocked, FILTER_VALIDATE_BOOLEAN),
+            blocked: $blocked === null ? null : filter_var($blocked, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
             ruleId: self::str($request->query('rule_id')),
             principalId: self::str($request->query('principal_id')),
             search: self::str($request->query('q')),
@@ -62,7 +63,9 @@ final readonly class AuditQueryFilters
         }
 
         try {
-            return new DateTimeImmutable($value);
+            // Interpret inputs without an explicit offset as UTC, matching how occurred_at is stored,
+            // so a bare-date filter bound isn't shifted by the server timezone.
+            return new DateTimeImmutable($value, new DateTimeZone('UTC'));
         } catch (\Throwable) {
             return null;
         }
