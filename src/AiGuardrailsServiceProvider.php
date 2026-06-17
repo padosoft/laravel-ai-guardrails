@@ -16,6 +16,7 @@ use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
@@ -44,6 +45,8 @@ use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
 use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
 use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
 use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
+use Padosoft\AiGuardrails\Settings\ConfigGuardrailSettingsStore;
+use Padosoft\AiGuardrails\Settings\DatabaseGuardrailSettingsStore;
 
 final class AiGuardrailsServiceProvider extends ServiceProvider
 {
@@ -166,6 +169,18 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             };
         });
 
+        $this->app->singleton(GuardrailSettingsStore::class, static function (): GuardrailSettingsStore {
+            // Not master-switch-gated: an admin must be able to view/edit settings even when the
+            // guardrails are off (e.g. to re-enable them).
+            return match (config('ai-guardrails.settings.store', 'config')) {
+                'database' => new DatabaseGuardrailSettingsStore(
+                    self::storeConnection('ai-guardrails.settings.connection'),
+                    self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'),
+                ),
+                default => new ConfigGuardrailSettingsStore,
+            };
+        });
+
         $this->app->singleton(GuardrailInputMiddleware::class, static function ($app): GuardrailInputMiddleware {
             $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
                 && (bool) $app['config']->get('ai-guardrails.input_screen.enabled', true);
@@ -284,6 +299,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ),
                 __DIR__.'/../database/migrations/create_ai_guardrails_output_stats_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 2).'_create_ai_guardrails_output_stats_table.php'
+                ),
+                __DIR__.'/../database/migrations/create_ai_guardrails_settings_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 3).'_create_ai_guardrails_settings_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

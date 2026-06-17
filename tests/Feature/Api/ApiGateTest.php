@@ -17,6 +17,8 @@ final class ApiGateTest extends TestCase
         $this->getJson('/ai-guardrails/api/approvals')->assertNotFound();
         $this->postJson('/ai-guardrails/api/approvals/t/approve')->assertNotFound();
         $this->postJson('/ai-guardrails/api/approvals/t/reject')->assertNotFound();
+        $this->getJson('/ai-guardrails/api/settings')->assertNotFound();
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => []])->assertNotFound();
         $this->postJson('/ai-guardrails/api/try/screen', ['prompt' => 'x'])->assertNotFound();
     }
 }

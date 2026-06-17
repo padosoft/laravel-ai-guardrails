@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('ai_guardrails_settings', function (Blueprint $table): void {
+            $table->id();
+            // Mutable current-state table (NOT append-only): one row per overridable dotted key.
+            $table->string('key')->unique();
+            $table->json('value')->nullable();
+            $table->timestamp('created_at')->nullable();
+            $table->timestamp('updated_at')->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('ai_guardrails_settings');
+    }
+};
