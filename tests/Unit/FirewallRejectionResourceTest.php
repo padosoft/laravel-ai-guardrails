@@ -69,4 +69,37 @@ final class FirewallRejectionResourceTest extends TestCase
 
         self::assertSame('short reason', $result['violations']['field']);
     }
+
+    public function test_violation_keys_are_bounded_at_200_chars(): void
+    {
+        $longKey = str_repeat('k', 300);
+        $result = FirewallRejectionResource::summary($this->rejection(violations: [$longKey => 'reason']));
+
+        $key = array_key_first($result['violations']);
+        self::assertNotNull($key);
+        self::assertSame(201, mb_strlen($key, 'UTF-8')); // 200 + ellipsis
+        self::assertStringEndsWith('…', $key);
+    }
+
+    public function test_truncated_key_collisions_are_disambiguated_not_dropped(): void
+    {
+        // Two distinct keys that share the first 200 chars must both survive (no silent drop).
+        $a = str_repeat('k', 200).'AAA';
+        $b = str_repeat('k', 200).'BBB';
+        $result = FirewallRejectionResource::summary($this->rejection(violations: [$a => 'r1', $b => 'r2']));
+
+        self::assertCount(2, $result['violations']);
+    }
+
+    public function test_violation_entry_count_is_capped_but_true_total_reported(): void
+    {
+        $violations = [];
+        for ($i = 0; $i < 80; $i++) {
+            $violations["field{$i}"] = "reason {$i}";
+        }
+        $result = FirewallRejectionResource::summary($this->rejection(violations: $violations));
+
+        self::assertCount(50, $result['violations']);   // capped
+        self::assertSame(80, $result['violation_count']); // true total still reported
+    }
 }

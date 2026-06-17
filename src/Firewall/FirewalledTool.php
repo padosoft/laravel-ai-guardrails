@@ -65,7 +65,7 @@ final readonly class FirewalledTool implements Tool
                 ));
             } catch (\Throwable $e) {
                 // Enforcement is independent of persistence — log (don't rethrow) so the missing
-                // audit row is observable instead of silently lost.
+                // firewall rejection record is observable instead of silently lost.
                 Log::warning('laravel-ai-guardrails: failed to record a firewall rejection.', [
                     'tool' => $description,
                     'exception' => $e->getMessage(),

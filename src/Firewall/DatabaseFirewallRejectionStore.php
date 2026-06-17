@@ -40,7 +40,10 @@ final readonly class DatabaseFirewallRejectionStore implements FirewallRejection
             $query->where('principal_id', $filters->principalId);
         }
         if ($filters->search !== null) {
-            $query->where('tool_description', 'like', '%'.$filters->search.'%');
+            // Escape LIKE metacharacters so the search term is a literal substring (matches the audit
+            // store). '!' as the ESCAPE char is portable across MySQL, PostgreSQL, SQLite, SQL Server.
+            $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $filters->search);
+            $query->whereRaw("tool_description LIKE ? ESCAPE '!'", ['%'.$escaped.'%']);
         }
         if ($filters->from !== null) {
             $query->where('occurred_at', '>=', $filters->from->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s'));

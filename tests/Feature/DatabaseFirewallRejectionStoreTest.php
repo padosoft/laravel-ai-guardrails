@@ -79,6 +79,19 @@ final class DatabaseFirewallRejectionStoreTest extends TestCase
         self::assertNull($next->nextCursor);
     }
 
+    public function test_query_search_treats_like_metacharacters_literally(): void
+    {
+        $store = $this->store();
+        $store->record($this->rejection('100% refund tool', '7', '2026-01-01 00:00:00'));
+        $store->record($this->rejection('email tool', '7', '2026-01-02 00:00:00'));
+
+        // A bare '%' must match only the row containing a literal '%', not act as a wildcard.
+        $page = $store->query(new FirewallQueryFilters(search: '%'));
+
+        self::assertCount(1, $page->items);
+        self::assertSame('100% refund tool', $page->items[0]->toolDescription);
+    }
+
     public function test_record_is_append_only_update_throws(): void
     {
         $this->store()->record($this->rejection('x', null, '2026-01-01 00:00:00'));

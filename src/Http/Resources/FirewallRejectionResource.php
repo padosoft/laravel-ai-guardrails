@@ -17,6 +17,10 @@ final class FirewallRejectionResource
 
     private const VIOLATION_LIMIT = 500;
 
+    private const KEY_LIMIT = 200;
+
+    private const MAX_VIOLATIONS = 50;
+
     /** @return array<string, mixed> */
     public static function summary(FirewallRejection $rejection): array
     {
@@ -36,12 +40,20 @@ final class FirewallRejectionResource
      */
     private static function violations(array $violations): array
     {
+        // Keys AND values are model-controlled (unknown-argument names + reasons), so bound both — a
+        // huge key would otherwise let one rejection return an arbitrarily large payload — and cap the
+        // entry count. `violation_count` still reports the true total so callers see when it was capped.
         $clean = [];
         foreach ($violations as $key => $reason) {
-            // Both originate from untrusted tool schemas. The key is UTF-8-scrubbed but NOT truncated
-            // (truncating could collide two distinct keys and drop entries); the value is scrubbed
-            // and length-bounded.
-            $clean[self::utf8((string) $key)] = self::bounded(self::utf8($reason), self::VIOLATION_LIMIT);
+            if (count($clean) >= self::MAX_VIOLATIONS) {
+                break;
+            }
+            $boundedKey = self::bounded(self::utf8((string) $key), self::KEY_LIMIT);
+            // A truncated key could collide with another; disambiguate so no entry is silently dropped.
+            if (array_key_exists($boundedKey, $clean)) {
+                $boundedKey .= ' ('.(count($clean) + 1).')';
+            }
+            $clean[$boundedKey] = self::bounded(self::utf8($reason), self::VIOLATION_LIMIT);
         }
 
         return $clean;
