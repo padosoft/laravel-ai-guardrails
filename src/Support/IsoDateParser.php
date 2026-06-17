@@ -24,10 +24,13 @@ final class IsoDateParser
         // YYYY-MM-DD with an optional time component (space or T separator, optional seconds + offset).
         // Offset (Z / ±HH:MM) sits AFTER the optional seconds so an offset is accepted with or
         // without seconds (e.g. `2026-01-15T12:00Z`, `2026-01-15T12:00:30+05:30`).
+        // PREG_UNMATCHED_AS_NULL makes absent optional groups null (not '') so the time guard below
+        // reads as the intended "a time was supplied" check.
         if (! preg_match(
             '/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:[+-]\d{2}:?\d{2}|Z)?)?$/',
             $value,
-            $m
+            $m,
+            PREG_UNMATCHED_AS_NULL
         )) {
             return null;
         }
@@ -38,7 +41,7 @@ final class IsoDateParser
         }
 
         // Reject out-of-range time components when a time is present (regex requires H+M together).
-        if (isset($m[4])) {
+        if ($m[4] !== null) {
             $hour = (int) $m[4];
             $minute = (int) ($m[5] ?? 0);
             $second = (int) ($m[6] ?? 0);
