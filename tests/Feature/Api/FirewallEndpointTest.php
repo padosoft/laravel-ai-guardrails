@@ -76,4 +76,15 @@ final class FirewallEndpointTest extends TestCase
 
         self::assertCount(2, $response->json('data.entries'));
     }
+
+    public function test_zero_like_cursor_is_ignored_not_treated_as_empty_page(): void
+    {
+        $this->seedRejections();
+
+        // "0" and "00" both cast to 0; they must be ignored (full newest page), not produce id < 0.
+        foreach (['0', '00'] as $bad) {
+            $response = $this->getJson('/ai-guardrails/api/firewall?cursor='.$bad)->assertOk();
+            self::assertCount(2, $response->json('data.entries'), "cursor=$bad should be ignored");
+        }
+    }
 }

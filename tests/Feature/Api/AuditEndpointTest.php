@@ -216,8 +216,8 @@ final class AuditEndpointTest extends TestCase
     {
         $this->seedAttempts();
 
-        // "-1", "1e3", "0" are not valid monotonic positive id cursors → treated as no cursor.
-        foreach (['-1', '1e3', '0', 'abc'] as $bad) {
+        // "-1", "1e3", "0", "00" are not valid monotonic positive id cursors → treated as no cursor.
+        foreach (['-1', '1e3', '0', '00', 'abc'] as $bad) {
             $response = $this->getJson('/ai-guardrails/api/audit?cursor='.$bad)->assertOk();
             self::assertCount(2, $response->json('data.entries'), "cursor=$bad should be ignored");
         }

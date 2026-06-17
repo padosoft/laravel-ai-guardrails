@@ -36,7 +36,8 @@ final readonly class FirewallQueryFilters
             from: IsoDateParser::parseUtc($request->query('from')),
             to: IsoDateParser::parseUtc($request->query('to')),
             limit: $limit !== null && ctype_digit($limit) ? max(1, min(200, (int) $limit)) : 50,
-            cursor: $cursor !== null && ctype_digit($cursor) && $cursor !== '0' ? (int) $cursor : null,
+            // Cast then require strictly positive so "0"/"00" (both cast to 0 → empty page) are rejected.
+            cursor: $cursor !== null && ctype_digit($cursor) && (int) $cursor > 0 ? (int) $cursor : null,
         );
     }
 

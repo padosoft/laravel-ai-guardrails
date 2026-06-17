@@ -38,7 +38,9 @@ final class FirewallRejectionResource
     {
         $clean = [];
         foreach ($violations as $key => $reason) {
-            // Scrub and bound both key and value — both can originate from untrusted tool schemas.
+            // Both originate from untrusted tool schemas. The key is UTF-8-scrubbed but NOT truncated
+            // (truncating could collide two distinct keys and drop entries); the value is scrubbed
+            // and length-bounded.
             $clean[self::utf8((string) $key)] = self::bounded(self::utf8($reason), self::VIOLATION_LIMIT);
         }
 

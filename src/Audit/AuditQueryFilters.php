@@ -43,9 +43,9 @@ final readonly class AuditQueryFilters
             from: IsoDateParser::parseUtc($request->query('from')),
             to: IsoDateParser::parseUtc($request->query('to')),
             limit: $limit !== null && ctype_digit($limit) ? max(1, min(200, (int) $limit)) : 50,
-            // The cursor is a monotonic positive id; only accept a plain positive integer (rejects
-            // "-1", "1e3", "0", arrays). ctype_digit also bounds the string to digits only.
-            cursor: $cursor !== null && ctype_digit($cursor) && $cursor !== '0' ? (int) $cursor : null,
+            // The cursor is a monotonic positive id; accept a digit-only string and require it to be
+            // strictly positive after casting (rejects "-1", "1e3", "0", "00", arrays).
+            cursor: $cursor !== null && ctype_digit($cursor) && (int) $cursor > 0 ? (int) $cursor : null,
         );
     }
 
