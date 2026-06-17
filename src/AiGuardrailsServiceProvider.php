@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails;
 
 use Illuminate\Contracts\Routing\Registrar;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
@@ -290,36 +289,21 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return;
         }
 
-        $keys = OverridableSettings::keys();
-        if ($keys === []) {
+        if (OverridableSettings::keys() === []) {
             return; // nothing to overlay → no DB round-trip.
         }
 
-        try {
-            $rows = DB::connection(self::storeConnection('ai-guardrails.settings.connection'))
-                ->table(self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'))
-                ->whereIn('key', $keys)
-                ->get(['key', 'value']);
-        } catch (\Throwable) {
-            // Table missing (fresh install / migrating / config:cache) → keep file config.
-            return;
-        }
+        // Delegate to the store so the DB read + JSON decoding + fail-safe (skip corrupt/null/
+        // type-mismatched) policy lives in ONE place — `all()` returns the effective overridable map
+        // (defaults overlaid with valid overrides), and fails safe to the file defaults if the table
+        // is missing. Overlaying a default back onto itself is a harmless no-op.
+        $store = new DatabaseGuardrailSettingsStore(
+            self::storeConnection('ai-guardrails.settings.connection'),
+            self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'),
+        );
 
-        foreach ($rows as $row) {
-            if (! is_string($row->value)) {
-                continue;
-            }
-            try {
-                $value = json_decode($row->value, true, 512, JSON_THROW_ON_ERROR);
-            } catch (\JsonException) {
-                // Corrupt row → keep the file default rather than overlaying garbage onto a control.
-                continue;
-            }
-            $key = (string) $row->key;
-            // Reject null / type-mismatched overrides so a stray row can't flip a control to false.
-            if (OverridableSettings::accepts($key, $value)) {
-                config(['ai-guardrails.'.$key => $value]);
-            }
+        foreach ($store->all() as $key => $value) {
+            config(['ai-guardrails.'.$key => $value]);
         }
     }
 
