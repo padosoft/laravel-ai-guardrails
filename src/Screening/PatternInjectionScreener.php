@@ -16,11 +16,11 @@ use Padosoft\AiGuardrails\Contracts\InjectionScreener;
  * unscreened prompt (which would be a bypass). Task E1 adds normalization before matching; Task E2
  * makes the error behaviour configurable (on_match_error) and adds ReDoS limits + ruleset versioning.
  *
- * @param  array<string,string>  $patterns
+ * @param  array<string,mixed>  $patterns
  */
 final readonly class PatternInjectionScreener implements InjectionScreener
 {
-    /** @param array<string,string> $patterns ruleId => PCRE pattern */
+    /** @param array<string,mixed> $patterns ruleId => PCRE pattern (non-string entries are ignored) */
     public function __construct(
         private array $patterns,
         private string $refusalMessage,
@@ -29,6 +29,14 @@ final readonly class PatternInjectionScreener implements InjectionScreener
     public function screen(string $prompt): ScreenVerdict
     {
         foreach ($this->patterns as $ruleId => $pattern) {
+            if (! is_string($pattern)) {
+                // Malformed config entry (non-string pattern) — skip it rather than throw a TypeError.
+                // Task E2 validates patterns at boot and rejects this up front.
+                Log::warning('laravel-ai-guardrails: ignoring non-string screening pattern.', ['rule_id' => (string) $ruleId]);
+
+                continue;
+            }
+
             $result = preg_match($pattern, $prompt);
 
             if ($result === false) {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails;
 
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
@@ -80,7 +79,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return match ($app['config']->get('ai-guardrails.audit.store', 'null')) {
                 'array' => new ArrayInjectionAuditStore,
                 'database' => new DatabaseInjectionAuditStore(
-                    $app['config']->get('ai-guardrails.audit.connection'),
+                    is_string($conn = $app['config']->get('ai-guardrails.audit.connection')) ? $conn : null,
                     (string) $app['config']->get('ai-guardrails.audit.table', 'ai_guardrails_injection_audit'),
                 ),
                 default => new NullInjectionAuditStore,
@@ -120,19 +119,6 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     'migrations/'.date('Y_m_d_His').'_create_ai_guardrails_injection_audit_table.php'
                 ),
             ], 'ai-guardrails-migrations');
-        }
-
-        // Warn operators when guardrails are declared enabled but null-object scaffolding is still active.
-        // Skip during unit tests to avoid noise; stops automatically once real implementations replace null objects.
-        if (
-            (bool) config('ai-guardrails.enabled') &&
-            ! $this->app->runningUnitTests() &&
-            $this->app->make(InjectionScreener::class) instanceof NullInjectionScreener
-        ) {
-            Log::warning(
-                'laravel-ai-guardrails: package is enabled but running with null-object placeholder implementations. '.
-                'Real controls (A–D) are not yet active. Do NOT use in production until the feature implementations are bound.'
-            );
         }
 
         // Refuse to boot with an open API surface. Fail CLOSED: any value that is not a
