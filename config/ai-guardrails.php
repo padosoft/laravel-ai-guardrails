@@ -46,6 +46,11 @@ return [
         'destructive_tools' => ['refund', 'delete', 'send_email'],
         // When flow is absent and a destructive tool is called: 'deny' (safe) or 'pass'.
         'fallback' => env('AI_GUARDRAILS_HITL_FALLBACK', 'deny'),
+        // Allowlist of fully-qualified Tool class names that ToolApprovalHandler may execute
+        // post-approval. Empty array = no restriction (all Tool instances are permitted).
+        // Recommended: enumerate every destructive tool class to limit blast radius if the
+        // flow persistence layer is compromised.
+        'allowed_tool_classes' => [],
     ],
 
     // Append-only injection audit persistence.

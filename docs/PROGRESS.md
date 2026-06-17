@@ -78,7 +78,8 @@
 ### Task 5 — Control D: HITL approval bridge (DONE locally, branch `feature/control-d-hitl`)
 - [x] `ApprovalRouter` contract + `PendingApproval` DTO; `NullApprovalRouter` (unavailable); `ApprovalGatedTool` decorator (parks destructive call → "pending approval" string; fallback deny/pass when unavailable); `ToolApprovalHandler` (flow step that runs the tool on approval); `FlowApprovalRouter` (adapter over Flow::define/execute/resume/reject + approvalGate).
 - [x] `ApprovalRouterFactory` keeps the laravel-flow reference inside src/Hitl; provider binds ApprovalRouter (Flow when hitl.enabled+master+flow-present, else Null). Both-states tested.
-- [x] **130 tests / 232 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **Security fixes applied (2026-06-17):** token leakage (runId only in response), ToolApprovalHandler allowlist (`hitl.allowed_tool_classes`), principal_id in step output, RuntimeException safe-catch, invalid-fallback guard.
+- [x] **135 tests / 242 assertions** GREEN; pint + phpstan level 8 clean.
 - LESSON: laravel-flow classes (FlowRun/FlowDefinitionBuilder) are `final` → cannot Mockery-mock; test the adapter via `Flow::swap(<plain anonymous spy>)`. Full flow persistence integration is the host's setup (plan Assumption #2).
 - [ ] DoD loop → PR. Then Task 6 (Artisan + composing helper).
 

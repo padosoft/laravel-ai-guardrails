@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use DateTimeImmutable;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use InvalidArgumentException;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
@@ -13,6 +14,7 @@ use Padosoft\AiGuardrails\Hitl\NullApprovalRouter;
 use Padosoft\AiGuardrails\Hitl\PendingApproval;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeDestructiveTool;
 use Padosoft\AiGuardrails\Tests\TestCase;
+use RuntimeException;
 
 final class ApprovalGatedToolTest extends TestCase
 {
@@ -48,7 +50,10 @@ final class ApprovalGatedToolTest extends TestCase
         $result = (string) $gated->handle(new Request(['order_id' => 'A1']));
 
         self::assertStringContainsString('requires human approval', $result);
-        self::assertStringContainsString('tok-123', $result);
+        // The plain-text token must NOT appear in the model response (prevent token leakage).
+        self::assertStringNotContainsString('tok-123', $result);
+        // The non-secret run reference IS included so the operator can look it up.
+        self::assertStringContainsString('run-1', $result);
         self::assertFalse($tool->executed, 'the destructive tool must NOT run before approval');
     }
 
@@ -80,5 +85,41 @@ final class ApprovalGatedToolTest extends TestCase
 
         self::assertSame('Refund an order.', (string) $gated->description());
         self::assertArrayHasKey('order_id', $gated->schema(new JsonSchemaTypeFactory));
+    }
+
+    public function test_invalid_fallback_value_throws_on_construction(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches("/fallback must be 'deny' or 'pass'/");
+
+        new ApprovalGatedTool(new FakeDestructiveTool, new NullApprovalRouter, static fn (): null => null, 'refund', fallback: 'allow');
+    }
+
+    public function test_routing_exception_falls_back_to_deny_not_throw(): void
+    {
+        $throwingRouter = new class implements ApprovalRouter
+        {
+            public function isAvailable(): bool
+            {
+                return true;
+            }
+
+            public function route(string $toolName, string $toolClass, array $arguments, int|string|null $principalId): PendingApproval
+            {
+                throw new RuntimeException('flow misconfigured');
+            }
+
+            public function approve(string $token, array $actor = []): void {}
+
+            public function reject(string $token, array $actor = []): void {}
+        };
+
+        $tool = new FakeDestructiveTool;
+        $gated = new ApprovalGatedTool($tool, $throwingRouter, static fn (): null => null, 'refund');
+
+        $result = (string) $gated->handle(new Request(['order_id' => 'A1']));
+
+        self::assertStringContainsString('blocked', $result);
+        self::assertFalse($tool->executed, 'delegate must NOT execute when routing fails');
     }
 }
