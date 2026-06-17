@@ -111,4 +111,12 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
         $this->expectException(LogicException::class);
         InjectionAuditRecord::query()->upsert([['id' => 1, 'prompt' => 'x', 'blocked' => true, 'occurred_at' => '2026-01-01 00:00:00']], 'id');
     }
+
+    public function test_builder_truncate_throws(): void
+    {
+        $this->store()->append(new InjectionAttempt('x', true, 'r', null, new DateTimeImmutable));
+
+        $this->expectException(LogicException::class);
+        InjectionAuditRecord::query()->truncate();
+    }
 }

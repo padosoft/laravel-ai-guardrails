@@ -32,6 +32,11 @@ final class InjectionAuditRecordBuilder extends Builder
         return $this->refuse('updated');
     }
 
+    public function truncate(): mixed
+    {
+        return $this->refuse('truncated');
+    }
+
     /**
      * @param  array<int|string,mixed>  $values
      * @param  array<int,string>|string  $uniqueBy
