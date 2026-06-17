@@ -57,7 +57,7 @@ final class ApprovalsController
             // misconfiguration). Map to 409, same as the isAvailable() fast-path above.
             Log::warning('laravel-ai-guardrails: approval router unavailable at decision time.', [
                 'decision' => $approve ? 'approve' : 'reject',
-                'exception' => $e->getMessage(),
+                'exception' => $e,
             ]);
 
             return Envelope::make(ApiSchema::SCHEMA_APPROVAL_DECISION, [
@@ -69,7 +69,7 @@ final class ApprovalsController
             // clean 422 (not a 500) and log for diagnosis.
             Log::warning('laravel-ai-guardrails: approval decision failed.', [
                 'decision' => $approve ? 'approve' : 'reject',
-                'exception' => $e->getMessage(),
+                'exception' => $e,
             ]);
 
             return Envelope::make(ApiSchema::SCHEMA_APPROVAL_DECISION, [

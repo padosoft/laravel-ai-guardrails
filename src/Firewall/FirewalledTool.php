@@ -68,7 +68,7 @@ final readonly class FirewalledTool implements Tool
                 // firewall rejection record is observable instead of silently lost.
                 Log::warning('laravel-ai-guardrails: failed to record a firewall rejection.', [
                     'tool' => $description,
-                    'exception' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
 

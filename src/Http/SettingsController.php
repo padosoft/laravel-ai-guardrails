@@ -36,7 +36,7 @@ final class SettingsController
         } catch (\Throwable $e) {
             // The read path fails safe; the write path should too. A persistence failure (table not
             // migrated, DB down) returns a deterministic 503 envelope rather than a 500.
-            Log::warning('laravel-ai-guardrails: failed to persist settings.', ['exception' => $e->getMessage()]);
+            Log::warning('laravel-ai-guardrails: failed to persist settings.', ['exception' => $e]);
 
             return Envelope::make(ApiSchema::SCHEMA_SETTINGS, ['error' => 'persist_failed'], 503);
         }
