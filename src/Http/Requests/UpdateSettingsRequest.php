@@ -102,9 +102,11 @@ final class UpdateSettingsRequest extends FormRequest
             'int' => is_int($value) || (is_string($value) && filter_var($value, FILTER_VALIDATE_INT) !== false)
                 ? (int) $value
                 : new Invalid('must be an integer'),
-            default => is_string($value) && mb_check_encoding($value, 'UTF-8') && mb_strlen($value, 'UTF-8') <= self::REFUSAL_MESSAGE_MAX
+            'string' => is_string($value) && mb_check_encoding($value, 'UTF-8') && mb_strlen($value, 'UTF-8') <= self::REFUSAL_MESSAGE_MAX
                 ? $value
                 : new Invalid('must be valid UTF-8 of at most '.self::REFUSAL_MESSAGE_MAX.' characters'),
+            // Fail closed: an unknown/mistyped TYPES spec must reject the value, not accept it loosely.
+            default => new Invalid('unsupported setting type'),
         };
     }
 

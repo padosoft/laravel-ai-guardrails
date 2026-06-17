@@ -284,10 +284,21 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return;
         }
 
+        // Master kill-switch off → every control is passthrough anyway, so overlaying their settings
+        // is pointless; skip the per-boot query. (The master switch is not itself overridable.)
+        if (! config('ai-guardrails.enabled', true)) {
+            return;
+        }
+
+        $keys = OverridableSettings::keys();
+        if ($keys === []) {
+            return; // nothing to overlay → no DB round-trip.
+        }
+
         try {
             $rows = DB::connection(self::storeConnection('ai-guardrails.settings.connection'))
                 ->table(self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'))
-                ->whereIn('key', OverridableSettings::keys())
+                ->whereIn('key', $keys)
                 ->get(['key', 'value']);
         } catch (\Throwable) {
             // Table missing (fresh install / migrating / config:cache) → keep file config.
