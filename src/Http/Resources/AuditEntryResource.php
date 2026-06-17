@@ -37,6 +37,10 @@ final class AuditEntryResource
     {
         $prompt = self::utf8($attempt->prompt);
 
+        // matched_span is a byte offset into the STORED prompt; if scrubbing changed the bytes it no
+        // longer aligns with the returned prompt, so omit it (mirrors the screener's normalization guard).
+        $span = $prompt === $attempt->prompt ? $attempt->matchedSpan : null;
+
         return [
             'id' => $attempt->id,
             'blocked' => $attempt->blocked,
@@ -46,7 +50,7 @@ final class AuditEntryResource
             'prompt' => $prompt,
             'prompt_length' => mb_strlen($prompt, 'UTF-8'),
             'errored_rule_ids' => $attempt->erroredRuleIds,
-            'matched_span' => $attempt->matchedSpan,
+            'matched_span' => $span,
             'occurred_at' => self::iso($attempt),
         ];
     }

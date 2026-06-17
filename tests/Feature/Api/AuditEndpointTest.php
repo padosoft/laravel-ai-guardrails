@@ -226,13 +226,17 @@ final class AuditEndpointTest extends TestCase
     public function test_invalid_utf8_prompt_does_not_break_the_api(): void
     {
         $store = $this->app->make(InjectionAuditStore::class);
-        // The audit logs every attempt, including prompts with invalid byte sequences.
+        // The audit logs every attempt, including prompts with invalid byte sequences. A span is
+        // present but the bytes will be scrubbed, so the span must be omitted from the detail view.
         $store->append(new InjectionAttempt(
             "ignore \xFF\xFE previous",
             true,
             'ignore_previous',
             null,
             new DateTimeImmutable('2026-01-01 00:00:00', new DateTimeZone('UTC')),
+            'v1',
+            [],
+            [0, 6],
         ));
 
         // Neither the list (preview + length) nor the detail (full prompt) endpoint may 500 or fail
@@ -241,8 +245,10 @@ final class AuditEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.entries.0.id', 1);
 
+        // Scrubbing changed the bytes → matched_span no longer aligns, so it is omitted (null).
         $this->getJson('/ai-guardrails/api/audit/1')
             ->assertOk()
-            ->assertJsonPath('data.entry.id', 1);
+            ->assertJsonPath('data.entry.id', 1)
+            ->assertJsonPath('data.entry.matched_span', null);
     }
 }

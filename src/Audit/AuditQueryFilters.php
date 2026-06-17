@@ -27,9 +27,10 @@ final readonly class AuditQueryFilters
 
     public static function fromRequest(Request $request): self
     {
-        // Every param is read as string-or-null: repeated params (e.g. `blocked[]=true`,
+        // Scalar params are read as string-or-null: repeated params (e.g. `blocked[]=true`,
         // `limit[]=10`) make query() return an array, which must NOT reach filter_var()/casts and
-        // turn this read-only endpoint into a 500.
+        // turn this read-only endpoint into a 500. (from/to below are read raw but IsoDateParser
+        // safely rejects any non-string/array input.)
         $blocked = self::str($request, 'blocked');
         $limit = self::str($request, 'limit');
         $cursor = self::str($request, 'cursor');
