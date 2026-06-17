@@ -56,8 +56,10 @@ final class UpdateSettingsRequest extends FormRequest
     public function rules(): array
     {
         return ['settings' => ['required', 'array', static function (string $attribute, mixed $value, \Closure $fail): void {
-            // Must be a JSON object (dotted-key => value), not a list. A list would pass `array` but
-            // then be silently ignored by sanitized() (numeric keys), masking a client bug.
+            // Reject a NON-EMPTY JSON list (numeric keys): it passes `array` but sanitized() would
+            // silently ignore it, masking a client bug. An empty body is already rejected by the
+            // `required` rule above (PHP decodes both `{}` and `[]` to []), so only the non-empty
+            // list case needs guarding here.
             if (is_array($value) && $value !== [] && array_is_list($value)) {
                 $fail('The settings field must be an object of dotted-key => value, not a list.');
             }

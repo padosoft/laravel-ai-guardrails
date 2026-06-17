@@ -24,6 +24,10 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
     {
         $effective = OverridableSettings::defaults();
 
+        if ($effective === []) {
+            return $effective; // no overridable keys → nothing to overlay, skip the DB query.
+        }
+
         try {
             $rows = $this->rows();
         } catch (\Throwable) {
