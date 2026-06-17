@@ -38,10 +38,11 @@ final readonly class HtmlMarkdownSanitizer implements ReportingOutputSanitizer
                 $htmlChanged = $escaped !== $text;
             } else {
                 $escaped = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', double_encode: false);
-                // Count only when tag-like markup (`<`/`>`) was neutralised — not the plain entity
-                // escaping of quotes/ampersands in ordinary prose (`don't`, `Tom & Jerry`), which
-                // would otherwise over-report html_stripped for normal responses.
-                $htmlChanged = $escaped !== $text && (str_contains($text, '<') || str_contains($text, '>'));
+                // Count only when the input actually looked like an HTML tag/comment (`<tag`, `</tag`,
+                // `<!--`) — a `<` IMMEDIATELY followed by a letter/`/`/`!`. This excludes the plain
+                // entity escaping of ordinary prose/math (`don't`, `Tom & Jerry`, `a < b`, `<3`, `a <= b`)
+                // that would otherwise over-report html_stripped for normal responses.
+                $htmlChanged = $escaped !== $text && preg_match('/<\/?[a-z!]/i', $text) === 1;
             }
             $text = $escaped;
         }

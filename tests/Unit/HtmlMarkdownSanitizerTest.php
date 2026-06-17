@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Tests\Unit;
 
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class HtmlMarkdownSanitizerTest extends TestCase
 {
@@ -174,14 +175,36 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertSame('a perfectly clean sentence', $report->text);
     }
 
-    public function test_report_does_not_flag_plain_entity_escaping_as_html_stripped(): void
+    /**
+     * @return list<array{0:string}>
+     */
+    public static function nonTagProse(): array
     {
-        // `don't` / `Tom & Jerry` get entity-escaped under ENT_QUOTES but contain no tag to strip,
-        // so they must NOT be counted as html_stripped (would over-report on normal prose).
+        return [
+            ["don't blame Tom & Jerry"], // quote + ampersand escaping only
+            ['a < b and c > d'],          // spaced comparisons, not tags
+            ['I <3 you'],                  // emoticon
+            ['a <= b'],                    // comparison operator
+        ];
+    }
+
+    #[DataProvider('nonTagProse')]
+    public function test_report_does_not_flag_non_tag_prose_as_html_stripped(string $prose): void
+    {
+        // These get entity-escaped for safety but contain no HTML tag, so html_stripped must NOT be
+        // counted (it would over-report on normal prose/math).
         $report = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false))
-            ->sanitizeReport("don't blame Tom & Jerry");
+            ->sanitizeReport($prose);
 
         self::assertFalse($report->htmlChanged);
-        self::assertStringContainsString('&amp;', $report->text); // still escaped for safety
+    }
+
+    public function test_report_flags_real_tags_and_closing_tags_and_comments(): void
+    {
+        $sanitizer = new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false);
+
+        self::assertTrue($sanitizer->sanitizeReport('<b>hi</b>')->htmlChanged);
+        self::assertTrue($sanitizer->sanitizeReport('text </div> more')->htmlChanged);
+        self::assertTrue($sanitizer->sanitizeReport('a <!-- comment --> b')->htmlChanged);
     }
 }
