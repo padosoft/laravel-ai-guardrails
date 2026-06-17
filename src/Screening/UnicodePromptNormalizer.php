@@ -80,7 +80,7 @@ final readonly class UnicodePromptNormalizer implements PromptNormalizer
         }
 
         if ($this->casefold) {
-            $text = mb_strtolower($text);
+            $text = mb_strtolower($text, 'UTF-8');
         }
 
         return $text;

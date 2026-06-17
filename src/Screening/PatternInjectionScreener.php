@@ -32,7 +32,7 @@ final readonly class PatternInjectionScreener implements InjectionScreener
     public function screen(string $prompt): ScreenVerdict
     {
         // Length ceiling (prompt-bombing / token exhaustion). Checked on the original prompt.
-        if ($this->maxPromptLength > 0 && mb_strlen($prompt) > $this->maxPromptLength) {
+        if ($this->maxPromptLength > 0 && mb_strlen($prompt, 'UTF-8') > $this->maxPromptLength) {
             return ScreenVerdict::block('too_long', $this->refusalMessage);
         }
 
