@@ -14,6 +14,7 @@ final readonly class InjectionAttempt
 {
     /**
      * @param  list<string>  $erroredRuleIds  Rule IDs that errored under on_match_error=open (forensic bypass trace).
+     * @param  array{0:int,1:int}|null  $matchedSpan  byte offset [start, end) of the matched pattern in the prompt
      */
     public function __construct(
         public string $prompt,
@@ -23,5 +24,7 @@ final readonly class InjectionAttempt
         public DateTimeImmutable $occurredAt,
         public ?string $rulesetVersion = null,
         public array $erroredRuleIds = [],
+        public ?array $matchedSpan = null,
+        public ?int $id = null,
     ) {}
 }
