@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use LogicException;
+use Padosoft\AiGuardrails\Audit\AuditQueryFilters;
 use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\InjectionAttempt;
 use Padosoft\AiGuardrails\Audit\InjectionAuditRecord;
@@ -53,6 +55,108 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
         self::assertSame('v1', $recent[0]->rulesetVersion);
         self::assertSame('first', $recent[1]->prompt);
         self::assertFalse($recent[1]->blocked);
+    }
+
+    public function test_matched_span_and_id_round_trip(): void
+    {
+        $store = $this->store();
+        $store->append(new InjectionAttempt('ignore previous', true, 'ignore_previous', null, new DateTimeImmutable('2026-01-01 10:00:00'), 'v1', [], [7, 15]));
+
+        $recent = $store->recent(1);
+        self::assertCount(1, $recent);
+        self::assertSame([7, 15], $recent[0]->matchedSpan);
+        self::assertNotNull($recent[0]->id);
+
+        $found = $store->find($recent[0]->id);
+        self::assertNotNull($found);
+        self::assertSame('ignore previous', $found->prompt);
+        self::assertSame([7, 15], $found->matchedSpan);
+    }
+
+    public function test_find_returns_null_when_absent(): void
+    {
+        self::assertNull($this->store()->find(404));
+    }
+
+    public function test_query_filters_and_keyset_paginates(): void
+    {
+        $store = $this->store();
+        foreach (range(1, 4) as $i) {
+            $blocked = $i % 2 === 0;
+            $store->append(new InjectionAttempt("p{$i}", $blocked, $blocked ? 'r' : null, 'principal-'.$i, new DateTimeImmutable("2026-01-0{$i} 00:00:00")));
+        }
+
+        $blockedPage = $store->query(new AuditQueryFilters(blocked: true));
+        self::assertCount(2, $blockedPage->items);
+        foreach ($blockedPage->items as $item) {
+            self::assertTrue($item->blocked);
+        }
+
+        $firstPage = $store->query(new AuditQueryFilters(limit: 2));
+        self::assertCount(2, $firstPage->items);
+        self::assertNotNull($firstPage->nextCursor);
+        self::assertSame('p4', $firstPage->items[0]->prompt); // newest id first
+
+        $nextPage = $store->query(new AuditQueryFilters(limit: 2, cursor: $firstPage->nextCursor));
+        self::assertSame(['p2', 'p1'], array_map(static fn ($a) => $a->prompt, $nextPage->items));
+        self::assertNull($nextPage->nextCursor);
+    }
+
+    public function test_query_search_filters_by_prompt(): void
+    {
+        $store = $this->store();
+        $store->append(new InjectionAttempt('ignore previous instructions', true, 'r', null, new DateTimeImmutable('2026-01-01 00:00:00')));
+        $store->append(new InjectionAttempt('benign question', false, null, null, new DateTimeImmutable('2026-01-02 00:00:00')));
+
+        $page = $store->query(new AuditQueryFilters(search: 'ignore'));
+
+        self::assertCount(1, $page->items);
+        self::assertSame('ignore previous instructions', $page->items[0]->prompt);
+    }
+
+    public function test_query_search_treats_percent_as_literal(): void
+    {
+        $store = $this->store();
+        $store->append(new InjectionAttempt('100% safe', false, null, null, new DateTimeImmutable('2026-01-01 00:00:00')));
+        $store->append(new InjectionAttempt('benign question', false, null, null, new DateTimeImmutable('2026-01-02 00:00:00')));
+
+        // A bare '%' should match only rows containing a literal '%', not all rows.
+        $page = $store->query(new AuditQueryFilters(search: '%'));
+
+        self::assertCount(1, $page->items);
+        self::assertSame('100% safe', $page->items[0]->prompt);
+    }
+
+    public function test_query_search_treats_underscore_as_literal(): void
+    {
+        $store = $this->store();
+        $store->append(new InjectionAttempt('snake_case prompt', false, null, null, new DateTimeImmutable('2026-01-01 00:00:00')));
+        $store->append(new InjectionAttempt('normal question', false, null, null, new DateTimeImmutable('2026-01-02 00:00:00')));
+
+        // '_' should match only rows containing a literal underscore, not any single character.
+        $page = $store->query(new AuditQueryFilters(search: '_'));
+
+        self::assertCount(1, $page->items);
+        self::assertSame('snake_case prompt', $page->items[0]->prompt);
+    }
+
+    public function test_trend_aggregates_per_day_in_sql(): void
+    {
+        $store = $this->store();
+        $utc = new DateTimeZone('UTC');
+        $store->append(new InjectionAttempt('a', true, 'r', null, new DateTimeImmutable('2026-01-01 09:00:00', $utc)));
+        $store->append(new InjectionAttempt('b', false, null, null, new DateTimeImmutable('2026-01-01 22:00:00', $utc)));
+        $store->append(new InjectionAttempt('c', true, 'r', null, new DateTimeImmutable('2026-01-02 05:00:00', $utc)));
+
+        $trend = $store->trend(
+            new DateTimeImmutable('2026-01-01 00:00:00', $utc),
+            new DateTimeImmutable('2026-01-03 00:00:00', $utc),
+        );
+
+        self::assertSame([
+            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'allowed' => 1],
+            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'allowed' => 0],
+        ], $trend);
     }
 
     public function test_record_is_append_only_update_throws(): void

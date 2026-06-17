@@ -65,7 +65,10 @@ final readonly class PatternInjectionScreener implements InjectionScreener
 
                 // Suppress the PHP warning preg_match() emits on a PCRE/UTF-8 error: many Laravel apps
                 // convert warnings to ErrorExceptions, which would bypass the fail-closed check below.
-                $result = @preg_match($pattern, $subject);
+                // PREG_OFFSET_CAPTURE records the matched-pattern byte span (relative to the normalized
+                // subject) for the admin's forensic highlight (Task 11).
+                $matches = [];
+                $result = @preg_match($pattern, $subject, $matches, PREG_OFFSET_CAPTURE);
 
                 if ($result === false) {
                     Log::warning('laravel-ai-guardrails: screening pattern errored.', [
@@ -89,7 +92,16 @@ final readonly class PatternInjectionScreener implements InjectionScreener
                 if ($result === 1) {
                     // Carry any errored rule IDs (open mode) into the block verdict so the bypass
                     // trace is not lost when a later rule matches.
-                    return $this->block((string) $ruleId, $erroredRuleIds);
+                    // With PREG_OFFSET_CAPTURE, $matches[0] is [matched string, byte offset]. The
+                    // offset is into the NORMALIZED subject, but the audit/API persist and expose the
+                    // ORIGINAL prompt — so only record the span when normalization left the bytes
+                    // unchanged. Otherwise the forensic highlight would point at the wrong region.
+                    $span = null;
+                    if ($subject === $prompt && isset($matches[0])) {
+                        $span = [$matches[0][1], $matches[0][1] + strlen($matches[0][0])];
+                    }
+
+                    return $this->block((string) $ruleId, $erroredRuleIds, $span);
                 }
             }
         } finally {
@@ -131,12 +143,19 @@ final readonly class PatternInjectionScreener implements InjectionScreener
         return $errors;
     }
 
-    /** @param list<string> $erroredRuleIds */
-    private function block(string $ruleId, array $erroredRuleIds = []): ScreenVerdict
+    /**
+     * @param  list<string>  $erroredRuleIds
+     * @param  array{0:int,1:int}|null  $matchedSpan
+     */
+    private function block(string $ruleId, array $erroredRuleIds = [], ?array $matchedSpan = null): ScreenVerdict
     {
         $verdict = ScreenVerdict::block($ruleId, $this->refusalMessage)->withRulesetVersion($this->rulesetVersion);
 
-        return $erroredRuleIds !== [] ? $verdict->withErroredRuleIds($erroredRuleIds) : $verdict;
+        if ($erroredRuleIds !== []) {
+            $verdict = $verdict->withErroredRuleIds($erroredRuleIds);
+        }
+
+        return $matchedSpan !== null ? $verdict->withMatchedSpan($matchedSpan) : $verdict;
     }
 
     /** @param list<string> $erroredRuleIds */

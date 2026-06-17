@@ -49,6 +49,7 @@ final readonly class GuardrailInputMiddleware
             new DateTimeImmutable('now', new DateTimeZone('UTC')),
             $verdict->rulesetVersion,
             $verdict->erroredRuleIds,
+            $verdict->matchedSpan,
         ));
 
         if ($verdict->blocked) {

@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('principal_id')->nullable()->index();
             $table->string('ruleset_version')->nullable()->index();
             $table->json('errored_rule_ids')->nullable();
+            $table->unsignedInteger('match_start')->nullable();
+            $table->unsignedInteger('match_end')->nullable();
             $table->timestamp('occurred_at')->index();
             // Append-only: intentionally NO updated_at — rows are never modified in place.
         });

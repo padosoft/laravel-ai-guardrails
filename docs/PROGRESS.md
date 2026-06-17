@@ -107,5 +107,15 @@
 - [x] **157 tests / 310 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then audit endpoints (10–12), firewall+output stores (13–14), approvals+settings (15–16), API hardening (18), E9-API.
 
+### Tasks 10 + 11 + 12 — Audit HTTP endpoints (DONE locally, branch `feature/task-10-audit-endpoints`, PR #14)
+- [x] `InjectionAuditStore` contract extended: `query(AuditQueryFilters): AuditPage`, `find(int): ?InjectionAttempt`, `trend(since, until): list` — implemented in Null / Array (in-memory bucketing, sequential ids assigned on append) / Database (SQL).
+- [x] `AuditQueryFilters` DTO (blocked/rule_id/principal_id/q/from/to/limit/cursor; keyset cursor on monotonic id), `AuditPage` DTO (items + nextCursor), `AuditEntryResource` (summary omits principal_id for data-minimization; detail has full prompt + matched_span).
+- [x] `AuditController` index/show/trend; routes `GET /audit`, `/audit/trend` (registered before `/audit/{id}` wildcard), `/audit/{id}` (ctype_digit guard → 404).
+- [x] `matched_span` byte offset `[start,end)` via PREG_OFFSET_CAPTURE in `PatternInjectionScreener` → `ScreenVerdict::withMatchedSpan` → `InjectionAttempt` → `match_start`/`match_end` columns (migration stub + model $fillable/casts + store write/read).
+- [x] trend SQL is dialect-safe (`dayExpression()`: DATE / to_char / CONVERT / strftime); 30-day default window, clamped 366d, inverted-window guard.
+- [x] **Review hardening (3 local Copilot rounds, all LGTM):** LIKE metacharacters escaped with `ESCAPE '!'`; strict ISO-8601 date parsing (rejects relative strings); bare-date bounds anchored to UTC midnight regardless of server tz; `blocked` filter uses `FILTER_NULL_ON_FAILURE`.
+- [x] **184 tests / 409 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] AWAITING: CI green + Copilot PR review on #14 → auto-merge if clean. Resume = `gh pr view 14 --json reviewDecision,statusCheckRollup,comments`.
+
 ### Next
-- Tasks 10–12 — `GET /audit` (filters+cursor), `GET /audit/{id}` (+matched_span), `GET /audit/trend` — extend InjectionAuditStore with query()/find(). Then 13–18, E3–E7/E9, E9-API, E10.
+- After #14 merges: Task 13 (`GET /firewall` + FirewallRejectionStore), Task 14 (`GET /output/stats` + OutputStatStore), Task 15 (`GET /approvals` + approve/reject), Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.
