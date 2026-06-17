@@ -25,7 +25,11 @@ final class ApiConventionsTest extends TestCase
 
     public function test_every_controller_action_returns_a_json_response(): void
     {
-        foreach (glob(__DIR__.'/../../src/Http/*Controller.php') ?: [] as $file) {
+        $files = glob(__DIR__.'/../../src/Http/*Controller.php') ?: [];
+        // Guard against a moved/renamed directory silently turning this guarantee into a no-op.
+        self::assertNotEmpty($files, 'No controllers found under src/Http — the scan would pass vacuously.');
+
+        foreach ($files as $file) {
             $class = 'Padosoft\\AiGuardrails\\Http\\'.basename($file, '.php');
             $reflection = new ReflectionClass($class);
 
@@ -87,7 +91,9 @@ final class ApiConventionsTest extends TestCase
             if ($file->getExtension() !== 'php') {
                 continue;
             }
-            $content = (string) file_get_contents($file->getPathname());
+            $content = file_get_contents($file->getPathname());
+            // An unreadable file would otherwise be silently skipped, hiding a boundary violation.
+            self::assertNotFalse($content, "Could not read {$file->getPathname()}");
             foreach (['Padosoft\\LaravelFlow', 'Padosoft\\PiiRedactor'] as $vendor) {
                 if (str_contains($content, $vendor)) {
                     $rel = str_replace($httpDir.DIRECTORY_SEPARATOR, '', $file->getPathname());

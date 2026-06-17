@@ -123,7 +123,7 @@
 - **LOW: Invalid `$fallback` value accepted silently.** Any string other than `'deny'`/`'pass'` produced no error and quietly fell through to deny. Fixed: `InvalidArgumentException` thrown at construction time.
 - **Tests added for all five fixes:** token-not-in-response, allowlist-deny, allowlist-pass, empty-allowlist-pass, route-exception→deny, invalid-fallback-throws. 5 new tests / 10 new assertions.
 
-### HTTP API surface (Tasks 9–18, merged 2026-06-17)
+### HTTP API surface (Tasks 9–18, 2026-06-17)
 - **Dialect-safe SQL aggregates.** The audit `trend` GROUP-BY-day uses a per-driver date expression (`DATE()` mysql/mariadb · `to_char(...,'YYYY-MM-DD')` pgsql · `CONVERT(varchar(10),...,23)` sqlsrv · `strftime('%Y-%m-%d',...)` sqlite). For the output-stats sum, the boolean predicate is also driver-specific (`blocked = true` on pgsql vs `= 1` elsewhere) AND the counter column is named `event_count` (not the reserved word `count`) so `sum(event_count)` parses everywhere.
 - **LIKE search.** `q` filters escape `%`/`_` with an explicit `ESCAPE '!'` clause (portable across all four dialects) so the term is a literal substring.
 - **Cursor pagination.** Keyset on the monotonic `id` (newest-first). Parse the cursor as a STRICTLY positive integer — `ctype_digit && (int) > 0` — so `"-1"`, `"1e3"`, `"0"`, `"00"` and array params are all ignored, never producing `id < 0` / empty pages.
