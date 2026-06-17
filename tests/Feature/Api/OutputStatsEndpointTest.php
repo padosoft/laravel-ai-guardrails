@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Tests\Feature\Api;
 
+use DateTimeImmutable;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
@@ -62,5 +63,16 @@ final class OutputStatsEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.counts.html_stripped', 1)
             ->assertJsonPath('data.total', 1);
+    }
+
+    public function test_defaults_to_a_bounded_30_day_window(): void
+    {
+        // With no bounds, the endpoint must NOT scan the whole log — it defaults to a 30-day window.
+        $response = $this->getJson('/ai-guardrails/api/output/stats')->assertOk();
+
+        $from = new DateTimeImmutable((string) $response->json('data.from'));
+        $to = new DateTimeImmutable((string) $response->json('data.to'));
+
+        self::assertSame(30, (int) $from->diff($to)->days, 'default window should span 30 days');
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Http;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
@@ -17,10 +19,24 @@ use Padosoft\AiGuardrails\Support\IsoDateParser;
  */
 final class OutputStatsController
 {
+    private const DEFAULT_WINDOW_DAYS = 30;
+
     public function index(Request $request, OutputStatStore $store): JsonResponse
     {
-        $from = IsoDateParser::parseUtc($request->query('from'));
-        $to = IsoDateParser::parseUtc($request->query('to'));
+        $utc = new DateTimeZone('UTC');
+        $now = new DateTimeImmutable('now', $utc);
+
+        // Bound the default scan: with no `from`, aggregate the recent window rather than the whole
+        // append-only log (which would grow linearly and get expensive if an admin UI polls this).
+        // All-time totals are still reachable by passing an explicit early `from`.
+        $to = IsoDateParser::parseUtc($request->query('to')) ?? $now;
+        $from = IsoDateParser::parseUtc($request->query('from'))
+            ?? $to->modify('-'.self::DEFAULT_WINDOW_DAYS.' days');
+
+        // Guard an inverted window (from after to → empty, coherent result).
+        if ($from > $to) {
+            $from = $to;
+        }
 
         $totals = $store->totals($from, $to);
 
@@ -31,8 +47,8 @@ final class OutputStatsController
         }
 
         return Envelope::make(ApiSchema::SCHEMA_OUTPUT_STATS, [
-            'from' => $from?->format(DATE_ATOM),
-            'to' => $to?->format(DATE_ATOM),
+            'from' => $from->format(DATE_ATOM),
+            'to' => $to->format(DATE_ATOM),
             'counts' => $counts,
             'total' => array_sum($counts),
         ]);
