@@ -10,6 +10,7 @@ final readonly class ScreenVerdict
         public bool $blocked,
         public ?string $ruleId,
         public ?string $refusalMessage,
+        public ?string $rulesetVersion = null,
     ) {}
 
     public static function allow(): self
@@ -20,5 +21,13 @@ final readonly class ScreenVerdict
     public static function block(string $ruleId, string $refusalMessage): self
     {
         return new self(true, $ruleId, $refusalMessage);
+    }
+
+    /**
+     * Stamp the matching ruleset version for forensic reproducibility (Task E2).
+     */
+    public function withRulesetVersion(string $rulesetVersion): self
+    {
+        return new self($this->blocked, $this->ruleId, $this->refusalMessage, $rulesetVersion);
     }
 }

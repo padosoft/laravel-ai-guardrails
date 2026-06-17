@@ -18,5 +18,6 @@ final readonly class InjectionAttempt
         public ?string $ruleId,
         public ?string $principalId,
         public DateTimeImmutable $occurredAt,
+        public ?string $rulesetVersion = null,
     ) {}
 }

@@ -12,10 +12,11 @@ use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
  * Config-driven, deterministic PCRE-regex screener. The audit trail is the value, not the pattern
  * list — every prompt is screened the same way regardless of outcome. The first matching rule wins.
  *
- * Fails CLOSED: if `preg_match()` errors (returns false — e.g. PCRE backtrack/recursion limit or a
- * bad-UTF-8 subject), the prompt is treated as blocked rather than silently passing the model an
- * unscreened prompt (which would be a bypass). Task E1 adds normalization before matching; Task E2
- * makes the error behaviour configurable (on_match_error) and adds ReDoS limits + ruleset versioning.
+ * Fails CLOSED by default: if `preg_match()` errors (returns false — PCRE backtrack/recursion limit
+ * or a bad-UTF-8 subject), the prompt is BLOCKED rather than silently passing the model an unscreened
+ * prompt. The behaviour is configurable via `on_match_error` ('closed' = block, 'open' = skip the rule).
+ * ReDoS is bounded via `pcre.backtrack_limit`. Each verdict is stamped with the ruleset version for
+ * forensic reproducibility. Patterns can be validated up front with {@see validatePatterns()}.
  *
  * @param  array<string,mixed>  $patterns
  */
@@ -27,13 +28,20 @@ final readonly class PatternInjectionScreener implements InjectionScreener
         private string $refusalMessage,
         private ?PromptNormalizer $normalizer = null,
         private int $maxPromptLength = 0,
+        private string $rulesetVersion = 'v1',
+        private string $onMatchError = 'closed',
+        private int $backtrackLimit = 0,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
     {
         // Length ceiling (prompt-bombing / token exhaustion). Checked on the original prompt.
         if ($this->maxPromptLength > 0 && mb_strlen($prompt, 'UTF-8') > $this->maxPromptLength) {
-            return ScreenVerdict::block('too_long', $this->refusalMessage);
+            return $this->block('too_long');
+        }
+
+        if ($this->backtrackLimit > 0) {
+            ini_set('pcre.backtrack_limit', (string) $this->backtrackLimit);
         }
 
         // Normalize before matching so homoglyph / zero-width / case evasions cannot slip through.
@@ -41,8 +49,6 @@ final readonly class PatternInjectionScreener implements InjectionScreener
 
         foreach ($this->patterns as $ruleId => $pattern) {
             if (! is_string($pattern)) {
-                // Malformed config entry (non-string pattern) — skip it rather than throw a TypeError.
-                // Task E2 validates patterns at boot and rejects this up front.
                 Log::warning('laravel-ai-guardrails: ignoring non-string screening pattern.', ['rule_id' => (string) $ruleId]);
 
                 continue;
@@ -53,20 +59,61 @@ final readonly class PatternInjectionScreener implements InjectionScreener
             $result = @preg_match($pattern, $subject);
 
             if ($result === false) {
-                // PCRE error → fail closed (block), never fail open.
-                Log::warning('laravel-ai-guardrails: screening pattern errored; failing closed.', [
+                Log::warning('laravel-ai-guardrails: screening pattern errored.', [
                     'rule_id' => (string) $ruleId,
                     'preg_error' => preg_last_error_msg(),
+                    'on_match_error' => $this->onMatchError,
                 ]);
 
-                return ScreenVerdict::block('pattern_error:'.$ruleId, $this->refusalMessage);
+                if ($this->onMatchError === 'open') {
+                    // Fail open for THIS rule only: skip it and keep screening the rest.
+                    continue;
+                }
+
+                // Fail closed: a pattern that cannot be evaluated blocks the prompt.
+                return $this->block('pattern_error:'.$ruleId);
             }
 
             if ($result === 1) {
-                return ScreenVerdict::block((string) $ruleId, $this->refusalMessage);
+                return $this->block((string) $ruleId);
             }
         }
 
-        return ScreenVerdict::allow();
+        return $this->allow();
+    }
+
+    /**
+     * Validate patterns up front (boot-time). Returns ruleId => error message for malformed entries.
+     *
+     * @param  array<string,mixed>  $patterns
+     * @return array<string,string>
+     */
+    public static function validatePatterns(array $patterns): array
+    {
+        $errors = [];
+
+        foreach ($patterns as $ruleId => $pattern) {
+            if (! is_string($pattern)) {
+                $errors[(string) $ruleId] = 'pattern is not a string';
+
+                continue;
+            }
+
+            if (@preg_match($pattern, '') === false) {
+                $errors[(string) $ruleId] = preg_last_error_msg();
+            }
+        }
+
+        return $errors;
+    }
+
+    private function block(string $ruleId): ScreenVerdict
+    {
+        return ScreenVerdict::block($ruleId, $this->refusalMessage)->withRulesetVersion($this->rulesetVersion);
+    }
+
+    private function allow(): ScreenVerdict
+    {
+        return ScreenVerdict::allow()->withRulesetVersion($this->rulesetVersion);
     }
 }

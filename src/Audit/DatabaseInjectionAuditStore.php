@@ -27,6 +27,7 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
             'blocked' => $attempt->blocked,
             'rule_id' => $attempt->ruleId,
             'principal_id' => $attempt->principalId,
+            'ruleset_version' => $attempt->rulesetVersion,
             // Persist in UTC so audit timestamps are unambiguous across deployments/timezones.
             'occurred_at' => $attempt->occurredAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s'),
         ])->save();
@@ -50,6 +51,7 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
                 $row->rule_id !== null ? (string) $row->rule_id : null,
                 $row->principal_id !== null ? (string) $row->principal_id : null,
                 new DateTimeImmutable((string) $row->occurred_at, new DateTimeZone('UTC')),
+                $row->ruleset_version !== null ? (string) $row->ruleset_version : null,
             );
         }
 

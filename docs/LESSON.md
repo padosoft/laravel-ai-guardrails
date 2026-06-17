@@ -64,6 +64,11 @@
 - Refusal response: `new \Laravel\Ai\Responses\AgentResponse($prompt->invocationId ?? '', $text, new \Laravel\Ai\Responses\Data\Usage(), new \Laravel\Ai\Responses\Data\Meta())`. `AgentResponse.__construct(string $invocationId, string $text, Usage $usage, Meta $meta)`; `$text` is public-mutable (Control C rewrites it). `Usage` + `Meta` have ALL-OPTIONAL ctors (zero/null) — ideal for a no-model refusal.
 - Agent declares middleware via `Laravel\Ai\Contracts\HasMiddleware::middleware(): array` (class instances or closures).
 
+### E2 (2026-06-17)
+- **`$fillable` silently drops new columns.** `InjectionAuditRecord` uses an explicit `$fillable` list; when E2 added `ruleset_version`, `fill()` silently dropped it (persisted null) until the column was added to `$fillable`. Always assert new audit columns round-trip; update `$fillable` when adding one.
+- ScreenVerdict gained `?string $rulesetVersion` via a `withRulesetVersion()` wither (ctor is private). Threaded screener → verdict → middleware → `InjectionAttempt` → audit row (nullable additive column in the stub, unreleased).
+- `pattern_safety.on_match_error`: 'closed' (default, block the erroring rule) vs 'open' (skip it). Boot-time `PatternInjectionScreener::validatePatterns()` throws `InvalidScreeningPattern` when `validate_at_boot`.
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
