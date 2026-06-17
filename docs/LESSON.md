@@ -58,6 +58,12 @@
 - **P2b: nullable/union types serialize as an ARRAY.** `string()->nullable()->toArray()` → `{"type":["string","null"]}`; `union([...])` likewise. The validator must treat an array `type` as "match ANY member" and recognise `'null'` as a real type (value === null). A scalar `is_string($type)` check silently skipped validation for these.
 - General: the scoper↔validator interaction is where firewall bugs hide — always test the decorator end-to-end with the DEFAULT config, not just hand-picked owner keys.
 
+### Control B — laravel/ai v0.8.1 middleware/response contracts (VERIFIED 2026-06-17)
+- Agent middleware runs via `Illuminate\Pipeline`: `pipeline()->send($prompt)->through($agent->middleware())->then(fn(AgentPrompt $prompt) => <generate>)`. Signature: `handle(\Laravel\Ai\Prompts\AgentPrompt $prompt, \Closure $next)`. To **refuse without calling the model**, do NOT call `$next($prompt)` — return a fabricated refusal response.
+- `AgentPrompt extends Prompt`: parent has `public readonly string $prompt`; AgentPrompt adds `public readonly ?string $invocationId`, `Agent $agent`, `Collection $attachments`, `?int $timeout`. Helpers `contains/prepend/append/revise`.
+- Refusal response: `new \Laravel\Ai\Responses\AgentResponse($prompt->invocationId ?? '', $text, new \Laravel\Ai\Responses\Data\Usage(), new \Laravel\Ai\Responses\Data\Meta())`. `AgentResponse.__construct(string $invocationId, string $text, Usage $usage, Meta $meta)`; `$text` is public-mutable (Control C rewrites it). `Usage` + `Meta` have ALL-OPTIONAL ctors (zero/null) — ideal for a no-model refusal.
+- Agent declares middleware via `Laravel\Ai\Contracts\HasMiddleware::middleware(): array` (class instances or closures).
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
