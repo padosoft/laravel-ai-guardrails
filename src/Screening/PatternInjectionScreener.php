@@ -92,9 +92,12 @@ final readonly class PatternInjectionScreener implements InjectionScreener
                 if ($result === 1) {
                     // Carry any errored rule IDs (open mode) into the block verdict so the bypass
                     // trace is not lost when a later rule matches.
-                    // With PREG_OFFSET_CAPTURE, $matches[0] is [matched string, byte offset].
+                    // With PREG_OFFSET_CAPTURE, $matches[0] is [matched string, byte offset]. The
+                    // offset is into the NORMALIZED subject, but the audit/API persist and expose the
+                    // ORIGINAL prompt — so only record the span when normalization left the bytes
+                    // unchanged. Otherwise the forensic highlight would point at the wrong region.
                     $span = null;
-                    if (isset($matches[0])) {
+                    if ($subject === $prompt && isset($matches[0])) {
                         $span = [$matches[0][1], $matches[0][1] + strlen($matches[0][0])];
                     }
 

@@ -24,7 +24,7 @@ final class AuditEntryResource
             'rule_id' => $attempt->ruleId,
             'ruleset_version' => $attempt->rulesetVersion,
             'prompt_preview' => self::preview($attempt->prompt),
-            'prompt_length' => mb_strlen($attempt->prompt),
+            'prompt_length' => mb_strlen($attempt->prompt, 'UTF-8'),
             'errored' => $attempt->erroredRuleIds !== [],
             'occurred_at' => self::iso($attempt),
         ];
@@ -40,7 +40,7 @@ final class AuditEntryResource
             'principal_id' => $attempt->principalId,
             'ruleset_version' => $attempt->rulesetVersion,
             'prompt' => $attempt->prompt,
-            'prompt_length' => mb_strlen($attempt->prompt),
+            'prompt_length' => mb_strlen($attempt->prompt, 'UTF-8'),
             'errored_rule_ids' => $attempt->erroredRuleIds,
             'matched_span' => $attempt->matchedSpan,
             'occurred_at' => self::iso($attempt),
@@ -51,8 +51,8 @@ final class AuditEntryResource
     {
         $prompt = trim($prompt);
 
-        return mb_strlen($prompt) > self::PREVIEW_LIMIT
-            ? mb_substr($prompt, 0, self::PREVIEW_LIMIT).'…'
+        return mb_strlen($prompt, 'UTF-8') > self::PREVIEW_LIMIT
+            ? mb_substr($prompt, 0, self::PREVIEW_LIMIT, 'UTF-8').'…'
             : $prompt;
     }
 

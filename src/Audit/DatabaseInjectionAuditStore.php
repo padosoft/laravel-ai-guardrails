@@ -99,9 +99,10 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
     {
         $utc = new DateTimeZone('UTC');
         $day = $this->dayExpression();
+        $isBlocked = $this->blockedPredicate();
 
         $rows = $this->baseQuery()
-            ->selectRaw($day.' as day, count(*) as total, sum(case when blocked = 1 then 1 else 0 end) as blocked')
+            ->selectRaw($day.' as day, count(*) as total, sum(case when '.$isBlocked.' then 1 else 0 end) as blocked')
             ->where('occurred_at', '>=', $since->setTimezone($utc)->format('Y-m-d H:i:s'))
             ->where('occurred_at', '<=', $until->setTimezone($utc)->format('Y-m-d H:i:s'))
             ->groupByRaw($day)
@@ -139,6 +140,19 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
             'sqlsrv' => 'CONVERT(varchar(10), occurred_at, 23)',
             default => "strftime('%Y-%m-%d', occurred_at)", // sqlite
         };
+    }
+
+    /**
+     * Dialect-safe truthy test for the `blocked` column. PostgreSQL stores it as a real boolean and
+     * rejects `blocked = 1`; MySQL/SQLite (int 0/1) and SQL Server (bit) accept `blocked = 1`.
+     *
+     * @return literal-string
+     */
+    private function blockedPredicate(): string
+    {
+        return DB::connection($this->connection)->getDriverName() === 'pgsql'
+            ? 'blocked = true'
+            : 'blocked = 1';
     }
 
     private function baseQuery(): Builder

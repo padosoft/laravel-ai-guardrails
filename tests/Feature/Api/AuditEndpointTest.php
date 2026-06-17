@@ -129,9 +129,10 @@ final class AuditEndpointTest extends TestCase
             ->assertOk();
 
         self::assertSame([], $response->json('data.points'));
-        // from must be clamped to <= until so the window is coherent (not inverted)
-        $from = $response->json('data.from');
-        $to = $response->json('data.to');
+        // from must be clamped to <= until so the window is coherent (not inverted). Compare as
+        // DateTimeImmutable (not raw strings) so the direction of the assertion is unambiguous.
+        $from = new DateTimeImmutable((string) $response->json('data.from'));
+        $to = new DateTimeImmutable((string) $response->json('data.to'));
         self::assertLessThanOrEqual($to, $from, 'from must not exceed to in the response');
     }
 
