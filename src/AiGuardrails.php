@@ -6,16 +6,19 @@ namespace Padosoft\AiGuardrails;
 
 use Closure;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Tool;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
+use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\FirewalledTool;
 use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
+use Padosoft\AiGuardrails\Output\OutputStatKind;
 use Padosoft\AiGuardrails\Output\StructuredOutputValidator;
 use Padosoft\AiGuardrails\Screening\ScreenVerdict;
 
@@ -45,6 +48,7 @@ final readonly class AiGuardrails
         private string $destructiveMatch = 'exact',
         private ?Closure $principalResolver = null,
         private ?FirewallRejectionStore $firewallRejectionStore = null,
+        private ?OutputStatStore $outputStatStore = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -119,7 +123,19 @@ final readonly class AiGuardrails
             return []; // master kill-switch off → no validation (pass-through)
         }
 
-        return (new StructuredOutputValidator($rejectUnknown))->validate($output, $schema);
+        $violations = (new StructuredOutputValidator($rejectUnknown))->validate($output, $schema);
+        if ($violations !== [] && $this->outputStatStore !== null) {
+            // Fire-and-forget: a stat-store failure must not break validation for the caller.
+            try {
+                $this->outputStatStore->record(OutputStatKind::StructuredValidationFailure);
+            } catch (\Throwable $e) {
+                Log::warning('laravel-ai-guardrails: failed to record a structured-validation stat.', [
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $violations;
     }
 
     /**

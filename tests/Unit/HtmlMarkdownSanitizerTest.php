@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Tests\Unit;
 
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class HtmlMarkdownSanitizerTest extends TestCase
 {
@@ -144,5 +145,66 @@ final class HtmlMarkdownSanitizerTest extends TestCase
 
         $once = $sanitizer->sanitize('a < b & c');
         self::assertSame($once, $sanitizer->sanitize($once));
+    }
+
+    public function test_report_flags_html_change_only(): void
+    {
+        $report = (new HtmlMarkdownSanitizer)->sanitizeReport('<b>hi</b>');
+
+        self::assertTrue($report->htmlChanged);
+        self::assertFalse($report->markdownChanged);
+        self::assertStringContainsString('&lt;b&gt;', $report->text);
+    }
+
+    public function test_report_flags_markdown_change_only(): void
+    {
+        // No HTML-special chars → only the markdown link is neutralised.
+        $report = (new HtmlMarkdownSanitizer)->sanitizeReport('see [here](http://evil.test/leak)');
+
+        self::assertFalse($report->htmlChanged);
+        self::assertTrue($report->markdownChanged);
+        self::assertStringNotContainsString('evil.test', $report->text);
+    }
+
+    public function test_report_flags_nothing_for_clean_text(): void
+    {
+        $report = (new HtmlMarkdownSanitizer)->sanitizeReport('a perfectly clean sentence');
+
+        self::assertFalse($report->htmlChanged);
+        self::assertFalse($report->markdownChanged);
+        self::assertSame('a perfectly clean sentence', $report->text);
+    }
+
+    /**
+     * @return list<array{0:string}>
+     */
+    public static function nonTagProse(): array
+    {
+        return [
+            ["don't blame Tom & Jerry"], // quote + ampersand escaping only
+            ['a < b and c > d'],          // spaced comparisons, not tags
+            ['I <3 you'],                  // emoticon
+            ['a <= b'],                    // comparison operator
+        ];
+    }
+
+    #[DataProvider('nonTagProse')]
+    public function test_report_does_not_flag_non_tag_prose_as_html_stripped(string $prose): void
+    {
+        // These get entity-escaped for safety but contain no HTML tag, so html_stripped must NOT be
+        // counted (it would over-report on normal prose/math).
+        $report = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false))
+            ->sanitizeReport($prose);
+
+        self::assertFalse($report->htmlChanged);
+    }
+
+    public function test_report_flags_real_tags_and_closing_tags_and_comments(): void
+    {
+        $sanitizer = new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false);
+
+        self::assertTrue($sanitizer->sanitizeReport('<b>hi</b>')->htmlChanged);
+        self::assertTrue($sanitizer->sanitizeReport('text </div> more')->htmlChanged);
+        self::assertTrue($sanitizer->sanitizeReport('a <!-- comment --> b')->htmlChanged);
     }
 }

@@ -128,5 +128,15 @@
 - [x] **231 tests / 522 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then Task 14 (`GET /output/stats`), 15 (approvals), 16 (settings), 18 (hardening), E3–E7/E9, E9-API, E10.
 
+### Task 13 — MERGED (PR #15, squash `67942f4`, 2026-06-17). 5 Copilot rounds (pg-array JSON, store-failure isolation, violation key/value bounding + collision-safe disambiguation within KEY_LIMIT, LIKE escaping, zero-like cursor) → clean → auto-merged.
+
+### Task 14 — GET /output/stats + OutputStatStore (DONE locally, branch `feature/task-14-output-stats`)
+- [x] `OutputStatKind` enum (html_stripped, markdown_sanitized, structured_validation_failure, pii_redaction). `OutputStatStore` contract (record/totals/count), Null/Array/Database stores, immutable `OutputStatRecord` model + builder (shared `AppendOnlyEloquentBuilder`) + migration stub.
+- [x] **Reporting sanitizer:** new `ReportingOutputSanitizer` contract + `SanitizationReport` DTO; `HtmlMarkdownSanitizer` now implements it (`sanitizeReport()` tracks html vs markdown change separately; `sanitize()` delegates — behaviour identical). Middleware uses it to count html_stripped/markdown_sanitized + pii_redaction (by before/after compare).
+- [x] `AiGuardrails::validateStructured()` records `structured_validation_failure` when violations found. Stores threaded into the middleware + AiGuardrails via optional null-object ctor params.
+- [x] `OutputStatsController` (GET /output/stats — zero-filled per-kind counts + total, optional from/to window via IsoDateParser), route `ai-guardrails.api.output.stats`, provider binds the store (master-switch-aware, null|array|database from `output_stats` config — already in config since Task 0), publishes the migration.
+- [x] **260 tests / 598 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then Task 15 (approvals), 16 (settings), 18 (hardening), E3–E7/E9, E9-API, E10.
+
 ### Next
-- Task 14 (`GET /output/stats` + OutputStatStore), Task 15 (`GET /approvals` + approve/reject), Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.
+- Task 15 (`GET /approvals` + approve/reject), Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.

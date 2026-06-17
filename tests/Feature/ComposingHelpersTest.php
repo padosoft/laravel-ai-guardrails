@@ -7,8 +7,10 @@ namespace Padosoft\AiGuardrails\Tests\Feature;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Padosoft\AiGuardrails\AiGuardrails;
 use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
+use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Firewall\FirewalledTool;
 use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
+use Padosoft\AiGuardrails\Output\OutputStatKind;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeDestructiveTool;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeOwnedTool;
 use Padosoft\AiGuardrails\Tests\TestCase;
@@ -55,6 +57,28 @@ final class ComposingHelpersTest extends TestCase
 
         self::assertSame([], $guardrails->validateStructured(['action' => 'refund'], $schema));
         self::assertArrayHasKey('action', $guardrails->validateStructured([], $schema));
+    }
+
+    public function test_validate_structured_records_a_failure_stat(): void
+    {
+        $this->app['config']->set('ai-guardrails.output_stats.store', 'array');
+        $this->app->forgetInstance(OutputStatStore::class);
+        $this->app->forgetInstance(AiGuardrails::class);
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        $guardrails = $this->resolve(AiGuardrails::class);
+        $store = $this->resolve(OutputStatStore::class);
+        $schema = ['action' => (new JsonSchemaTypeFactory)->string()->required()];
+
+        // A passing validation records nothing; a failing one records a structured-validation-failure.
+        $guardrails->validateStructured(['action' => 'refund'], $schema);
+        self::assertSame(0, $store->count());
+
+        $guardrails->validateStructured([], $schema);
+        self::assertSame(
+            [OutputStatKind::StructuredValidationFailure->value => 1],
+            $store->totals(),
+        );
     }
 
     public function test_master_kill_switch_off_returns_unwrapped_tools(): void
