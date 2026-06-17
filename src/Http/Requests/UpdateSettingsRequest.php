@@ -134,7 +134,7 @@ final class UpdateSettingsRequest extends FormRequest
             }
         }
 
-        return new Invalid('must be a boolean (true/false)');
+        return new Invalid('must be a boolean (true/false/1/0)');
     }
 
     /** @param list<string> $allowed */
