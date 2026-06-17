@@ -147,6 +147,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return new HtmlMarkdownSanitizer(
                 (bool) $app['config']->get('ai-guardrails.output_handler.sanitize_html', true),
                 (bool) $app['config']->get('ai-guardrails.output_handler.neutralize_markdown', true),
+                (string) $app['config']->get('ai-guardrails.output_handler.html_mode', 'escape'),
             );
         });
 

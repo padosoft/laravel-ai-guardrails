@@ -76,6 +76,22 @@ final class GuardrailOutputMiddlewareTest extends TestCase
         self::assertStringNotContainsString('evil.test', $response->structured['nested']['link']);
     }
 
+    public function test_tool_calls_pass_through_untouched(): void
+    {
+        // Documented limitation: Control C only rewrites text/structured; the model's tool calls
+        // are governed by Controls A (firewall) and D (HITL), not sanitized here.
+        $response = AgentResponseFactory::make('<script>x</script>');
+        $response->toolCalls = collect(['refund' => ['amount' => '<b>10</b>']]);
+
+        $out = (new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction))->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => $response,
+        );
+
+        self::assertSame(['refund' => ['amount' => '<b>10</b>']], $out->toolCalls->all()); // untouched
+        self::assertStringContainsString('&lt;script&gt;', $out->text); // text still sanitized
+    }
+
     public function test_disabled_middleware_leaves_response_untouched(): void
     {
         $middleware = new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction, enabled: false);

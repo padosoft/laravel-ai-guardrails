@@ -20,12 +20,15 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
     public function __construct(
         private bool $sanitizeHtml = true,
         private bool $neutralizeMarkdown = true,
+        private string $htmlMode = 'escape',
     ) {}
 
     public function sanitize(string $text): string
     {
         if ($this->sanitizeHtml) {
-            $text = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', double_encode: false);
+            $text = $this->htmlMode === 'allowlist'
+                ? $this->allowlist($text)
+                : htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', double_encode: false);
         }
 
         if ($this->neutralizeMarkdown) {
@@ -56,6 +59,30 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
      * text (that would leave the exfiltration syntax intact). Instead strip the structural
      * characters that make up link/autolink targets so no such syntax can survive.
      */
+    /**
+     * Allowlist mode (Task E8): instead of escaping everything, keep a tiny set of safe inline
+     * formatting tags and strip ALL of their attributes (so no `onclick`/`style`/`href` survives)
+     * and every other tag. Links/images/autolinks are removed entirely (no exfiltration target).
+     * This is NOT HTMLPurifier-grade — for rendering rich untrusted HTML, use a dedicated sanitizer.
+     */
+    private function allowlist(string $text): string
+    {
+        $allowed = ['b', 'i', 'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li'];
+
+        // Decode HTML entities first so entity-encoded tags (e.g. `&#x3C;script&#x3E;`) are revealed
+        // and then removed by strip_tags, rather than surviving as a latent XSS payload.
+        $decoded = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $stripped = strip_tags($decoded, '<'.implode('><', $allowed).'>');
+
+        // Strip ALL attributes, but ONLY from the allowed tags, and require the tag name to follow
+        // `<` immediately (no whitespace). This prevents malformed text that strip_tags left alone
+        // (e.g. `< script >…< /script >`) from being normalized BACK into a real disallowed tag.
+        $pattern = '/<(\/?)('.implode('|', $allowed).')\b[^>]*>/i';
+
+        return preg_replace($pattern, '<$1$2>', $stripped) ?? '';
+    }
+
     private function defang(string $pattern, string $replacement, string $text): string
     {
         $result = preg_replace($pattern, $replacement, $text);

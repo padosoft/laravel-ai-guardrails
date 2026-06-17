@@ -97,6 +97,47 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertStringNotContainsString(')', $out);
     }
 
+    public function test_allowlist_mode_keeps_safe_inline_tags_but_strips_attributes(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false, htmlMode: 'allowlist'))
+            ->sanitize('<b onclick="evil()">bold</b> <script>x</script>');
+
+        self::assertStringContainsString('<b>bold</b>', $out);
+        self::assertStringNotContainsString('onclick', $out);
+        self::assertStringNotContainsString('<script>', $out);
+    }
+
+    public function test_allowlist_mode_strips_links_and_dangerous_tags(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false, htmlMode: 'allowlist'))
+            ->sanitize('<a href="javascript:alert(1)">x</a><img src=x onerror=y>');
+
+        self::assertStringNotContainsString('javascript:', $out);
+        self::assertStringNotContainsString('<a', $out);
+        self::assertStringNotContainsString('<img', $out);
+    }
+
+    public function test_allowlist_mode_strips_entity_encoded_tags(): void
+    {
+        // &#x3C;script&#x3E; is an entity-encoded <script>; it must not survive allowlist mode.
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false, htmlMode: 'allowlist'))
+            ->sanitize('&#x3C;script&#x3E;alert(1)&#x3C;/script&#x3E;');
+
+        self::assertStringNotContainsString('<script', $out);
+        self::assertStringNotContainsString('&#x3C;script', $out);
+    }
+
+    public function test_allowlist_mode_does_not_recreate_spaced_disallowed_tags(): void
+    {
+        // `< script >` survives strip_tags (not a valid tag); the attribute-stripper must NOT
+        // normalize it back into a real <script> tag.
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false, htmlMode: 'allowlist'))
+            ->sanitize('< script >alert(1)< /script >');
+
+        self::assertStringNotContainsString('<script>', $out);
+        self::assertStringNotContainsString('</script>', $out);
+    }
+
     public function test_does_not_double_encode(): void
     {
         $sanitizer = new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false);
