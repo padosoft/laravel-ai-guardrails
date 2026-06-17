@@ -95,5 +95,10 @@
 - [x] **152 tests / 285 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then Task 8 (README WOW).
 
+### Task 8 — WOW README + LICENSE (DONE locally, branch `feature/task-8-readme`)
+- [x] README: banner (resources/), badges, TOC, "what makes it different", 4-controls table, junior-proof quick start, PHP+Artisan surfaces, middleware wiring, config table, compose section, append-only audit, threat model, known limitations, testing. All commands/config keys match code (R9).
+- [x] LICENSE Apache-2.0 copyright filled (Padosoft s.r.l. 2026).
+- [ ] DoD loop → PR. Then HTTP API (Tasks 9–18) — the largest chunk; README API section added at Task 18.
+
 ### Next
-- Task 8 — WOW README + LESSON/PROGRESS + LICENSE on `feature/task-8-readme`. Then HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
+- Tasks 9–18 — HTTP API surface (envelope + 13 endpoints + 4 stores) for the admin SPA, on `feature/task-9-api-foundation` etc. Then E3–E7/E9 hardening, E9-API, E10 release.
