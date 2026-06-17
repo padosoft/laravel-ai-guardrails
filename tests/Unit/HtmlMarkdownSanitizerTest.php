@@ -43,6 +43,15 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertStringNotContainsString('evil.test', $out);
     }
 
+    public function test_neutralizes_indented_reference_link_definition(): void
+    {
+        // CommonMark allows up to 3 leading spaces before a reference-link definition.
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: false, neutralizeMarkdown: true))
+            ->sanitize('   [ref]: https://evil.test/steal');
+
+        self::assertStringNotContainsString('evil.test', $out);
+    }
+
     public function test_neutralizes_reference_link_definition_with_title(): void
     {
         $out = (new HtmlMarkdownSanitizer(sanitizeHtml: false, neutralizeMarkdown: true))

@@ -66,7 +66,7 @@
 ### Task 4 — Control C: Output handler (DONE locally, branch `feature/control-c-output-handler`)
 - [x] `HtmlMarkdownSanitizer` (escape HTML + defang markdown link/image + angle autolinks), `StructuredOutputValidator` (validate structured output vs schema; union/nullable), `RealPiiRedaction` (composes pii-redactor `RedactorEngine`) + `NullPiiRedaction`, `GuardrailOutputMiddleware` (rewrites `$response->text` = sanitize→redact; tool_calls untouched).
 - [x] `PiiRedactionFactory` keeps the optional-vendor reference inside src/Output (compose-not-couple boundary); provider binds sanitizer + PII + middleware (both-states + master + graceful PII via class_exists). TestCase registers `PiiRedactorServiceProvider` so the engine resolves (require-dev).
-- [x] **104 tests / 182 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **113 tests / 196 assertions** GREEN; pint + phpstan level 8 clean. Review hardening: structured-response field sanitization, sanitizer fail-closed, indented reference-link defang, StructuredOutputValidator rejectUnknown, PiiRedactionFactory resolve-guard.
 - [ ] DoD loop → PR. Then E8 (allowlist mode + URI scheme filter), Control D, etc.
 
 ### Next

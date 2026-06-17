@@ -39,4 +39,18 @@ final class StructuredOutputValidatorTest extends TestCase
 
         self::assertArrayHasKey('amount', $errors);
     }
+
+    public function test_unknown_fields_allowed_by_default(): void
+    {
+        $errors = (new StructuredOutputValidator)->validate(['action' => 'refund', 'extra' => 1], $this->schema());
+
+        self::assertSame([], $errors);
+    }
+
+    public function test_unknown_fields_reported_when_reject_unknown(): void
+    {
+        $errors = (new StructuredOutputValidator(rejectUnknown: true))->validate(['action' => 'refund', 'extra' => 1], $this->schema());
+
+        self::assertArrayHasKey('extra', $errors);
+    }
 }

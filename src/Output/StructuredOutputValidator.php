@@ -14,6 +14,8 @@ use Illuminate\JsonSchema\Types\Type;
  */
 final readonly class StructuredOutputValidator
 {
+    public function __construct(private bool $rejectUnknown = false) {}
+
     /**
      * @param  array<string,mixed>  $output
      * @param  array<string,Type>  $schema  laravel/ai Type map (argument-name => Type)
@@ -59,6 +61,14 @@ final readonly class StructuredOutputValidator
                 }
                 if (! $matchesAny) {
                     $errors[$key] = "Field [{$key}] must be one of types [".implode('|', array_map('strval', $expected)).'].';
+                }
+            }
+        }
+
+        if ($this->rejectUnknown) {
+            foreach (array_keys($output) as $key) {
+                if (! array_key_exists($key, $properties)) {
+                    $errors[$key] = "Unknown field [{$key}] is not declared in the schema.";
                 }
             }
         }

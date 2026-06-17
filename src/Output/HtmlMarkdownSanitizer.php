@@ -34,7 +34,8 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
             // exfiltration targets for `[text][label]` usages anywhere in the document.
             // Must run before the inline-link pass. Safe after HTML-escaping because `[`, `]`, `:`
             // are not HTML-special chars and are preserved verbatim.
-            $text = $this->defang('/^\[[^\]]+\]:\s*\S.*/m', '[ref]: (blocked)', $text);
+            // ` {0,3}` allows the up-to-3-spaces of indentation CommonMark permits before a definition.
+            $text = $this->defang('/^ {0,3}\[[^\]]+\]:\s*\S.*/m', '[ref]: (blocked)', $text);
 
             // Inline links/images: `[text](url)` / `![alt](url)` → keep visible text, drop URL.
             $text = $this->defang('/(!?\[[^\]]*\])\([^)]*\)/', '$1(blocked)', $text);
@@ -64,7 +65,9 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
                 'preg_error' => preg_last_error_msg(),
             ]);
 
-            return str_replace(['(', ')', '<', '>', '&lt;', '&gt;'], '', $text);
+            // Strip every character that forms a link/autolink/reference target so no exfiltration
+            // syntax (inline `[t](url)`, reference `[ref]: url`, autolink `<scheme:...>`) survives.
+            return str_replace(['(', ')', '<', '>', '[', ']', '&lt;', '&gt;'], '', $text);
         }
 
         return $result;
