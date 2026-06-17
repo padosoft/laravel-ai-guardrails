@@ -61,4 +61,13 @@ final class InputScreenBindingsTest extends TestCase
         $this->reregister();
         self::assertInstanceOf(NullInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
     }
+
+    public function test_master_kill_switch_off_forces_null_audit_store(): void
+    {
+        $this->app['config']->set('ai-guardrails.enabled', false);
+        $this->app['config']->set('ai-guardrails.audit.store', 'database'); // would persist if not for master off
+        $this->reregister();
+
+        self::assertInstanceOf(NullInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
+    }
 }

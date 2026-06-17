@@ -43,4 +43,16 @@ final class PatternInjectionScreenerTest extends TestCase
 
         self::assertSame('a', $screener->screen('the secret key')->ruleId);
     }
+
+    public function test_fails_closed_when_preg_match_errors(): void
+    {
+        // A /u pattern against an invalid-UTF-8 subject makes preg_match() return false (error).
+        // The screener must BLOCK (fail closed), never silently allow an unscreened prompt.
+        $screener = new PatternInjectionScreener(['u_rule' => '/x/u'], 'blocked');
+
+        $verdict = $screener->screen("\xFF\xFE invalid utf8");
+
+        self::assertTrue($verdict->blocked);
+        self::assertStringStartsWith('pattern_error:', (string) $verdict->ruleId);
+    }
 }

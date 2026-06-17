@@ -59,7 +59,7 @@ final class GuardrailInputMiddlewareTest extends TestCase
 
         $response = $this->middleware($audit)->handle(
             AgentPromptFactory::make('what is the refund policy?'),
-            static fn (): string => 'MODEL_CALLED',
+            static fn ($prompt): string => 'MODEL_CALLED',
         );
 
         self::assertSame('MODEL_CALLED', $response);

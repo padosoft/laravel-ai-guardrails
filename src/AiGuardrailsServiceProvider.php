@@ -72,6 +72,11 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         }
 
         $this->app->singleton(InjectionAuditStore::class, static function ($app): InjectionAuditStore {
+            // Master kill-switch off → no persistence side effects.
+            if (! (bool) $app['config']->get('ai-guardrails.enabled', true)) {
+                return new NullInjectionAuditStore;
+            }
+
             return match ($app['config']->get('ai-guardrails.audit.store', 'null')) {
                 'array' => new ArrayInjectionAuditStore,
                 'database' => new DatabaseInjectionAuditStore(
