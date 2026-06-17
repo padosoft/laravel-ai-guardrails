@@ -38,7 +38,8 @@ final class ApprovalReadModel
                 })
                 ->orderByDesc('created_at')
                 ->limit(max(1, min(200, $limit)))
-                ->get();
+                // Only the exposed columns — never pull token_hash / payload / actor into memory.
+                ->get(['id', 'run_id', 'step_name', 'status', 'expires_at', 'created_at']);
         } catch (\Throwable) {
             // Flow is installed but its tables aren't present (persistence off / not migrated). The
             // list degrades to empty rather than 500-ing the read-only endpoint.
