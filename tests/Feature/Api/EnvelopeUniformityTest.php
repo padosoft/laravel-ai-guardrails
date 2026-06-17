@@ -30,52 +30,45 @@ final class EnvelopeUniformityTest extends TestCase
         $app['config']->set('ai-guardrails.hitl.enabled', false);
     }
 
-    /** @return list<array{0:string}> */
+    /** @return list<array{0:string,1:string}> url => its exact expected schema discriminator. */
     public static function readEndpoints(): array
     {
         return [
-            ['/ai-guardrails/api/overview'],
-            ['/ai-guardrails/api/audit'],
-            ['/ai-guardrails/api/audit/trend'],
-            ['/ai-guardrails/api/firewall'],
-            ['/ai-guardrails/api/output/stats'],
-            ['/ai-guardrails/api/approvals'],
-            ['/ai-guardrails/api/settings'],
+            ['/ai-guardrails/api/overview', ApiSchema::SCHEMA_OVERVIEW],
+            ['/ai-guardrails/api/audit', ApiSchema::SCHEMA_AUDIT_LIST],
+            ['/ai-guardrails/api/audit/trend', ApiSchema::SCHEMA_AUDIT_TREND],
+            ['/ai-guardrails/api/firewall', ApiSchema::SCHEMA_FIREWALL],
+            ['/ai-guardrails/api/output/stats', ApiSchema::SCHEMA_OUTPUT_STATS],
+            ['/ai-guardrails/api/approvals', ApiSchema::SCHEMA_APPROVAL_LIST],
+            ['/ai-guardrails/api/settings', ApiSchema::SCHEMA_SETTINGS],
         ];
     }
 
     #[DataProvider('readEndpoints')]
-    public function test_every_read_endpoint_uses_the_same_envelope(string $url): void
+    public function test_every_read_endpoint_uses_the_envelope_with_its_own_schema(string $url, string $expectedSchema): void
     {
-        $response = $this->getJson($url)->assertOk();
-
-        $body = $response->json();
-        self::assertIsArray($body);
-        self::assertArrayHasKey('schema_version', $body);
-        self::assertArrayHasKey('schema', $body);
-        self::assertArrayHasKey('data', $body);
-
-        self::assertSame(ApiSchema::VERSION, $body['schema_version']);
-        self::assertIsString($body['schema']);
-        self::assertStringStartsWith(ApiSchema::VERSION.'.', $body['schema']);
+        $this->assertEnveloped($this->getJson($url)->assertOk()->json(), $expectedSchema);
     }
 
     /**
-     * `audit.show` always returns 404 for a non-existent id, but the envelope is still applied.
-     * Verified separately because the data-provider above uses assertOk() for the 200 paths.
+     * `audit.show` always returns 404 for a non-existent id, but the envelope is still applied with
+     * the detail discriminator. Verified separately because the data-provider above uses assertOk().
      */
     public function test_audit_show_404_uses_the_same_envelope(): void
     {
-        $response = $this->getJson('/ai-guardrails/api/audit/999999')->assertStatus(404);
+        $body = $this->getJson('/ai-guardrails/api/audit/999999')->assertStatus(404)->json();
 
-        $body = $response->json();
+        $this->assertEnveloped($body, ApiSchema::SCHEMA_AUDIT_DETAIL);
+    }
+
+    /** Assert the full envelope shape and that `schema` is EXACTLY the per-endpoint discriminator. */
+    private function assertEnveloped(mixed $body, string $expectedSchema): void
+    {
         self::assertIsArray($body);
-        self::assertArrayHasKey('schema_version', $body);
-        self::assertArrayHasKey('schema', $body);
         self::assertArrayHasKey('data', $body);
-
-        self::assertSame(ApiSchema::VERSION, $body['schema_version']);
-        self::assertIsString($body['schema']);
-        self::assertStringStartsWith(ApiSchema::VERSION.'.', $body['schema']);
+        self::assertSame(ApiSchema::VERSION, $body['schema_version'] ?? null);
+        // Exact, not just the prefix — distinct discriminators are part of the public contract.
+        self::assertSame($expectedSchema, $body['schema'] ?? null);
+        self::assertStringStartsWith(ApiSchema::VERSION.'.', $expectedSchema);
     }
 }

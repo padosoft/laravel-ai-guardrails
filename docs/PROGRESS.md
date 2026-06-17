@@ -164,7 +164,7 @@
 - [x] `tests/Feature/Api/EnvelopeUniformityTest.php` — data-provider hits every read endpoint (overview, audit, audit/trend, firewall, output/stats, approvals, settings) with array/config stores + hitl off; asserts each carries `schema_version === 'ai-guardrails.api.v1'`, a `schema` under that namespace, and a `data` key (uniform envelope).
 - [x] `tests/Architecture/ApiConventionsTest.php` — (a) every `src/Http/*Controller` public action returns `JsonResponse` (reflection); (b) the registered `ai-guardrails.api.*` route names are exactly the 13 expected; (c) no `src/Http` file references `Padosoft\LaravelFlow`/`Padosoft\PiiRedactor` directly (compose-not-couple boundary extends to Http).
 - [x] README: new "HTTP API surface (admin)" section (default-OFF gate, envelope contract, full 13-endpoint table with names + schema discriminators + backing stores). R9-verified: every quoted config key + schema discriminator exists in code.
-- [x] **317 tests / 840 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **317 tests** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. After merge: **tag v0.2.0** (admin API additive over v0.1.0 core). Then E3–E7/E9, E9-API, E10.
 
 ### Roadmap status (HTTP API epic COMPLETE)
