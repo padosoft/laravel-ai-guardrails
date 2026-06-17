@@ -79,6 +79,15 @@ final class SettingsEndpointTest extends TestCase
             ->assertJsonValidationErrors('settings.input_screen.enabled');
     }
 
+    public function test_empty_string_boolean_is_rejected_not_treated_as_false(): void
+    {
+        // "" must NOT silently disable a boolean guardrail (FILTER_VALIDATE_BOOLEAN would coerce it
+        // to false); it must be rejected with 422.
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.enabled' => '']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('settings.input_screen.enabled');
+    }
+
     public function test_missing_settings_body_is_rejected(): void
     {
         $this->putJson('/ai-guardrails/api/settings', [])->assertStatus(422);

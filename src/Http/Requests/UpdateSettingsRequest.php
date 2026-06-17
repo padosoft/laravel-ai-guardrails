@@ -112,9 +112,23 @@ final class UpdateSettingsRequest extends FormRequest
 
     private function coerceBool(mixed $value): bool|Invalid
     {
-        $bool = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if (is_bool($value)) {
+            return $value;
+        }
 
-        return $bool === null ? new Invalid('must be a boolean') : $bool;
+        // Strict: accept only canonical representations. Crucially this rejects "" (which
+        // FILTER_VALIDATE_BOOLEAN would treat as false) so an empty string can't disable a guardrail.
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['true', '1'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['false', '0'], true)) {
+                return false;
+            }
+        }
+
+        return new Invalid('must be a boolean (true/false)');
     }
 
     /** @param list<string> $allowed */

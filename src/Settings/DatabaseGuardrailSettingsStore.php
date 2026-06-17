@@ -51,26 +51,30 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
         // (console command, seeder) bypassing it must never be able to upsert a non-overridable key.
         $overridable = OverridableSettings::keys();
         $now = now();
-        $connection = DB::connection($this->connection);
 
-        // One transaction so THIS PUT's keys are written all-or-nothing (a mid-write failure can't
-        // leave only some of the request's keys applied). Note: it does not serialize independent
-        // concurrent PUTs — last-writer-wins per key, which is the expected upsert semantics.
-        $connection->transaction(function () use ($connection, $overrides, $overridable, $now): void {
-            foreach ($overrides as $key => $value) {
-                if (! in_array($key, $overridable, true)) {
-                    continue;
-                }
-                // Values are already type-validated; JSON_THROW_ON_ERROR fails loudly on an
-                // unexpected encoding error rather than persisting `false` into the JSON column.
-                // updateOrInsert writes the value set on BOTH insert and update, so created_at is left
-                // to the column default (useCurrent) to avoid clobbering the insert time on update.
-                $connection->table($this->table)->updateOrInsert(
-                    ['key' => $key],
-                    ['value' => json_encode($value, JSON_THROW_ON_ERROR), 'updated_at' => $now],
-                );
+        // Build rows first so JSON_THROW_ON_ERROR can fail before any DB write.
+        $rows = [];
+        foreach ($overrides as $key => $value) {
+            if (! in_array($key, $overridable, true)) {
+                continue;
             }
-        });
+            // Values are already type-validated; JSON_THROW_ON_ERROR fails loudly rather than
+            // persisting `false` into the JSON column on an unexpected encoding error.
+            $rows[] = ['key' => $key, 'value' => json_encode($value, JSON_THROW_ON_ERROR), 'updated_at' => $now];
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        // A single atomic INSERT … ON DUPLICATE KEY UPDATE / ON CONFLICT DO UPDATE avoids the
+        // SELECT-then-INSERT race of updateOrInsert() that would cause a unique-key violation (HTTP 500)
+        // under concurrent admin writes. created_at is NOT in the update list so the DB default
+        // (useCurrent) sets it once on insert and it is never clobbered on subsequent updates.
+        // This is all-or-nothing for the batch (last-writer-wins per key as expected for upserts).
+        DB::connection($this->connection)
+            ->table($this->table)
+            ->upsert($rows, ['key'], ['value', 'updated_at']);
     }
 
     /** @return Collection<int,\stdClass> */
