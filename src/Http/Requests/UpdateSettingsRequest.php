@@ -55,7 +55,13 @@ final class UpdateSettingsRequest extends FormRequest
     /** @return array<string,mixed> */
     public function rules(): array
     {
-        return ['settings' => ['required', 'array']];
+        return ['settings' => ['required', 'array', static function (string $attribute, mixed $value, \Closure $fail): void {
+            // Must be a JSON object (dotted-key => value), not a list. A list would pass `array` but
+            // then be silently ignored by sanitized() (numeric keys), masking a client bug.
+            if (is_array($value) && $value !== [] && array_is_list($value)) {
+                $fail('The settings field must be an object of dotted-key => value, not a list.');
+            }
+        }]];
     }
 
     /**

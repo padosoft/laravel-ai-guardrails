@@ -67,6 +67,14 @@ final class DatabaseGuardrailSettingsStoreTest extends TestCase
         self::assertSame(1, DB::table('ai_guardrails_settings')->where('key', 'input_screen.enabled')->count());
     }
 
+    public function test_all_fails_safe_to_defaults_when_table_is_absent(): void
+    {
+        // store=database but the table isn't there (fresh install / mid-deploy) → file defaults, no 500.
+        $store = new DatabaseGuardrailSettingsStore(null, 'ai_guardrails_settings_missing');
+
+        self::assertTrue($store->all()['input_screen.enabled']);
+    }
+
     public function test_malformed_json_row_keeps_the_file_default(): void
     {
         // A corrupt value must NOT overwrite a security control's default with null.

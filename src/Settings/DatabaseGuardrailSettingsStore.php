@@ -24,8 +24,16 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
     {
         $effective = OverridableSettings::defaults();
 
+        try {
+            $rows = $this->rows();
+        } catch (\Throwable) {
+            // store=database but the table isn't there yet (fresh install / mid-deploy) → fail safe to
+            // the file defaults rather than 500-ing the settings endpoint (matches overlayRuntimeSettings).
+            return $effective;
+        }
+
         // rows() already restricts to overridable keys (it may have shrunk since the row was written).
-        foreach ($this->rows() as $row) {
+        foreach ($rows as $row) {
             if (! is_string($row->value)) {
                 continue;
             }
