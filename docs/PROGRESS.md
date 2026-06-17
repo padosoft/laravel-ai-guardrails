@@ -69,5 +69,11 @@
 - [x] **113 tests / 196 assertions** GREEN; pint + phpstan level 8 clean. Review hardening: structured-response field sanitization, sanitizer fail-closed, indented reference-link defang, StructuredOutputValidator rejectUnknown, PiiRedactionFactory resolve-guard.
 - [ ] DoD loop → PR. Then E8 (allowlist mode + URI scheme filter), Control D, etc.
 
+### Task E8 — Output allowlist mode + tool-calls note (DONE locally, branch `feature/control-c-e8`)
+- [x] `HtmlMarkdownSanitizer` `html_mode` = 'escape' (default) | 'allowlist' (keep a tiny safe inline-tag set, strip ALL attributes + other tags + links). Provider wires `output_handler.html_mode`.
+- [x] Documented + tested limitation: middleware rewrites text/structured only; **tool_calls pass through untouched** (governed by Controls A/D).
+- [x] **117 tests / 207 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] PR → CI → merge. (URI-scheme handling already covered by the Control C link/autolink defang; no separate filter needed — noted.)
+
 ### Next
-- E8 (output allowlist + URI scheme filter), then Control D (HITL flow bridge), Artisan, arch tests, README, HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
+- Control D (HITL flow bridge over laravel-flow approvalGate) on `feature/control-d-hitl` off main. Then Artisan (T6), arch tests (T7), README (T8), HTTP API (9–18), E3–E7/E9, E9-API, E10 release.

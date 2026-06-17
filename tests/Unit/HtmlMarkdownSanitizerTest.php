@@ -97,6 +97,26 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertStringNotContainsString(')', $out);
     }
 
+    public function test_allowlist_mode_keeps_safe_inline_tags_but_strips_attributes(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false, htmlMode: 'allowlist'))
+            ->sanitize('<b onclick="evil()">bold</b> <script>x</script>');
+
+        self::assertStringContainsString('<b>bold</b>', $out);
+        self::assertStringNotContainsString('onclick', $out);
+        self::assertStringNotContainsString('<script>', $out);
+    }
+
+    public function test_allowlist_mode_strips_links_and_dangerous_tags(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false, htmlMode: 'allowlist'))
+            ->sanitize('<a href="javascript:alert(1)">x</a><img src=x onerror=y>');
+
+        self::assertStringNotContainsString('javascript:', $out);
+        self::assertStringNotContainsString('<a', $out);
+        self::assertStringNotContainsString('<img', $out);
+    }
+
     public function test_does_not_double_encode(): void
     {
         $sanitizer = new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false);
