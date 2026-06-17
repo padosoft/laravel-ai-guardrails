@@ -25,7 +25,7 @@ final class OverviewEndpointTest extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'controls' => [['key', 'label', 'enabled']],
-                    'totals' => ['attempts_24h', 'blocked_24h'],
+                    'totals' => ['attempts_24h', 'blocked_24h', 'sampled'],
                 ],
             ]);
     }

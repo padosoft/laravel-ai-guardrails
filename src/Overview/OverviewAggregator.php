@@ -20,10 +20,17 @@ final readonly class OverviewAggregator
         private Config $config,
     ) {}
 
-    /** @return array<string,mixed> */
+    /**
+     * A fast dashboard snapshot. The 24h totals are computed from the most recent window of audit
+     * rows (an approximation, flagged via `sampled`); the authoritative daily counts come from the
+     * SQL-aggregated trend endpoint (GET /audit/trend).
+     *
+     * @return array<string,mixed>
+     */
     public function aggregate(): array
     {
-        $recent = $this->audit->recent(1000);
+        $sampleSize = 1000;
+        $recent = $this->audit->recent($sampleSize);
         $cutoff = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('-24 hours');
 
         $in24h = array_filter($recent, static fn ($a): bool => $a->occurredAt >= $cutoff);
@@ -39,6 +46,9 @@ final readonly class OverviewAggregator
             'totals' => [
                 'attempts_24h' => count($in24h),
                 'blocked_24h' => count($blocked24h),
+                // True when the recent window was saturated, so the 24h counts may undercount;
+                // the admin should defer to /audit/trend for exact figures.
+                'sampled' => count($recent) >= $sampleSize,
             ],
         ];
     }

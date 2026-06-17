@@ -242,31 +242,35 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             }
         }
 
-        // Refuse to boot with an open API surface. Fail CLOSED: any value that is not a
-        // non-empty array of middleware (empty array, null, scalar — e.g. from a partial
-        // package-config merge that does not restore nested defaults) is treated as "open".
-        $apiMiddleware = config('ai-guardrails.api.middleware');
-        if ((bool) config('ai-guardrails.api.enabled') && (! is_array($apiMiddleware) || $apiMiddleware === [])) {
+        // Refuse to boot with an open API surface. Fail CLOSED on the EFFECTIVE (string-filtered)
+        // middleware — a non-empty array of non-strings would otherwise pass a raw check and then
+        // register the routes with no usable middleware.
+        $raw = config('ai-guardrails.api.middleware');
+        $effectiveMiddleware = is_array($raw) ? array_values(array_filter($raw, 'is_string')) : [];
+
+        if ((bool) config('ai-guardrails.api.enabled') && $effectiveMiddleware === []) {
             throw new \RuntimeException(
-                'laravel-ai-guardrails: api.enabled is true but api.middleware is not a non-empty array. '.
+                'laravel-ai-guardrails: api.enabled is true but api.middleware has no (string) middleware. '.
                 'Set at least one middleware (e.g. "auth:sanctum") in config/ai-guardrails.php to protect the API surface.'
             );
         }
 
-        $this->registerApiRoutes();
+        $this->registerApiRoutes($effectiveMiddleware);
     }
 
     /**
      * Register the read/config HTTP API routes — only when api.enabled (default OFF), the router is
-     * bound, and routes are not cached. The open-surface guard above guarantees a non-empty middleware.
+     * bound, and routes are not cached. The caller passes the guarded, non-empty middleware.
+     *
+     * @param  list<string>  $middleware
      */
-    private function registerApiRoutes(): void
+    private function registerApiRoutes(array $middleware): void
     {
         if (! (bool) config('ai-guardrails.api.enabled', false)) {
             return;
         }
 
-        if (! $this->app->bound(Registrar::class)) {
+        if ($middleware === [] || ! $this->app->bound(Registrar::class)) {
             return;
         }
 
@@ -275,14 +279,13 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         }
 
         $prefix = trim((string) config('ai-guardrails.api.prefix', 'ai-guardrails/api'), '/');
-        $middleware = config('ai-guardrails.api.middleware', []);
 
         /** @var callable(Registrar, string, list<string>): void $register */
         $register = require __DIR__.'/../routes/ai-guardrails-api.php';
         $register(
             $this->app->make(Registrar::class),
             $prefix !== '' ? $prefix : 'ai-guardrails/api',
-            is_array($middleware) ? array_values(array_filter($middleware, 'is_string')) : [],
+            $middleware,
         );
     }
 }
