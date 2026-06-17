@@ -21,8 +21,11 @@ use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
+use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
+use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
+use Padosoft\AiGuardrails\Output\PiiRedactionFactory;
 use Padosoft\AiGuardrails\Screening\GuardrailInputMiddleware;
 use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
 use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
@@ -129,6 +132,32 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $app->make(InjectionAuditStore::class),
                 // Resolve the principal defensively: auth may be unbound (CLI / minimal apps).
                 static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
+                $enabled,
+            );
+        });
+
+        // Control C — Output handler (sanitize untrusted model output + compose PII redaction).
+        $outputActive = (bool) config('ai-guardrails.enabled', true)
+            && (bool) config('ai-guardrails.output_handler.enabled', true);
+        if ($outputActive) {
+            $this->app->singleton(OutputSanitizer::class, static fn ($app): OutputSanitizer => new HtmlMarkdownSanitizer(
+                (bool) $app['config']->get('ai-guardrails.output_handler.sanitize_html', true),
+                (bool) $app['config']->get('ai-guardrails.output_handler.neutralize_markdown', true),
+            ));
+
+            $this->app->singleton(PiiRedaction::class, static fn ($app): PiiRedaction => PiiRedactionFactory::make(
+                $app,
+                (bool) $app['config']->get('ai-guardrails.output_handler.redact_pii', true),
+            ));
+        }
+
+        $this->app->singleton(GuardrailOutputMiddleware::class, static function ($app): GuardrailOutputMiddleware {
+            $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
+                && (bool) $app['config']->get('ai-guardrails.output_handler.enabled', true);
+
+            return new GuardrailOutputMiddleware(
+                $app->make(OutputSanitizer::class),
+                $app->make(PiiRedaction::class),
                 $enabled,
             );
         });

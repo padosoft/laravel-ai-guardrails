@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Tests;
 
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
+use Padosoft\PiiRedactor\PiiRedactorServiceProvider;
 use RuntimeException;
 
 abstract class TestCase extends OrchestraTestCase
@@ -13,7 +14,12 @@ abstract class TestCase extends OrchestraTestCase
     /** @return list<class-string> */
     protected function getPackageProviders($app): array
     {
-        return [AiGuardrailsServiceProvider::class];
+        return [
+            // Registered so the composed PII redactor engine resolves in tests (it is a require-dev
+            // dependency). Production hosts get it via Laravel package auto-discovery.
+            PiiRedactorServiceProvider::class,
+            AiGuardrailsServiceProvider::class,
+        ];
     }
 
     /**
