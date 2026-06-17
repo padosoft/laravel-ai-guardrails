@@ -10,8 +10,9 @@ use Padosoft\AiGuardrails\Hitl\PendingApproval;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 /**
- * Approval surface when HITL is unavailable (hitl disabled / no flow persistence): the list degrades
- * to empty and decisions return 409 rather than 500.
+ * Approval surface when HITL is disabled (ai-guardrails.hitl.enabled=false): the list degrades to
+ * empty and decisions return 409 rather than 500. (The "flow installed but tables missing" case is
+ * covered separately by ApprovalReadModelTest.)
  */
 final class ApprovalsUnavailableTest extends TestCase
 {
