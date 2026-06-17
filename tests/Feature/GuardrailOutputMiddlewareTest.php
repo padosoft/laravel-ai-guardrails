@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
+use Laravel\Ai\Responses\Data\Meta;
+use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
@@ -48,6 +51,29 @@ final class GuardrailOutputMiddlewareTest extends TestCase
         );
 
         self::assertStringContainsString('[email]', $response->text);
+    }
+
+    public function test_sanitizes_structured_response_fields_recursively(): void
+    {
+        $middleware = new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction);
+
+        $structured = new StructuredAgentResponse(
+            'inv-1',
+            ['summary' => '<script>x</script>', 'nested' => ['link' => '![a](http://evil.test/leak)']],
+            'plain <b>text</b>',
+            new Usage,
+            new Meta,
+        );
+
+        $response = $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => $structured,
+        );
+
+        self::assertInstanceOf(StructuredAgentResponse::class, $response);
+        self::assertStringContainsString('&lt;b&gt;', $response->text); // text field escaped
+        self::assertStringContainsString('&lt;script&gt;', $response->structured['summary']);
+        self::assertStringNotContainsString('evil.test', $response->structured['nested']['link']);
     }
 
     public function test_disabled_middleware_leaves_response_untouched(): void
