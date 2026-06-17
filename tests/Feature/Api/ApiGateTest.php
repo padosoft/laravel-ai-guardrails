@@ -12,6 +12,11 @@ final class ApiGateTest extends TestCase
     {
         // Default config: api.enabled = false → no routes registered.
         $this->getJson('/ai-guardrails/api/overview')->assertNotFound();
+        $this->getJson('/ai-guardrails/api/firewall')->assertNotFound();
+        $this->getJson('/ai-guardrails/api/output/stats')->assertNotFound();
+        $this->getJson('/ai-guardrails/api/approvals')->assertNotFound();
+        $this->postJson('/ai-guardrails/api/approvals/t/approve')->assertNotFound();
+        $this->postJson('/ai-guardrails/api/approvals/t/reject')->assertNotFound();
         $this->postJson('/ai-guardrails/api/try/screen', ['prompt' => 'x'])->assertNotFound();
     }
 }

@@ -138,5 +138,14 @@
 - [x] **260 tests / 598 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then Task 15 (approvals), 16 (settings), 18 (hardening), E3–E7/E9, E9-API, E10.
 
+### Task 14 — MERGED (PR #16, squash `2637744`, 2026-06-17). 6 Copilot rounds (reserved-word `count`→`event_count`, fire-and-forget stat writes, accurate html_stripped via tag-like regex, safe empty store config, behavior-based test, bounded default window + inverted-window empties) → clean → auto-merged.
+
+### Task 15 — GET /approvals + approve/reject (DONE locally, branch `feature/task-15-approvals`)
+- [x] `src/Hitl/ApprovalReadModel.php` — lists pending `flow_approvals` (status=pending) via the real `Padosoft\LaravelFlow\Models\FlowApprovalRecord` when present; `class_exists` guard → [] when flow absent; try/catch → [] when flow installed but tables missing (no 500). Shape: approval_id/run_id/step_name/status/expires_at/created_at (UTC ISO). NOTE: tool name lives on `flow_runs.input`, not the approval row's `payload`, so the list is id-centric (operator approves by the token it holds; host dashboard resolves run details by run_id).
+- [x] `ApprovalsController` (GET /approvals list; POST /approvals/{token}/approve|reject). Decision actor's `principal_id` is derived **server-side** (authoritative, client can't spoof); client `actor` accepted only as flat string-keyed scalars. HITL unavailable → 409 (not 500); invalid/expired token → 422 (logged), via try/catch around the router call.
+- [x] ApiSchema: `SCHEMA_APPROVAL_LIST` + `SCHEMA_APPROVAL_DECISION` (replaced the unused `SCHEMA_APPROVALS`). Routes `approvals.index/approve/reject`. ApprovalReadModel auto-resolves (no binding needed).
+- [x] **276 tests / 657 assertions** GREEN; pint + phpstan level 8 clean. Tests: real-flow integration (park→list→approve resolves; reject; invalid-token 422), hitl-unavailable (empty list + 409), ApiGate flag-off 404s. Flow integration migrates the real flow tables manually in setUp (loadMigrationsFrom isn't wired in this harness).
+- [ ] DoD loop → PR. Then Task 16 (settings), 18 (hardening), E3–E7/E9, E9-API, E10.
+
 ### Next
-- Task 15 (`GET /approvals` + approve/reject), Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.
+- Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.

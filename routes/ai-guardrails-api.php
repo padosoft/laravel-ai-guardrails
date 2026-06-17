@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Routing\Registrar;
+use Padosoft\AiGuardrails\Http\ApprovalsController;
 use Padosoft\AiGuardrails\Http\AuditController;
 use Padosoft\AiGuardrails\Http\FirewallController;
 use Padosoft\AiGuardrails\Http\OutputStatsController;
@@ -34,6 +35,18 @@ return static function (Registrar $router, string $prefix, array $middleware): v
 
         // Output-handler stats (Control C, per-kind counters).
         $router->get('/output/stats', [OutputStatsController::class, 'index'])->name('output.stats');
+
+        // HITL approvals (Control D): list pending + approve/reject by token.
+        // NOTE: the token travels in the URL path and will appear in server/proxy/CDN access logs.
+        // Operators MUST configure log scrubbing for the pattern `/approvals/*/approve|reject` in any
+        // layer that retains access logs (nginx, caddy, API gateway, etc.).
+        $router->get('/approvals', [ApprovalsController::class, 'index'])->name('approvals.index');
+        $router->post('/approvals/{token}/approve', [ApprovalsController::class, 'approve'])
+            ->where('token', '[A-Za-z0-9_\-\.]+')
+            ->name('approvals.approve');
+        $router->post('/approvals/{token}/reject', [ApprovalsController::class, 'reject'])
+            ->where('token', '[A-Za-z0-9_\-\.]+')
+            ->name('approvals.reject');
 
         $router->post('/try/screen', [TryController::class, 'screen'])->name('try.screen');
         $router->post('/try/sanitize', [TryController::class, 'sanitize'])->name('try.sanitize');
