@@ -117,5 +117,16 @@
 - [x] **184 tests / 409 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] AWAITING: CI green + Copilot PR review on #14 → auto-merge if clean. Resume = `gh pr view 14 --json reviewDecision,statusCheckRollup,comments`.
 
+### Tasks 10 + 11 + 12 — MERGED (PR #14, squash `b1443d1`, 2026-06-17)
+- 6 Copilot review rounds (pg-boolean trend, span-vs-normalized/scrubbed alignment, strict ISO-8601 calendar parsing, array-param/cursor hardening, invalid-UTF-8 scrubbing) → final review clean → auto-merged.
+
+### Task 13 — GET /firewall + FirewallRejectionStore (DONE locally, branch `feature/task-13-firewall-endpoint`)
+- [x] Extracted shared `src/Support/AppendOnlyEloquentBuilder.php` (the throwing builder) and refactored `InjectionAuditRecordBuilder` onto it; new `FirewallRejectionRecordBuilder` reuses it (DRY append-only).
+- [x] `FirewallRejection` DTO, `FirewallRejectionStore` contract (record/query/count), Null/Array/Database stores, immutable `FirewallRejectionRecord` model, migration stub (no updated_at), `FirewallQueryFilters`/`FirewallPage` (keyset cursor + filters, reuses IsoDateParser + array-param/cursor hardening from Task 12).
+- [x] `FirewalledTool` records a `FirewallRejection` (tool, principal, violations, UTC ts) to the store before throwing — store is an optional null-object ctor param (existing call sites unaffected). Threaded through `AiGuardrails::guard()` + provider.
+- [x] `FirewallController` (GET /firewall), `FirewallRejectionResource` (bounded tool text + UTF-8 scrub), route `ai-guardrails.api.firewall.index`, provider binds the store (master-switch-aware, null|array|database from `firewall_log` config — already in config since Task 0), publishes the new migration.
+- [x] **231 tests / 522 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then Task 14 (`GET /output/stats`), 15 (approvals), 16 (settings), 18 (hardening), E3–E7/E9, E9-API, E10.
+
 ### Next
-- After #14 merges: Task 13 (`GET /firewall` + FirewallRejectionStore), Task 14 (`GET /output/stats` + OutputStatStore), Task 15 (`GET /approvals` + approve/reject), Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.
+- Task 14 (`GET /output/stats` + OutputStatStore), Task 15 (`GET /approvals` + approve/reject), Task 16 (`GET/PUT /settings` + GuardrailSettingsStore), Task 18 (API hardening + envelope uniformity test), then E3–E7/E9, E9-API, E10 release.

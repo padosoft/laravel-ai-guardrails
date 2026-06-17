@@ -2,21 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Padosoft\AiGuardrails\Audit;
+namespace Padosoft\AiGuardrails\Firewall;
 
 use DateTimeImmutable;
 use Illuminate\Http\Request;
 use Padosoft\AiGuardrails\Support\IsoDateParser;
 
 /**
- * Filters + keyset-pagination cursor for the audit list endpoint (GET /audit). The cursor is the
- * id of the last row seen on the previous page (rows are returned newest-first by id).
+ * Filters + keyset-pagination cursor for the firewall rejection list endpoint (GET /firewall). The
+ * cursor is the id of the last row seen on the previous page (rows are returned newest-first by id).
  */
-final readonly class AuditQueryFilters
+final readonly class FirewallQueryFilters
 {
     public function __construct(
-        public ?bool $blocked = null,
-        public ?string $ruleId = null,
         public ?string $principalId = null,
         public ?string $search = null,
         public ?DateTimeImmutable $from = null,
@@ -27,24 +25,18 @@ final readonly class AuditQueryFilters
 
     public static function fromRequest(Request $request): self
     {
-        // Scalar params are read as string-or-null: repeated params (e.g. `blocked[]=true`,
-        // `limit[]=10`) make query() return an array, which must NOT reach filter_var()/casts and
-        // turn this read-only endpoint into a 500. (from/to below are read raw but IsoDateParser
-        // safely rejects any non-string/array input.)
-        $blocked = self::str($request, 'blocked');
+        // Scalar params read as string-or-null so repeated/array params can't reach casts and 500
+        // the read-only endpoint; from/to go through IsoDateParser which safely rejects non-strings.
         $limit = self::str($request, 'limit');
         $cursor = self::str($request, 'cursor');
 
         return new self(
-            blocked: $blocked === null ? null : filter_var($blocked, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
-            ruleId: self::str($request, 'rule_id'),
             principalId: self::str($request, 'principal_id'),
             search: self::str($request, 'q'),
             from: IsoDateParser::parseUtc($request->query('from')),
             to: IsoDateParser::parseUtc($request->query('to')),
             limit: $limit !== null && ctype_digit($limit) ? max(1, min(200, (int) $limit)) : 50,
-            // The cursor is a monotonic positive id; accept a digit-only string and require it to be
-            // strictly positive after casting (rejects "-1", "1e3", "0", "00", arrays).
+            // Cast then require strictly positive so "0"/"00" (both cast to 0 → empty page) are rejected.
             cursor: $cursor !== null && ctype_digit($cursor) && (int) $cursor > 0 ? (int) $cursor : null,
         );
     }

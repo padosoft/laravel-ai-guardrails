@@ -6,7 +6,10 @@ namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
+use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Firewall\ArrayFirewallRejectionStore;
+use Padosoft\AiGuardrails\Firewall\NullFirewallRejectionStore;
 use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
@@ -80,5 +83,24 @@ final class FirewallBindingsTest extends TestCase
 
         self::assertInstanceOf(PassthroughArgumentScoper::class, $this->resolve(ArgumentScoper::class));
         self::assertInstanceOf(PermissiveToolArgumentValidator::class, $this->resolve(ToolArgumentValidator::class));
+    }
+
+    public function test_firewall_rejection_store_resolves_per_config(): void
+    {
+        // Default: null store (no persistence).
+        self::assertInstanceOf(NullFirewallRejectionStore::class, $this->resolve(FirewallRejectionStore::class));
+
+        $this->app['config']->set('ai-guardrails.firewall_log.store', 'array');
+        $this->app->forgetInstance(FirewallRejectionStore::class);
+        self::assertInstanceOf(ArrayFirewallRejectionStore::class, $this->resolve(FirewallRejectionStore::class));
+    }
+
+    public function test_firewall_rejection_store_is_null_when_master_off(): void
+    {
+        $this->app['config']->set('ai-guardrails.enabled', false);
+        $this->app['config']->set('ai-guardrails.firewall_log.store', 'array');
+        $this->app->forgetInstance(FirewallRejectionStore::class);
+
+        self::assertInstanceOf(NullFirewallRejectionStore::class, $this->resolve(FirewallRejectionStore::class));
     }
 }

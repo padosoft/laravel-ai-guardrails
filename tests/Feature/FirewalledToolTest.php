@@ -6,8 +6,13 @@ namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Laravel\Ai\Tools\Request;
+use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Exceptions\ToolArgumentRejection;
+use Padosoft\AiGuardrails\Firewall\ArrayFirewallRejectionStore;
 use Padosoft\AiGuardrails\Firewall\FirewalledTool;
+use Padosoft\AiGuardrails\Firewall\FirewallPage;
+use Padosoft\AiGuardrails\Firewall\FirewallQueryFilters;
+use Padosoft\AiGuardrails\Firewall\FirewallRejection;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeOwnedTool;
@@ -77,6 +82,81 @@ final class FirewalledToolTest extends TestCase
         self::assertSame('42', $tool->received['user_id']);
         self::assertArrayNotHasKey('owner_id', $tool->received);
         self::assertArrayNotHasKey('account_id', $tool->received);
+    }
+
+    public function test_records_rejection_to_the_store_then_throws(): void
+    {
+        $tool = new FakeOwnedTool;
+        $store = new ArrayFirewallRejectionStore;
+        $wrapped = new FirewalledTool(
+            $tool,
+            new UserScopedArgumentScoper(['user_id']),
+            new SchemaToolArgumentValidator(rejectUnknown: true),
+            principalResolver: static fn (): string => '42',
+            rejectionStore: $store,
+        );
+
+        try {
+            $wrapped->handle(new Request(['order_id' => 'A1', 'evil' => 'x']));
+            self::fail('Expected ToolArgumentRejection.');
+        } catch (ToolArgumentRejection) {
+            // expected
+        }
+
+        $page = $store->query(new FirewallQueryFilters);
+        self::assertCount(1, $page->items);
+        self::assertSame('Issue a refund for an order.', $page->items[0]->toolDescription);
+        self::assertSame('42', $page->items[0]->principalId);
+        self::assertArrayHasKey('evil', $page->items[0]->violations);
+    }
+
+    public function test_allowed_call_records_nothing(): void
+    {
+        $tool = new FakeOwnedTool;
+        $store = new ArrayFirewallRejectionStore;
+        $wrapped = new FirewalledTool(
+            $tool,
+            new UserScopedArgumentScoper(['user_id']),
+            new SchemaToolArgumentValidator(rejectUnknown: true),
+            principalResolver: static fn (): string => '42',
+            rejectionStore: $store,
+        );
+
+        $wrapped->handle(new Request(['order_id' => 'A1', 'user_id' => '999']));
+
+        self::assertSame(0, $store->count());
+    }
+
+    public function test_store_write_failure_does_not_suppress_rejection(): void
+    {
+        $tool = new FakeOwnedTool;
+        $throwingStore = new class implements FirewallRejectionStore
+        {
+            public function record(FirewallRejection $rejection): void
+            {
+                throw new \RuntimeException('DB connection lost');
+            }
+
+            public function query(FirewallQueryFilters $filters): FirewallPage
+            {
+                return new FirewallPage([]);
+            }
+
+            public function count(): int
+            {
+                return 0;
+            }
+        };
+        $wrapped = new FirewalledTool(
+            $tool,
+            new UserScopedArgumentScoper(['user_id']),
+            new SchemaToolArgumentValidator(rejectUnknown: true),
+            principalResolver: static fn (): string => '42',
+            rejectionStore: $throwingStore,
+        );
+
+        $this->expectException(ToolArgumentRejection::class);
+        $wrapped->handle(new Request(['order_id' => 'A1', 'evil' => 'x']));
     }
 
     public function test_integer_owner_key_receives_integer_principal(): void

@@ -15,6 +15,7 @@ use Padosoft\AiGuardrails\Console\GuardrailsSanitizeCommand;
 use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
+use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
@@ -22,6 +23,9 @@ use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Exceptions\InvalidScreeningPattern;
+use Padosoft\AiGuardrails\Firewall\ArrayFirewallRejectionStore;
+use Padosoft\AiGuardrails\Firewall\DatabaseFirewallRejectionStore;
+use Padosoft\AiGuardrails\Firewall\NullFirewallRejectionStore;
 use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
@@ -126,6 +130,22 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             };
         });
 
+        $this->app->singleton(FirewallRejectionStore::class, static function ($app): FirewallRejectionStore {
+            // Master kill-switch off → no persistence side effects.
+            if (! (bool) $app['config']->get('ai-guardrails.enabled', true)) {
+                return new NullFirewallRejectionStore;
+            }
+
+            return match ($app['config']->get('ai-guardrails.firewall_log.store', 'null')) {
+                'array' => new ArrayFirewallRejectionStore,
+                'database' => new DatabaseFirewallRejectionStore(
+                    is_string($conn = $app['config']->get('ai-guardrails.firewall_log.connection')) ? $conn : null,
+                    (string) $app['config']->get('ai-guardrails.firewall_log.table', 'ai_guardrails_firewall_rejections'),
+                ),
+                default => new NullFirewallRejectionStore,
+            };
+        });
+
         $this->app->singleton(GuardrailInputMiddleware::class, static function ($app): GuardrailInputMiddleware {
             $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
                 && (bool) $app['config']->get('ai-guardrails.input_screen.enabled', true);
@@ -201,6 +221,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 (string) $cfg->get('ai-guardrails.hitl.fallback', 'deny'),
                 (string) $cfg->get('ai-guardrails.tool_authorization.destructive_match', 'exact'),
                 static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
+                $app->make(FirewallRejectionStore::class),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
@@ -216,6 +237,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../database/migrations/create_ai_guardrails_injection_audit_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His').'_create_ai_guardrails_injection_audit_table.php'
+                ),
+                __DIR__.'/../database/migrations/create_ai_guardrails_firewall_rejections_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 1).'_create_ai_guardrails_firewall_rejections_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

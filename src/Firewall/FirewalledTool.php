@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Firewall;
 
 use Closure;
+use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
+use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Exceptions\ToolArgumentRejection;
 use Stringable;
@@ -29,6 +33,7 @@ final readonly class FirewalledTool implements Tool
         private ArgumentScoper $scoper,
         private ToolArgumentValidator $validator,
         private Closure $principalResolver,
+        private ?FirewallRejectionStore $rejectionStore = null,
     ) {}
 
     public function description(): Stringable|string
@@ -38,15 +43,36 @@ final readonly class FirewalledTool implements Tool
 
     public function handle(Request $request): Stringable|string
     {
+        $principal = ($this->principalResolver)();
+
         $scoped = $this->scoper->scope(
             $request->toArray(),
-            ($this->principalResolver)(),
+            $principal,
             $this->schemaTypes(),
         );
 
         $violations = $this->validator->validate($this->delegate, $scoped);
         if ($violations !== []) {
-            throw new ToolArgumentRejection($violations, (string) $this->delegate->description());
+            $description = (string) $this->delegate->description();
+
+            // Fire-and-forget: a store failure (DB down, etc.) must never suppress the rejection.
+            try {
+                $this->rejectionStore?->record(new FirewallRejection(
+                    $description,
+                    $principal !== null ? (string) $principal : null,
+                    $violations,
+                    new DateTimeImmutable('now', new DateTimeZone('UTC')),
+                ));
+            } catch (\Throwable $e) {
+                // Enforcement is independent of persistence — log (don't rethrow) so the missing
+                // firewall rejection record is observable instead of silently lost.
+                Log::warning('laravel-ai-guardrails: failed to record a firewall rejection.', [
+                    'tool' => $description,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+
+            throw new ToolArgumentRejection($violations, $description);
         }
 
         return $this->delegate->handle(new Request($scoped));
