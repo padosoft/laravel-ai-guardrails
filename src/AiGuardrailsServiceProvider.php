@@ -19,6 +19,7 @@ use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
+use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
@@ -31,8 +32,11 @@ use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Hitl\ApprovalRouterFactory;
+use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
+use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
+use Padosoft\AiGuardrails\Output\NullOutputStatStore;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Output\PiiRedactionFactory;
 use Padosoft\AiGuardrails\Screening\GuardrailInputMiddleware;
@@ -146,6 +150,22 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             };
         });
 
+        $this->app->singleton(OutputStatStore::class, static function ($app): OutputStatStore {
+            // Master kill-switch off → no persistence side effects.
+            if (! (bool) $app['config']->get('ai-guardrails.enabled', true)) {
+                return new NullOutputStatStore;
+            }
+
+            return match ($app['config']->get('ai-guardrails.output_stats.store', 'null')) {
+                'array' => new ArrayOutputStatStore,
+                'database' => new DatabaseOutputStatStore(
+                    is_string($conn = $app['config']->get('ai-guardrails.output_stats.connection')) ? $conn : null,
+                    (string) $app['config']->get('ai-guardrails.output_stats.table', 'ai_guardrails_output_stats'),
+                ),
+                default => new NullOutputStatStore,
+            };
+        });
+
         $this->app->singleton(GuardrailInputMiddleware::class, static function ($app): GuardrailInputMiddleware {
             $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
                 && (bool) $app['config']->get('ai-guardrails.input_screen.enabled', true);
@@ -195,6 +215,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $app->make(OutputSanitizer::class),
                 $app->make(PiiRedaction::class),
                 $enabled,
+                $app->make(OutputStatStore::class),
             );
         });
 
@@ -222,6 +243,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 (string) $cfg->get('ai-guardrails.tool_authorization.destructive_match', 'exact'),
                 static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
                 $app->make(FirewallRejectionStore::class),
+                $app->make(OutputStatStore::class),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
@@ -240,6 +262,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ),
                 __DIR__.'/../database/migrations/create_ai_guardrails_firewall_rejections_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 1).'_create_ai_guardrails_firewall_rejections_table.php'
+                ),
+                __DIR__.'/../database/migrations/create_ai_guardrails_output_stats_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 2).'_create_ai_guardrails_output_stats_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

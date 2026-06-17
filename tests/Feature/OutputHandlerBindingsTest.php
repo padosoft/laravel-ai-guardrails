@@ -6,9 +6,12 @@ namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
+use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
+use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
+use Padosoft\AiGuardrails\Output\NullOutputStatStore;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Output\RealPiiRedaction;
@@ -62,5 +65,24 @@ final class OutputHandlerBindingsTest extends TestCase
         $this->reregister();
 
         self::assertInstanceOf(PassthroughSanitizer::class, $this->resolve(OutputSanitizer::class));
+    }
+
+    public function test_output_stat_store_resolves_per_config(): void
+    {
+        // Default: null store (no persistence).
+        self::assertInstanceOf(NullOutputStatStore::class, $this->resolve(OutputStatStore::class));
+
+        $this->app['config']->set('ai-guardrails.output_stats.store', 'array');
+        $this->app->forgetInstance(OutputStatStore::class);
+        self::assertInstanceOf(ArrayOutputStatStore::class, $this->resolve(OutputStatStore::class));
+    }
+
+    public function test_output_stat_store_is_null_when_master_off(): void
+    {
+        $this->app['config']->set('ai-guardrails.enabled', false);
+        $this->app['config']->set('ai-guardrails.output_stats.store', 'array');
+        $this->app->forgetInstance(OutputStatStore::class);
+
+        self::assertInstanceOf(NullOutputStatStore::class, $this->resolve(OutputStatStore::class));
     }
 }

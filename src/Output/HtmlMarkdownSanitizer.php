@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Output;
 
 use Illuminate\Support\Facades\Log;
-use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
+use Padosoft\AiGuardrails\Contracts\ReportingOutputSanitizer;
 
 /**
  * Treats model output as untrusted text. In the default 'escape' mode it HTML-escapes the whole
@@ -15,7 +15,7 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
  * `//`). Deterministic; no LLM. Task E8 adds an allowlist mode that preserves safe rendered markup
  * instead of escaping everything.
  */
-final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
+final readonly class HtmlMarkdownSanitizer implements ReportingOutputSanitizer
 {
     public function __construct(
         private bool $sanitizeHtml = true,
@@ -25,13 +25,24 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
 
     public function sanitize(string $text): string
     {
+        return $this->sanitizeReport($text)->text;
+    }
+
+    public function sanitizeReport(string $text): SanitizationReport
+    {
+        $htmlChanged = false;
         if ($this->sanitizeHtml) {
-            $text = $this->htmlMode === 'allowlist'
+            $escaped = $this->htmlMode === 'allowlist'
                 ? $this->allowlist($text)
                 : htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', double_encode: false);
+            $htmlChanged = $escaped !== $text;
+            $text = $escaped;
         }
 
+        $markdownChanged = false;
         if ($this->neutralizeMarkdown) {
+            $beforeMarkdown = $text;
+
             // Reference-link definitions: `[label]: url` (and `[label]: url "title"` etc.).
             // These are invisible to the inline-link regex and would allow an attacker to define
             // exfiltration targets for `[text][label]` usages anywhere in the document.
@@ -48,9 +59,11 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
             // Matches both raw `<>` and HTML-entity-escaped `&lt;&gt;` forms (the latter produced
             // when sanitizeHtml is true). Backtracking lets `[^\s>]*` stop before the closing `&gt;`.
             $text = $this->defang('/(?:<|&lt;)\s*[a-z][a-z0-9+.-]*:[^\s>]*\s*(?:>|&gt;)/i', '(blocked)', $text);
+
+            $markdownChanged = $text !== $beforeMarkdown;
         }
 
-        return $text;
+        return new SanitizationReport($text, $htmlChanged, $markdownChanged);
     }
 
     /**

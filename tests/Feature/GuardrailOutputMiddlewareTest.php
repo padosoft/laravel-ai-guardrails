@@ -8,10 +8,13 @@ use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
+use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
+use Padosoft\AiGuardrails\Output\OutputStatKind;
 use Padosoft\AiGuardrails\Tests\Doubles\AgentPromptFactory;
 use Padosoft\AiGuardrails\Tests\Doubles\AgentResponseFactory;
 use Padosoft\AiGuardrails\Tests\TestCase;
@@ -102,5 +105,72 @@ final class GuardrailOutputMiddlewareTest extends TestCase
         );
 
         self::assertSame('<b>raw</b>', $response->text);
+    }
+
+    public function test_records_html_and_markdown_and_pii_stats(): void
+    {
+        $stats = new ArrayOutputStatStore;
+        $pii = new class implements PiiRedaction
+        {
+            public function redact(string $text): string
+            {
+                return str_replace('john@example.com', '[email]', $text);
+            }
+        };
+        $middleware = new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, $pii, stats: $stats);
+
+        $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => AgentResponseFactory::make('<b>hi</b> ![x](http://evil.test/leak) john@example.com'),
+        );
+
+        $totals = $stats->totals();
+        self::assertSame(1, $totals[OutputStatKind::HtmlStripped->value]);
+        self::assertSame(1, $totals[OutputStatKind::MarkdownSanitized->value]);
+        self::assertSame(1, $totals[OutputStatKind::PiiRedaction->value]);
+    }
+
+    public function test_records_nothing_when_output_is_clean(): void
+    {
+        $stats = new ArrayOutputStatStore;
+        $middleware = new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction, stats: $stats);
+
+        $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => AgentResponseFactory::make('a perfectly clean sentence'),
+        );
+
+        self::assertSame(0, $stats->count());
+    }
+
+    public function test_stat_store_failure_does_not_break_sanitization(): void
+    {
+        // A failing stat store must never abort the sanitization pass (that would leak un-neutralised
+        // output). The response is still sanitized; the failure is swallowed (logged).
+        $throwingStore = new class implements OutputStatStore
+        {
+            public function record(OutputStatKind $kind, int $count = 1): void
+            {
+                throw new \RuntimeException('DB down');
+            }
+
+            public function totals(?\DateTimeImmutable $from = null, ?\DateTimeImmutable $to = null): array
+            {
+                return [];
+            }
+
+            public function count(): int
+            {
+                return 0;
+            }
+        };
+        $middleware = new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction, stats: $throwingStore);
+
+        $response = $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => AgentResponseFactory::make('<script>x</script>'),
+        );
+
+        self::assertStringContainsString('&lt;script&gt;', $response->text);
     }
 }

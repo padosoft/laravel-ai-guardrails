@@ -145,4 +145,32 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         $once = $sanitizer->sanitize('a < b & c');
         self::assertSame($once, $sanitizer->sanitize($once));
     }
+
+    public function test_report_flags_html_change_only(): void
+    {
+        $report = (new HtmlMarkdownSanitizer)->sanitizeReport('<b>hi</b>');
+
+        self::assertTrue($report->htmlChanged);
+        self::assertFalse($report->markdownChanged);
+        self::assertStringContainsString('&lt;b&gt;', $report->text);
+    }
+
+    public function test_report_flags_markdown_change_only(): void
+    {
+        // No HTML-special chars → only the markdown link is neutralised.
+        $report = (new HtmlMarkdownSanitizer)->sanitizeReport('see [here](http://evil.test/leak)');
+
+        self::assertFalse($report->htmlChanged);
+        self::assertTrue($report->markdownChanged);
+        self::assertStringNotContainsString('evil.test', $report->text);
+    }
+
+    public function test_report_flags_nothing_for_clean_text(): void
+    {
+        $report = (new HtmlMarkdownSanitizer)->sanitizeReport('a perfectly clean sentence');
+
+        self::assertFalse($report->htmlChanged);
+        self::assertFalse($report->markdownChanged);
+        self::assertSame('a perfectly clean sentence', $report->text);
+    }
 }
