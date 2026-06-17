@@ -83,4 +83,11 @@ final class SettingsEndpointTest extends TestCase
     {
         $this->putJson('/ai-guardrails/api/settings', [])->assertStatus(422);
     }
+
+    public function test_over_length_string_value_is_rejected_with_422(): void
+    {
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.refusal_message' => str_repeat('x', 3000)]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('settings.input_screen.refusal_message');
+    }
 }

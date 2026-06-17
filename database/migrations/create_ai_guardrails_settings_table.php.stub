@@ -15,7 +15,9 @@ return new class extends Migration
             // Mutable current-state table (NOT append-only): one row per overridable dotted key.
             $table->string('key')->unique();
             $table->json('value')->nullable();
-            $table->timestamp('created_at')->nullable();
+            // created_at defaults to the DB clock on insert and is never written again, so it stays
+            // the true first-write time; updated_at is set explicitly by the store on every upsert.
+            $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->nullable();
         });
     }

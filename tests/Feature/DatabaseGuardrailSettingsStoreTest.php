@@ -67,6 +67,18 @@ final class DatabaseGuardrailSettingsStoreTest extends TestCase
         self::assertSame(1, DB::table('ai_guardrails_settings')->where('key', 'input_screen.enabled')->count());
     }
 
+    public function test_malformed_json_row_keeps_the_file_default(): void
+    {
+        // A corrupt value must NOT overwrite a security control's default with null.
+        DB::table('ai_guardrails_settings')->insert([
+            'key' => 'input_screen.enabled',
+            'value' => '{ not valid json',
+            'updated_at' => now(),
+        ]);
+
+        self::assertTrue($this->store()->all()['input_screen.enabled']); // file default, not null
+    }
+
     public function test_overrides_for_keys_no_longer_overridable_are_ignored(): void
     {
         $store = $this->store();

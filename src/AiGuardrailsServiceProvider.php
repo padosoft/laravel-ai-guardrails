@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails;
 
 use Illuminate\Contracts\Routing\Registrar;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
@@ -47,12 +48,19 @@ use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
 use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
 use Padosoft\AiGuardrails\Settings\ConfigGuardrailSettingsStore;
 use Padosoft\AiGuardrails\Settings\DatabaseGuardrailSettingsStore;
+use Padosoft\AiGuardrails\Settings\OverridableSettings;
 
 final class AiGuardrailsServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/ai-guardrails.php', 'ai-guardrails');
+
+        // Overlay persisted runtime settings (DB store) onto the config BEFORE the controls are wired,
+        // so what PUT /settings saves is actually what the screener/firewall/output/HITL enforce — not
+        // just what the settings API reports. Without this the API would give a false view of what is
+        // live. Effective on the next boot after a save (config changes apply per-boot, as usual).
+        $this->overlayRuntimeSettings();
 
         // Default null-object bindings. Later tasks replace these with real implementations.
         $this->app->singleton(InjectionScreener::class, NullInjectionScreener::class);
@@ -262,6 +270,42 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
+    }
+
+    /**
+     * Overlay persisted runtime settings (database store) onto `config('ai-guardrails.*')` so the
+     * controls actually enforce what the admin saved. No-op for config-store mode. Fails safe (keeps
+     * file config) when the table is absent or a row is corrupt — a malformed/unreadable row must
+     * never silently disable a security control.
+     */
+    private function overlayRuntimeSettings(): void
+    {
+        if (config('ai-guardrails.settings.store') !== 'database') {
+            return;
+        }
+
+        try {
+            $rows = DB::connection(self::storeConnection('ai-guardrails.settings.connection'))
+                ->table(self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'))
+                ->whereIn('key', OverridableSettings::keys())
+                ->get(['key', 'value']);
+        } catch (\Throwable) {
+            // Table missing (fresh install / migrating / config:cache) → keep file config.
+            return;
+        }
+
+        foreach ($rows as $row) {
+            if (! is_string($row->value)) {
+                continue;
+            }
+            try {
+                $value = json_decode($row->value, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                // Corrupt row → keep the file default rather than overlaying garbage onto a control.
+                continue;
+            }
+            config(['ai-guardrails.'.$row->key => $value]);
+        }
     }
 
     /**

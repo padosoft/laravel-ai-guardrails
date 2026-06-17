@@ -26,7 +26,16 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
 
         // rows() already restricts to overridable keys (it may have shrunk since the row was written).
         foreach ($this->rows() as $row) {
-            $effective[(string) $row->key] = $this->decode(is_string($row->value) ? $row->value : null);
+            if (! is_string($row->value)) {
+                continue;
+            }
+            try {
+                $effective[(string) $row->key] = json_decode($row->value, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                // A corrupt row must NOT silently overwrite a security control's file default with
+                // null — keep the default and skip the bad row.
+                continue;
+            }
         }
 
         return $effective;
@@ -40,18 +49,21 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
         $now = now();
         $connection = DB::connection($this->connection);
 
-        // One transaction for the whole PUT: concurrent requests must not interleave at the per-row
-        // level and leave the controls in a mixed state (e.g. tool_firewall.enabled vs modes.*).
+        // One transaction so THIS PUT's keys are written all-or-nothing (a mid-write failure can't
+        // leave only some of the request's keys applied). Note: it does not serialize independent
+        // concurrent PUTs — last-writer-wins per key, which is the expected upsert semantics.
         $connection->transaction(function () use ($connection, $overrides, $overridable, $now): void {
             foreach ($overrides as $key => $value) {
                 if (! in_array($key, $overridable, true)) {
                     continue;
                 }
+                // Values are already type-validated; JSON_THROW_ON_ERROR fails loudly on an
+                // unexpected encoding error rather than persisting `false` into the JSON column.
                 // updateOrInsert writes the value set on BOTH insert and update, so created_at is left
-                // to the column default (nullable) to avoid clobbering it on every update.
+                // to the column default (useCurrent) to avoid clobbering the insert time on update.
                 $connection->table($this->table)->updateOrInsert(
                     ['key' => $key],
-                    ['value' => json_encode($value), 'updated_at' => $now],
+                    ['value' => json_encode($value, JSON_THROW_ON_ERROR), 'updated_at' => $now],
                 );
             }
         });
@@ -66,14 +78,5 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
             ->table($this->table)
             ->whereIn('key', OverridableSettings::keys())
             ->get(['key', 'value']);
-    }
-
-    private function decode(?string $value): mixed
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        return json_decode($value, true);
     }
 }

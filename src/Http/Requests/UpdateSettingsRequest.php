@@ -102,9 +102,9 @@ final class UpdateSettingsRequest extends FormRequest
             'int' => is_int($value) || (is_string($value) && filter_var($value, FILTER_VALIDATE_INT) !== false)
                 ? (int) $value
                 : new Invalid('must be an integer'),
-            default => is_string($value) && mb_strlen($value, 'UTF-8') <= self::REFUSAL_MESSAGE_MAX
+            default => is_string($value) && mb_check_encoding($value, 'UTF-8') && mb_strlen($value, 'UTF-8') <= self::REFUSAL_MESSAGE_MAX
                 ? $value
-                : new Invalid('must be a string of at most '.self::REFUSAL_MESSAGE_MAX.' characters'),
+                : new Invalid('must be valid UTF-8 of at most '.self::REFUSAL_MESSAGE_MAX.' characters'),
         };
     }
 
