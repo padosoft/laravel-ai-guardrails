@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Screening;
 
 use Closure;
 use DateTimeImmutable;
+use DateTimeZone;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\Data\Meta;
@@ -26,10 +27,16 @@ final readonly class GuardrailInputMiddleware
         private InjectionScreener $screener,
         private InjectionAuditStore $audit,
         private ?Closure $principalResolver = null,
+        private bool $enabled = true,
     ) {}
 
     public function handle(AgentPrompt $prompt, Closure $next): mixed
     {
+        // Master / control disabled → true pass-through: no screening, no audit, no auth resolution.
+        if (! $this->enabled) {
+            return $next($prompt);
+        }
+
         $verdict = $this->screener->screen($prompt->prompt);
 
         $principal = $this->principalResolver !== null ? ($this->principalResolver)() : null;
@@ -39,7 +46,7 @@ final readonly class GuardrailInputMiddleware
             $verdict->blocked,
             $verdict->ruleId,
             $principal !== null ? (string) $principal : null,
-            new DateTimeImmutable,
+            new DateTimeImmutable('now', new DateTimeZone('UTC')),
         ));
 
         if ($verdict->blocked) {

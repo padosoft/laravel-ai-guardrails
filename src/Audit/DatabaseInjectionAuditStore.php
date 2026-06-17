@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Audit;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Support\Facades\DB;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 
@@ -26,7 +27,8 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
             'blocked' => $attempt->blocked,
             'rule_id' => $attempt->ruleId,
             'principal_id' => $attempt->principalId,
-            'occurred_at' => $attempt->occurredAt->format('Y-m-d H:i:s'),
+            // Persist in UTC so audit timestamps are unambiguous across deployments/timezones.
+            'occurred_at' => $attempt->occurredAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s'),
         ])->save();
     }
 
@@ -47,7 +49,7 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
                 (bool) $row->blocked,
                 $row->rule_id !== null ? (string) $row->rule_id : null,
                 $row->principal_id !== null ? (string) $row->principal_id : null,
-                new DateTimeImmutable((string) $row->occurred_at),
+                new DateTimeImmutable((string) $row->occurred_at, new DateTimeZone('UTC')),
             );
         }
 

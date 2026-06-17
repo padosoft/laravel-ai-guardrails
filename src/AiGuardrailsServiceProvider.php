@@ -87,11 +87,18 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             };
         });
 
-        $this->app->singleton(GuardrailInputMiddleware::class, static fn ($app): GuardrailInputMiddleware => new GuardrailInputMiddleware(
-            $app->make(InjectionScreener::class),
-            $app->make(InjectionAuditStore::class),
-            static fn () => auth()->guard()->id(),
-        ));
+        $this->app->singleton(GuardrailInputMiddleware::class, static function ($app): GuardrailInputMiddleware {
+            $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
+                && (bool) $app['config']->get('ai-guardrails.input_screen.enabled', true);
+
+            return new GuardrailInputMiddleware(
+                $app->make(InjectionScreener::class),
+                $app->make(InjectionAuditStore::class),
+                // Resolve the principal defensively: auth may be unbound (CLI / minimal apps).
+                static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
+                $enabled,
+            );
+        });
 
         $this->app->singleton(AiGuardrails::class, static fn ($app): AiGuardrails => new AiGuardrails(
             $app->make(InjectionScreener::class),
