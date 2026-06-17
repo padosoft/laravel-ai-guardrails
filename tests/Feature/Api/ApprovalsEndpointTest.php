@@ -44,6 +44,9 @@ final class ApprovalsEndpointTest extends TestCase
         // Fail fast if the dependency layout moved — otherwise migrations silently skip and the real
         // failure surfaces later as a confusing "no such table" error.
         self::assertNotEmpty($files, "No laravel-flow migrations found at {$dir}");
+        // glob() order isn't guaranteed across filesystems; the later flow migrations add columns to
+        // tables the earlier ones create, so apply them in deterministic (timestamp-prefixed) order.
+        sort($files);
         foreach ($files as $file) {
             (require $file)->up();
         }
