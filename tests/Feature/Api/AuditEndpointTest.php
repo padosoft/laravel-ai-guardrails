@@ -129,11 +129,11 @@ final class AuditEndpointTest extends TestCase
             ->assertOk();
 
         self::assertSame([], $response->json('data.points'));
-        // from must be clamped to <= until so the window is coherent (not inverted). Compare as
-        // DateTimeImmutable (not raw strings) so the direction of the assertion is unambiguous.
+        // from must be clamped to <= until so the window is coherent (not inverted). Use a direct
+        // `<=` comparison so the assertion direction reads exactly like the message (from <= to).
         $from = new DateTimeImmutable((string) $response->json('data.from'));
         $to = new DateTimeImmutable((string) $response->json('data.to'));
-        self::assertLessThanOrEqual($to, $from, 'from must not exceed to in the response');
+        self::assertTrue($from <= $to, 'from must not exceed to in the response');
     }
 
     public function test_trend_rejects_relative_date_string_and_falls_back_to_default(): void
@@ -166,6 +166,18 @@ final class AuditEndpointTest extends TestCase
         } finally {
             date_default_timezone_set($original);
         }
+    }
+
+    public function test_trend_rejects_invalid_calendar_date_and_falls_back_to_default(): void
+    {
+        $this->seedAttempts();
+
+        // 2026-02-30 is syntactically date-shaped but not a real calendar day — must be rejected
+        // (treated as absent), NOT silently rolled forward to March 2 by the DateTimeImmutable ctor.
+        $response = $this->getJson('/ai-guardrails/api/audit/trend?from=2026-02-30')->assertOk();
+
+        // Default 30-day window applies; the returned `from` must not be a March date.
+        self::assertStringStartsNotWith('2026-03', (string) $response->json('data.from'));
     }
 
     public function test_list_from_date_rejects_relative_string(): void

@@ -12,6 +12,7 @@ use Padosoft\AiGuardrails\Audit\AuditQueryFilters;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Http\Resources\AuditEntryResource;
 use Padosoft\AiGuardrails\Http\Support\Envelope;
+use Padosoft\AiGuardrails\Support\IsoDateParser;
 
 /**
  * Read-only audit endpoints over the append-only injection store: a filtered/paginated list, a
@@ -53,8 +54,8 @@ final class AuditController
         $utc = new DateTimeZone('UTC');
         $now = new DateTimeImmutable('now', $utc);
 
-        $until = $this->parseDate($request->query('to'), $utc) ?? $now;
-        $from = $this->parseDate($request->query('from'), $utc)
+        $until = IsoDateParser::parseUtc($request->query('to')) ?? $now;
+        $from = IsoDateParser::parseUtc($request->query('from'))
             ?? $until->modify('-'.self::TREND_DEFAULT_DAYS.' days');
 
         // Clamp the window so a single request can't force an unbounded scan.
@@ -72,26 +73,5 @@ final class AuditController
             'to' => $until->format(DATE_ATOM),
             'points' => $store->trend($from, $until),
         ]);
-    }
-
-    private function parseDate(mixed $value, DateTimeZone $utc): ?DateTimeImmutable
-    {
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        // Reject PHP relative strings ("tomorrow", "next year", "+1 day", …). Only accept strict
-        // ISO 8601: YYYY-MM-DD with an optional time component (space or T separator).
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}([+-]\d{2}:?\d{2}|Z)?)?)?$/', $value)) {
-            return null;
-        }
-
-        try {
-            // $utc is the default zone for inputs without an explicit offset (e.g. a bare date), so a
-            // date-only bound isn't shifted by the server timezone; setTimezone normalises the rest.
-            return (new DateTimeImmutable($value, $utc))->setTimezone($utc);
-        } catch (\Throwable) {
-            return null;
-        }
     }
 }

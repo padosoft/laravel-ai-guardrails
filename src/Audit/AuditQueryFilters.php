@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Audit;
 
 use DateTimeImmutable;
-use DateTimeZone;
 use Illuminate\Http\Request;
+use Padosoft\AiGuardrails\Support\IsoDateParser;
 
 /**
  * Filters + keyset-pagination cursor for the audit list endpoint (GET /audit). The cursor is the
@@ -30,8 +30,8 @@ final readonly class AuditQueryFilters
         $blocked = $request->query('blocked');
         $limit = (int) $request->query('limit', '50');
         $cursor = $request->query('cursor');
-        $from = self::parseDate($request->query('from'));
-        $to = self::parseDate($request->query('to'));
+        $from = IsoDateParser::parseUtc($request->query('from'));
+        $to = IsoDateParser::parseUtc($request->query('to'));
 
         return new self(
             blocked: $blocked === null ? null : filter_var($blocked, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
@@ -48,26 +48,5 @@ final readonly class AuditQueryFilters
     private static function str(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
-    }
-
-    private static function parseDate(mixed $value): ?DateTimeImmutable
-    {
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        // Reject PHP relative strings ("tomorrow", "next year", "+1 day", …). Only accept strict
-        // ISO 8601: YYYY-MM-DD with an optional time component (space or T separator).
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}([+-]\d{2}:?\d{2}|Z)?)?)?$/', $value)) {
-            return null;
-        }
-
-        try {
-            // Interpret inputs without an explicit offset as UTC, matching how occurred_at is stored,
-            // so a bare-date filter bound isn't shifted by the server timezone.
-            return new DateTimeImmutable($value, new DateTimeZone('UTC'));
-        } catch (\Throwable) {
-            return null;
-        }
     }
 }
