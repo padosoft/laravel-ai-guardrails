@@ -33,21 +33,27 @@ final class ToolApprovalHandler implements FlowStepHandler
             return FlowStepResult::failed(new RuntimeException('Approved tool class is not resolvable.'));
         }
 
-        // Allowlist check: when hitl.allowed_tool_classes is non-empty, only listed classes may run.
-        /** @var list<class-string> $allowedClasses */
+        // Allowlist check: when hitl.allowed_tool_classes is a non-empty array, only listed classes
+        // may run. A mis-typed (non-array) config is treated as "no allowlist".
         $allowedClasses = config('ai-guardrails.hitl.allowed_tool_classes', []);
-        if (! empty($allowedClasses) && ! in_array($toolClass, $allowedClasses, true)) {
+        if (is_array($allowedClasses) && $allowedClasses !== [] && ! in_array($toolClass, $allowedClasses, true)) {
             return FlowStepResult::failed(new RuntimeException(
                 "Tool class [{$toolClass}] is not in the hitl.allowed_tool_classes allowlist."
             ));
         }
 
-        $tool = app($toolClass);
-        if (! $tool instanceof Tool) {
-            return FlowStepResult::failed(new RuntimeException('Approved class is not a laravel/ai Tool.'));
-        }
+        try {
+            $tool = app($toolClass);
+            if (! $tool instanceof Tool) {
+                return FlowStepResult::failed(new RuntimeException('Approved class is not a laravel/ai Tool.'));
+            }
 
-        $result = $tool->handle(new Request(is_array($arguments) ? $arguments : []));
+            $result = $tool->handle(new Request(is_array($arguments) ? $arguments : []));
+        } catch (\Throwable $e) {
+            // The approved tool itself failed — report it as a failed step rather than letting the
+            // exception escape the flow engine.
+            return FlowStepResult::failed($e);
+        }
 
         return FlowStepResult::success([
             'result' => (string) $result,

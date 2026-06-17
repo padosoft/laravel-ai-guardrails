@@ -11,7 +11,6 @@ use InvalidArgumentException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
-use RuntimeException;
 use Stringable;
 
 /**
@@ -66,8 +65,9 @@ final readonly class ApprovalGatedTool implements Tool
                 $request->toArray(),
                 ($this->principalResolver)(),
             );
-        } catch (RuntimeException) {
-            // Flow misconfiguration or token issuance failure — fail safe (deny).
+        } catch (\Throwable) {
+            // ANY router failure (flow misconfiguration, token issuance, persistence, etc.) — fail
+            // safe (deny). A destructive action must never proceed when approval routing breaks.
             return "This destructive action [{$this->toolName}] is blocked: the approval system could not park the request.";
         }
 
