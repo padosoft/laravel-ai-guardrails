@@ -20,6 +20,7 @@ final class OutputHandlerBindingsTest extends TestCase
     {
         $this->app->forgetInstance(OutputSanitizer::class);
         $this->app->forgetInstance(PiiRedaction::class);
+        $this->app->forgetInstance(GuardrailOutputMiddleware::class);
         (new AiGuardrailsServiceProvider($this->app))->register();
     }
 

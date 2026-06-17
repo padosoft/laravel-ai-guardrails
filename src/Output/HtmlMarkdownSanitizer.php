@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Output;
 
+use Illuminate\Support\Facades\Log;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 
 /**
@@ -33,18 +34,39 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
             // exfiltration targets for `[text][label]` usages anywhere in the document.
             // Must run before the inline-link pass. Safe after HTML-escaping because `[`, `]`, `:`
             // are not HTML-special chars and are preserved verbatim.
-            $text = preg_replace('/^\[[^\]]+\]:\s*\S.*/m', '[ref]: (blocked)', $text) ?? $text;
+            $text = $this->defang('/^\[[^\]]+\]:\s*\S.*/m', '[ref]: (blocked)', $text);
 
             // Inline links/images: `[text](url)` / `![alt](url)` → keep visible text, drop URL.
-            $text = preg_replace('/(!?\[[^\]]*\])\([^)]*\)/', '$1(blocked)', $text) ?? $text;
+            $text = $this->defang('/(!?\[[^\]]*\])\([^)]*\)/', '$1(blocked)', $text);
 
             // Angle autolinks `<scheme:...>`. Does NOT require `://` so that dangerous bare-colon
             // schemes (`javascript:alert(1)`, `data:text/html,...`, `vbscript:`) are also blocked.
             // Matches both raw `<>` and HTML-entity-escaped `&lt;&gt;` forms (the latter produced
             // when sanitizeHtml is true). Backtracking lets `[^\s>]*` stop before the closing `&gt;`.
-            $text = preg_replace('/(?:<|&lt;)\s*[a-z][a-z0-9+.-]*:[^\s>]*\s*(?:>|&gt;)/i', '(blocked)', $text) ?? $text;
+            $text = $this->defang('/(?:<|&lt;)\s*[a-z][a-z0-9+.-]*:[^\s>]*\s*(?:>|&gt;)/i', '(blocked)', $text);
         }
 
         return $text;
+    }
+
+    /**
+     * Apply a defang replacement, failing CLOSED on a PCRE error: if preg_replace() returns null
+     * (e.g. backtrack-limit exhaustion or a bad-UTF-8 subject), do NOT fall back to the original
+     * text (that would leave the exfiltration syntax intact). Instead strip the structural
+     * characters that make up link/autolink targets so no such syntax can survive.
+     */
+    private function defang(string $pattern, string $replacement, string $text): string
+    {
+        $result = preg_replace($pattern, $replacement, $text);
+
+        if ($result === null) {
+            Log::warning('laravel-ai-guardrails: markdown defang pattern errored; failing closed.', [
+                'preg_error' => preg_last_error_msg(),
+            ]);
+
+            return str_replace(['(', ')', '<', '>', '&lt;', '&gt;'], '', $text);
+        }
+
+        return $result;
     }
 }

@@ -74,6 +74,20 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertSame('Hello world.', $sanitizer->sanitize('Hello world.'));
     }
 
+    public function test_defang_fails_closed_on_pcre_error(): void
+    {
+        $sanitizer = new HtmlMarkdownSanitizer;
+        $defang = new \ReflectionMethod($sanitizer, 'defang');
+
+        // A /u pattern against a bad-UTF-8 subject makes preg_replace() return null (error). The
+        // helper must fail CLOSED — strip the structural link/autolink characters, not return raw.
+        $out = $defang->invoke($sanitizer, '/x/u', 'y', "[a](<\xFF\xFE>)");
+
+        self::assertStringNotContainsString('(', $out);
+        self::assertStringNotContainsString('<', $out);
+        self::assertStringNotContainsString(')', $out);
+    }
+
     public function test_does_not_double_encode(): void
     {
         $sanitizer = new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false);
