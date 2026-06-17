@@ -67,10 +67,20 @@ final readonly class HtmlMarkdownSanitizer implements OutputSanitizer
      */
     private function allowlist(string $text): string
     {
-        $stripped = strip_tags($text, '<b><i><em><strong><code><br><p><ul><ol><li>');
+        $allowed = ['b', 'i', 'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li'];
 
-        // Remove every attribute from the surviving tags.
-        return preg_replace('/<\s*(\/?)\s*([a-z0-9]+)\b[^>]*>/i', '<$1$2>', $stripped) ?? '';
+        // Decode HTML entities first so entity-encoded tags (e.g. `&#x3C;script&#x3E;`) are revealed
+        // and then removed by strip_tags, rather than surviving as a latent XSS payload.
+        $decoded = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $stripped = strip_tags($decoded, '<'.implode('><', $allowed).'>');
+
+        // Strip ALL attributes, but ONLY from the allowed tags, and require the tag name to follow
+        // `<` immediately (no whitespace). This prevents malformed text that strip_tags left alone
+        // (e.g. `< script >…< /script >`) from being normalized BACK into a real disallowed tag.
+        $pattern = '/<(\/?)('.implode('|', $allowed).')\b[^>]*>/i';
+
+        return preg_replace($pattern, '<$1$2>', $stripped) ?? '';
     }
 
     private function defang(string $pattern, string $replacement, string $text): string
