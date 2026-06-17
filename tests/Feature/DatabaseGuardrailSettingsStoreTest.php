@@ -79,6 +79,19 @@ final class DatabaseGuardrailSettingsStoreTest extends TestCase
         self::assertTrue($this->store()->all()['input_screen.enabled']); // file default, not null
     }
 
+    public function test_null_and_type_mismatched_rows_keep_the_file_default(): void
+    {
+        // A JSON null or a wrong-type value must NOT flip a boolean control to false.
+        DB::table('ai_guardrails_settings')->insert([
+            ['key' => 'input_screen.enabled', 'value' => json_encode(null), 'updated_at' => now()],
+            ['key' => 'output_handler.enabled', 'value' => json_encode('not-a-bool'), 'updated_at' => now()],
+        ]);
+
+        $all = $this->store()->all();
+        self::assertTrue($all['input_screen.enabled']);   // null override rejected → default
+        self::assertTrue($all['output_handler.enabled']); // type-mismatch rejected → default
+    }
+
     public function test_overrides_for_keys_no_longer_overridable_are_ignored(): void
     {
         $store = $this->store();

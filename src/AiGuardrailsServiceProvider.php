@@ -304,7 +304,11 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 // Corrupt row → keep the file default rather than overlaying garbage onto a control.
                 continue;
             }
-            config(['ai-guardrails.'.$row->key => $value]);
+            $key = (string) $row->key;
+            // Reject null / type-mismatched overrides so a stray row can't flip a control to false.
+            if (OverridableSettings::accepts($key, $value)) {
+                config(['ai-guardrails.'.$key => $value]);
+            }
         }
     }
 

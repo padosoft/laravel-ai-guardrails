@@ -33,4 +33,18 @@ final class OverridableSettings
 
         return $defaults;
     }
+
+    /**
+     * Fail-safe gate for applying a decoded override: reject null and any value whose PHP type does
+     * not match the file-config default for that key. This stops a stray/corrupt row from flipping a
+     * security control (e.g. `(bool) null` → false would silently disable screening).
+     */
+    public static function accepts(string $key, mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        return gettype($value) === gettype(config('ai-guardrails.'.$key));
+    }
 }

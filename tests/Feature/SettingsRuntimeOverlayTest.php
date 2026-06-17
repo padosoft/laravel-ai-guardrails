@@ -69,4 +69,18 @@ final class SettingsRuntimeOverlayTest extends TestCase
         self::assertTrue(config('ai-guardrails.input_screen.enabled'));
         self::assertInstanceOf(PatternInjectionScreener::class, $this->resolve(InjectionScreener::class));
     }
+
+    public function test_null_override_does_not_disable_a_control(): void
+    {
+        // A valid JSON `null` would become `(bool) null === false` — it must be rejected, not applied.
+        DB::table('ai_guardrails_settings')->insert([
+            'key' => 'input_screen.enabled',
+            'value' => json_encode(null),
+            'updated_at' => now(),
+        ]);
+        $this->reregister();
+
+        self::assertTrue(config('ai-guardrails.input_screen.enabled'));
+        self::assertInstanceOf(PatternInjectionScreener::class, $this->resolve(InjectionScreener::class));
+    }
 }

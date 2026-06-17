@@ -30,11 +30,15 @@ final readonly class DatabaseGuardrailSettingsStore implements GuardrailSettings
                 continue;
             }
             try {
-                $effective[(string) $row->key] = json_decode($row->value, true, 512, JSON_THROW_ON_ERROR);
+                $decoded = json_decode($row->value, true, 512, JSON_THROW_ON_ERROR);
             } catch (\JsonException) {
-                // A corrupt row must NOT silently overwrite a security control's file default with
-                // null — keep the default and skip the bad row.
+                // A corrupt row must NOT silently overwrite a security control's file default — skip it.
                 continue;
+            }
+            // Reject null / type-mismatched overrides too (fail-safe — never flip a control by accident).
+            $key = (string) $row->key;
+            if (OverridableSettings::accepts($key, $decoded)) {
+                $effective[$key] = $decoded;
             }
         }
 
