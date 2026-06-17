@@ -68,7 +68,9 @@ final class ConventionsTest extends TestCase
         $violations = [];
 
         foreach ($this->srcFiles() as $file) {
-            $content = (string) file_get_contents($file);
+            // Strip comments so a vendor mention in a docblock/comment is not a false positive —
+            // only real code references count toward the boundary.
+            $content = $this->stripComments((string) file_get_contents($file));
             $unix = str_replace('\\', '/', $file);
 
             // laravel-flow may only be referenced inside the src/Hitl adapter dir.
@@ -83,5 +85,26 @@ final class ConventionsTest extends TestCase
         }
 
         self::assertSame([], $violations, "compose-not-couple boundary violated:\n".implode("\n", $violations));
+    }
+
+    /**
+     * Remove PHP comments (line + block + docblocks) using the tokenizer so vendor mentions inside
+     * comments don't count as boundary references.
+     */
+    private function stripComments(string $code): string
+    {
+        $out = '';
+        foreach (token_get_all($code) as $token) {
+            if (is_array($token)) {
+                if (in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true)) {
+                    continue;
+                }
+                $out .= $token[1];
+            } else {
+                $out .= $token;
+            }
+        }
+
+        return $out;
     }
 }
