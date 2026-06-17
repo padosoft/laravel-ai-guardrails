@@ -100,5 +100,12 @@
 - [x] LICENSE Apache-2.0 copyright filled (Padosoft s.r.l. 2026).
 - [ ] DoD loop → PR. Then HTTP API (Tasks 9–18) — the largest chunk; README API section added at Task 18.
 
+### Task 9 + 17 — API foundation + overview + try (DONE locally, branch `feature/task-9-api-foundation`)
+- [x] `Http/ApiSchema` (VERSION `ai-guardrails.api.v1` + per-endpoint SCHEMA_* constants), `Http/Support/Envelope` ({schema_version,schema,data}), `routes/ai-guardrails-api.php` (Registrar closure, names `ai-guardrails.api.*`).
+- [x] Provider `registerApiRoutes()` — default-OFF gate (api.enabled + bound Registrar + not cached), runs after the open-surface guard.
+- [x] `OverviewAggregator` + `OverviewController` (GET /overview); `TryController` (POST /try/screen, /try/sanitize).
+- [x] **157 tests / 310 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then audit endpoints (10–12), firewall+output stores (13–14), approvals+settings (15–16), API hardening (18), E9-API.
+
 ### Next
-- Tasks 9–18 — HTTP API surface (envelope + 13 endpoints + 4 stores) for the admin SPA, on `feature/task-9-api-foundation` etc. Then E3–E7/E9 hardening, E9-API, E10 release.
+- Tasks 10–12 — `GET /audit` (filters+cursor), `GET /audit/{id}` (+matched_span), `GET /audit/trend` — extend InjectionAuditStore with query()/find(). Then 13–18, E3–E7/E9, E9-API, E10.

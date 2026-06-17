@@ -16,7 +16,7 @@ final class ApiGuardBootTest extends TestCase
         $this->app['config']->set('ai-guardrails.api.middleware', []);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/api\.middleware is not a non-empty array/');
+        $this->expectExceptionMessageMatches('/api\.middleware has no \(string\) middleware/');
 
         (new AiGuardrailsServiceProvider($this->app))->boot();
     }
@@ -31,7 +31,7 @@ final class ApiGuardBootTest extends TestCase
         $this->app['config']->set('ai-guardrails.api.middleware', null);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/not a non-empty array/');
+        $this->expectExceptionMessageMatches('/has no \(string\) middleware/');
 
         (new AiGuardrailsServiceProvider($this->app))->boot();
     }
@@ -45,5 +45,17 @@ final class ApiGuardBootTest extends TestCase
         (new AiGuardrailsServiceProvider($this->app))->boot();
 
         $this->addToAssertionCount(1);
+    }
+
+    public function test_boot_throws_when_api_enabled_with_non_string_middleware(): void
+    {
+        // A non-empty array of non-strings filters to empty → would otherwise register an open API.
+        $this->app['config']->set('ai-guardrails.api.enabled', true);
+        $this->app['config']->set('ai-guardrails.api.middleware', [123, ['x']]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/has no \(string\) middleware/');
+
+        (new AiGuardrailsServiceProvider($this->app))->boot();
     }
 }
