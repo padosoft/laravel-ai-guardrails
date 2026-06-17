@@ -50,8 +50,12 @@ final class ApprovalsUnavailableTest extends TestCase
         // Simulate a race where isAvailable() returned true but the router throws LogicException on
         // the actual call (e.g. misconfiguration discovered late). Must return 409 hitl_unavailable,
         // not 422 decision_failed.
-        $stub = new class implements ApprovalRouter {
-            public function isAvailable(): bool { return true; }
+        $stub = new class implements ApprovalRouter
+        {
+            public function isAvailable(): bool
+            {
+                return true;
+            }
 
             public function route(string $toolName, string $toolClass, array $arguments, int|string|null $principalId): PendingApproval
             {
