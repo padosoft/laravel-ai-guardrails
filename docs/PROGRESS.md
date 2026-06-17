@@ -89,5 +89,11 @@
 - [x] **145 tests / 261 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then Task 7 (architecture tests + master-toggle both-states).
 
+### Task 7 — Architecture tests + master toggle (DONE locally, branch `feature/task-7-arch-tests`)
+- [x] `ConventionsTest`: contracts are interfaces; FirewalledTool/ApprovalGatedTool implement Tool; audit stores implement the contract; **compose-not-couple boundary auto-verified** (scan src/ — laravel-flow only in src/Hitl, pii-redactor only in src/Output).
+- [x] `MasterToggleTest`: enabled=false degrades every control to pass-through (guard/routeForApproval no-op, screen allows, sanitize passthrough); enabled=true engages.
+- [x] **152 tests / 285 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then Task 8 (README WOW).
+
 ### Next
-- Task 7 — Architecture conventions tests + package-wide master-toggle both-states on `feature/task-7-arch-tests`. Then README (T8), HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
+- Task 8 — WOW README + LESSON/PROGRESS + LICENSE on `feature/task-8-readme`. Then HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
