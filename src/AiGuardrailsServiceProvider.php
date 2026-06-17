@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails;
 
+use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
@@ -251,5 +252,37 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 'Set at least one middleware (e.g. "auth:sanctum") in config/ai-guardrails.php to protect the API surface.'
             );
         }
+
+        $this->registerApiRoutes();
+    }
+
+    /**
+     * Register the read/config HTTP API routes — only when api.enabled (default OFF), the router is
+     * bound, and routes are not cached. The open-surface guard above guarantees a non-empty middleware.
+     */
+    private function registerApiRoutes(): void
+    {
+        if (! (bool) config('ai-guardrails.api.enabled', false)) {
+            return;
+        }
+
+        if (! $this->app->bound(Registrar::class)) {
+            return;
+        }
+
+        if (method_exists($this->app, 'routesAreCached') && $this->app->routesAreCached()) {
+            return;
+        }
+
+        $prefix = trim((string) config('ai-guardrails.api.prefix', 'ai-guardrails/api'), '/');
+        $middleware = config('ai-guardrails.api.middleware', []);
+
+        /** @var callable(Registrar, string, list<string>): void $register */
+        $register = require __DIR__.'/../routes/ai-guardrails-api.php';
+        $register(
+            $this->app->make(Registrar::class),
+            $prefix !== '' ? $prefix : 'ai-guardrails/api',
+            is_array($middleware) ? array_values(array_filter($middleware, 'is_string')) : [],
+        );
     }
 }
