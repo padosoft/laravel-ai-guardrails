@@ -38,6 +38,7 @@ final readonly class AiGuardrails
         private ToolArgumentValidator $validator,
         private ApprovalRouter $router,
         private bool $enabled = true,
+        private bool $hitlEnabled = false,
         private array $destructiveTools = [],
         private string $hitlFallback = 'deny',
         private string $destructiveMatch = 'exact',
@@ -75,7 +76,9 @@ final readonly class AiGuardrails
      */
     public function routeForApproval(Tool $tool, string $toolName, ?Closure $principalResolver = null): Tool
     {
-        if (! $this->enabled) {
+        // No gating when the master kill-switch OR the HITL control is off (otherwise a 'deny'
+        // fallback would wrongly block the tool even though approval gating is disabled).
+        if (! $this->enabled || ! $this->hitlEnabled) {
             return $tool;
         }
 
@@ -110,6 +113,10 @@ final readonly class AiGuardrails
      */
     public function validateStructured(array $output, array $schema, bool $rejectUnknown = false): array
     {
+        if (! $this->enabled) {
+            return []; // master kill-switch off → no validation (pass-through)
+        }
+
         return (new StructuredOutputValidator($rejectUnknown))->validate($output, $schema);
     }
 

@@ -20,12 +20,24 @@ final class ComposingHelpersTest extends TestCase
         self::assertInstanceOf(FirewalledTool::class, $this->resolve(AiGuardrails::class)->guard(new FakeOwnedTool));
     }
 
-    public function test_route_for_approval_wraps_a_destructive_tool(): void
+    public function test_route_for_approval_wraps_a_destructive_tool_when_hitl_enabled(): void
     {
+        $this->app['config']->set('ai-guardrails.hitl.enabled', true);
+        $this->app->forgetInstance(AiGuardrails::class);
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
         self::assertInstanceOf(
             ApprovalGatedTool::class,
             $this->resolve(AiGuardrails::class)->routeForApproval(new FakeDestructiveTool, 'refund'),
         );
+    }
+
+    public function test_route_for_approval_is_a_no_op_when_hitl_disabled(): void
+    {
+        // Default config: hitl.enabled = false → no gating (otherwise a 'deny' fallback would block).
+        $tool = new FakeDestructiveTool;
+
+        self::assertSame($tool, $this->resolve(AiGuardrails::class)->routeForApproval($tool, 'refund'));
     }
 
     public function test_is_destructive_matches_configured_tools(): void
