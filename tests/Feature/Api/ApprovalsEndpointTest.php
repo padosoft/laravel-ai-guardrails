@@ -6,8 +6,10 @@ namespace Padosoft\AiGuardrails\Tests\Feature\Api;
 
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
+use Padosoft\AiGuardrails\Hitl\ToolApprovalHandler;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeDestructiveTool;
 use Padosoft\AiGuardrails\Tests\TestCase;
+use Padosoft\LaravelFlow\Facades\Flow;
 use Padosoft\LaravelFlow\LaravelFlowServiceProvider;
 
 /**
@@ -81,6 +83,20 @@ final class ApprovalsEndpointTest extends TestCase
             ->assertJsonPath('data.pending', []);
     }
 
+    public function test_approve_works_in_a_fresh_router_that_never_called_route(): void
+    {
+        $token = $this->park();
+
+        // Simulate a separate request/worker: drop the router instance so the decision is handled by
+        // a brand-new FlowApprovalRouter that never ran route(). It must still register the flow
+        // definition before Flow::resume, otherwise the valid token would fail to resolve.
+        $this->app->forgetInstance(ApprovalRouter::class);
+
+        $this->postJson('/ai-guardrails/api/approvals/'.$token.'/approve')
+            ->assertOk()
+            ->assertJsonPath('data.decision', 'approved');
+    }
+
     public function test_reject_resolves_a_pending_approval(): void
     {
         $token = $this->park();
@@ -101,6 +117,25 @@ final class ApprovalsEndpointTest extends TestCase
         $this->postJson('/ai-guardrails/api/approvals/not-a-real-token/approve')
             ->assertStatus(422)
             ->assertJsonPath('data.error', 'decision_failed');
+    }
+
+    public function test_list_excludes_non_guardrails_flow_approvals(): void
+    {
+        $this->park(); // a guardrails pending approval
+
+        // A foreign (non-guardrails) flow with its own approval gate creates a pending row in the
+        // SHARED flow_approvals table — it must NOT appear in the ai-guardrails list. (Execution
+        // pauses at the gate, so the step handler is never actually run.)
+        Flow::define('other-flow')
+            ->withInput(['x'])
+            ->approvalGate('gate')
+            ->step('noop', ToolApprovalHandler::class)
+            ->register();
+        Flow::execute('other-flow', ['x' => 1]);
+
+        $pending = $this->getJson('/ai-guardrails/api/approvals')->assertOk()->json('data.pending');
+
+        self::assertCount(1, $pending); // only the guardrails approval, not the foreign one
     }
 
     public function test_list_is_empty_when_hitl_disabled_even_with_a_pending_row(): void

@@ -38,8 +38,8 @@ return static function (Registrar $router, string $prefix, array $middleware): v
 
         // HITL approvals (Control D): list pending + approve/reject by token.
         // NOTE: the token travels in the URL path and will appear in server/proxy/CDN access logs.
-        // Operators MUST configure log scrubbing for the pattern `/approvals/*/approve|reject` in any
-        // layer that retains access logs (nginx, caddy, API gateway, etc.).
+        // Operators MUST configure log scrubbing for the path `/approvals/{token}/(approve|reject)`
+        // in any layer that retains access logs (nginx, caddy, API gateway, etc.).
         $router->get('/approvals', [ApprovalsController::class, 'index'])->name('approvals.index');
         $router->post('/approvals/{token}/approve', [ApprovalsController::class, 'approve'])
             ->where('token', '[A-Za-z0-9_\-\.]+')

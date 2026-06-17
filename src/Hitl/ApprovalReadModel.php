@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Hitl;
 
 use DateTimeZone;
+use Illuminate\Database\Query\Builder;
 use Padosoft\LaravelFlow\Models\FlowApprovalRecord;
+use Padosoft\LaravelFlow\Models\FlowRunRecord;
 
 /**
  * Read side of Control D: lists the currently-pending HITL approvals from padosoft/laravel-flow's
@@ -24,8 +26,16 @@ final class ApprovalReadModel
         }
 
         try {
+            // The flow_approvals table is shared: a host may run other (non-guardrails) flows through
+            // laravel-flow. Scope to runs of THIS package's flow definition so we never expose
+            // unrelated business approvals through the ai-guardrails API.
             $rows = FlowApprovalRecord::query()
                 ->where('status', FlowApprovalRecord::STATUS_PENDING)
+                ->whereIn('run_id', static function (Builder $query): void {
+                    $query->select('id')
+                        ->from((new FlowRunRecord)->getTable())
+                        ->where('definition_name', FlowApprovalRouter::FLOW_NAME);
+                })
                 ->orderByDesc('created_at')
                 ->limit(max(1, min(200, $limit)))
                 ->get();
