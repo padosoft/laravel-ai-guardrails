@@ -17,6 +17,7 @@ use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Exceptions\ToolArgumentRejection;
+use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
 
 /**
@@ -34,6 +35,7 @@ final readonly class FirewalledTool implements Tool
         private ToolArgumentValidator $validator,
         private Closure $principalResolver,
         private ?FirewallRejectionStore $rejectionStore = null,
+        private ControlMode $mode = ControlMode::Enforce,
     ) {}
 
     public function description(): Stringable|string
@@ -72,7 +74,11 @@ final readonly class FirewalledTool implements Tool
                 ]);
             }
 
-            throw new ToolArgumentRejection($violations, $description);
+            // enforce → block; monitor → observe only (still delegates with the re-scoped args, so the
+            // owner-key re-scoping security action is preserved while the rejection is not enforced).
+            if ($this->mode->enforces()) {
+                throw new ToolArgumentRejection($violations, $description);
+            }
         }
 
         return $this->delegate->handle(new Request($scoped));
