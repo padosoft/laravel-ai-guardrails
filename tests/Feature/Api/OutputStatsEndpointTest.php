@@ -75,4 +75,16 @@ final class OutputStatsEndpointTest extends TestCase
 
         self::assertSame(30, (int) $from->diff($to)->days, 'default window should span 30 days');
     }
+
+    public function test_inverted_window_returns_empty_totals(): void
+    {
+        $store = $this->app->make(OutputStatStore::class);
+        $store->record(OutputStatKind::HtmlStripped);
+
+        // from after to → unsatisfiable filter → genuinely empty (not a zero-length window match).
+        $this->getJson('/ai-guardrails/api/output/stats?from=2030-01-01&to=2020-01-01')
+            ->assertOk()
+            ->assertJsonPath('data.total', 0)
+            ->assertJsonPath('data.counts.html_stripped', 0);
+    }
 }

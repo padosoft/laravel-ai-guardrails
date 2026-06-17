@@ -33,11 +33,9 @@ final class OutputStatsController
         $from = IsoDateParser::parseUtc($request->query('from'))
             ?? $to->modify('-'.self::DEFAULT_WINDOW_DAYS.' days');
 
-        // Guard an inverted window (from after to → empty, coherent result).
-        if ($from > $to) {
-            $from = $to;
-        }
-
+        // An inverted window (from after to) is left as-is: the store filters on `>= from AND <= to`,
+        // which is unsatisfiable, so the totals come back genuinely empty (not a spurious zero-length
+        // window). The echoed from/to make the inversion visible to the caller.
         $totals = $store->totals($from, $to);
 
         // Zero-fill every kind so the UI always sees a stable, complete shape.
