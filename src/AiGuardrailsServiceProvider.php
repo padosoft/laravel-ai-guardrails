@@ -9,6 +9,9 @@ use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\NullInjectionAuditStore;
+use Padosoft\AiGuardrails\Console\GuardrailsAuditCommand;
+use Padosoft\AiGuardrails\Console\GuardrailsSanitizeCommand;
+use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
@@ -180,11 +183,24 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 && (bool) $app['config']->get('ai-guardrails.hitl.enabled', false),
         ));
 
-        $this->app->singleton(AiGuardrails::class, static fn ($app): AiGuardrails => new AiGuardrails(
-            $app->make(InjectionScreener::class),
-            $app->make(OutputSanitizer::class),
-            $app->make(PiiRedaction::class),
-        ));
+        $this->app->singleton(AiGuardrails::class, static function ($app): AiGuardrails {
+            $cfg = $app['config'];
+            $destructive = $cfg->get('ai-guardrails.hitl.destructive_tools', []);
+
+            return new AiGuardrails(
+                $app->make(InjectionScreener::class),
+                $app->make(OutputSanitizer::class),
+                $app->make(PiiRedaction::class),
+                $app->make(ArgumentScoper::class),
+                $app->make(ToolArgumentValidator::class),
+                $app->make(ApprovalRouter::class),
+                (bool) $cfg->get('ai-guardrails.enabled', true),
+                is_array($destructive) ? array_values($destructive) : [],
+                (string) $cfg->get('ai-guardrails.hitl.fallback', 'deny'),
+                (string) $cfg->get('ai-guardrails.tool_authorization.destructive_match', 'exact'),
+                static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
+            );
+        });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
     }
 
@@ -200,6 +216,12 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     'migrations/'.date('Y_m_d_His').'_create_ai_guardrails_injection_audit_table.php'
                 ),
             ], 'ai-guardrails-migrations');
+
+            $this->commands([
+                GuardrailsScreenCommand::class,
+                GuardrailsSanitizeCommand::class,
+                GuardrailsAuditCommand::class,
+            ]);
         }
 
         // E2: validate screening patterns up front so a malformed regex fails loudly at boot
