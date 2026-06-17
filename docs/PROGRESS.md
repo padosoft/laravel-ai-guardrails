@@ -45,4 +45,15 @@
 - After Control B base merges: E1 (prompt normalization + length ceiling), E2 (regex safety / fail-closed / ruleset version) — harden the screener (the audit is the value, but normalization closes the trivial-bypass gap).
 
 ### Roadmap macro status
-- [ ] Task -1 governance · [ ] Task 0 scaffold · [ ] Task 1 facade/core · [ ] Task 2 Control A · [ ] Task 3 Control B · [ ] Task 4 Control C · [ ] Task 5 Control D · [ ] Task 6 Artisan · [ ] Task 7 arch tests · [ ] Task 8 README/docs · [ ] Tasks 9–18 HTTP API · [ ] E1–E9 hardening · [ ] E9-API · [ ] E10 release.
+- [x] Task -1 governance (PR #1) · [x] Task 0+1 scaffold/core (PR #2) · [x] Task 2 Control A (PR #3) · [x] Task 3 Control B (PR #4) · [ ] E1 normalization · [ ] E2 regex-safety · [ ] Task 4 Control C · [ ] Task 5 Control D · [ ] Task 6 Artisan · [ ] Task 7 arch tests · [ ] Task 8 README/docs · [ ] Tasks 9–18 HTTP API · [ ] E3–E9 hardening · [ ] E9-API · [ ] E10 release.
+
+### Task E1 — Prompt normalization + length ceiling (DONE locally, branch `feature/control-b-input-screen-e1`)
+- [x] `PromptNormalizer` contract + `UnicodePromptNormalizer` (NFKC via intl with graceful fallback, zero-width strip, control strip, unicode casefold; each pass toggleable) + `NullPromptNormalizer`.
+- [x] `PatternInjectionScreener` normalizes before matching (catches zero-width / fullwidth-homoglyph evasion) and blocks over-length prompts as verdict `too_long` (length checked on the original). Normalizer (nullable) + maxPromptLength (int, default 0) are optional trailing ctor params (back-compat).
+- [x] Provider binds `PromptNormalizer` (Unicode when normalization.enabled, else Null) and wires it + max_prompt_length into the screener. Both-states tested.
+- [x] composer: `ext-mbstring` required; `ext-intl` suggested (NFKC graceful fallback). mb_* calls pass explicit 'UTF-8'.
+- [x] **73 tests / 135 assertions** GREEN (incl. TAG-block/soft-hyphen/CGJ stripping from review); pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. **Deviation from plan:** over-length is a `too_long` ScreenVerdict (auditable, matches admin v2 verdict union) instead of a thrown `PromptTooLong` exception — cleaner + consistent with the verdict model.
+
+### Next
+- E2 (regex safety): ruleset_version stamped on verdict + audit row, boot-time pattern validation (throw InvalidScreeningPattern), pcre.backtrack_limit, configurable on_match_error (the @preg_match fail-closed is already in). Then Task 4 Control C.

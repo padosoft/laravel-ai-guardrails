@@ -106,6 +106,11 @@ return [
     ],
 
     // Pre-screening normalization, applied BEFORE pattern matching to defeat trivial evasion. Task E1.
+    // PATTERN AUTHORING: patterns are matched against the casefolded, NFKC-normalized form.
+    // Write all patterns in lowercase (or add the /i flag) — case-sensitive patterns without /i
+    // will silently miss mixed-case inputs after casefold normalization.
+    // NOTE: NFKC folds fullwidth characters (ｉｇｎｏｒｅ → ignore) but does NOT collapse cross-script
+    // lookalikes (Cyrillic/Greek/IPA homoglyphs). See Unicode confusables for future hardening.
     'normalization' => [
         'enabled' => env('AI_GUARDRAILS_NORMALIZE', true),
         'nfkc' => true,
@@ -113,6 +118,8 @@ return [
         'strip_control' => true,
         'casefold' => true,
         'decode_base64_blobs' => false,
+        // Maximum prompt length in Unicode code points (not bytes). Prompts exceeding this limit
+        // are blocked with verdict 'too_long' before screening. 0 = unlimited.
         'max_prompt_length' => env('AI_GUARDRAILS_MAX_PROMPT_LENGTH', 50000),
     ],
 

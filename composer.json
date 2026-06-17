@@ -11,6 +11,7 @@
     },
     "require": {
         "php": "^8.3",
+        "ext-mbstring": "*",
         "illuminate/contracts": "^13.0",
         "illuminate/console": "^13.0",
         "illuminate/database": "^13.0",
@@ -26,6 +27,7 @@
         "padosoft/laravel-pii-redactor": "^1.0"
     },
     "suggest": {
+        "ext-intl": "Enables Unicode NFKC normalization (fullwidth/homoglyph folding) in the input screener; without it that pass is skipped.",
         "padosoft/laravel-flow": "Enables the HITL approval bridge (control D) via approvalGate().",
         "padosoft/laravel-pii-redactor": "Enables PII redaction in the output handler (control C)."
     },
