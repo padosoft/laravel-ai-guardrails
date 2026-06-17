@@ -40,8 +40,6 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
 
         // Default null-object bindings. Later tasks replace these with real implementations.
         $this->app->singleton(InjectionScreener::class, NullInjectionScreener::class);
-        $this->app->singleton(OutputSanitizer::class, PassthroughSanitizer::class);
-        $this->app->singleton(PiiRedaction::class, NullPiiRedaction::class);
 
         // Control A — Tool firewall collaborators (configured from the tool_firewall block).
         // The master kill-switch (ai-guardrails.enabled) degrades every control to pass-through.
@@ -137,19 +135,31 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         });
 
         // Control C — Output handler (sanitize untrusted model output + compose PII redaction).
-        $outputActive = (bool) config('ai-guardrails.enabled', true)
-            && (bool) config('ai-guardrails.output_handler.enabled', true);
-        if ($outputActive) {
-            $this->app->singleton(OutputSanitizer::class, static fn ($app): OutputSanitizer => new HtmlMarkdownSanitizer(
+        // Config is read lazily inside the closures (not at registration time) so that the
+        // config repository is guaranteed to be fully bootstrapped when the singleton resolves.
+        $this->app->singleton(OutputSanitizer::class, static function ($app): OutputSanitizer {
+            if (
+                ! (bool) $app['config']->get('ai-guardrails.enabled', true)
+                || ! (bool) $app['config']->get('ai-guardrails.output_handler.enabled', true)
+            ) {
+                return new PassthroughSanitizer;
+            }
+
+            return new HtmlMarkdownSanitizer(
                 (bool) $app['config']->get('ai-guardrails.output_handler.sanitize_html', true),
                 (bool) $app['config']->get('ai-guardrails.output_handler.neutralize_markdown', true),
-            ));
+            );
+        });
 
-            $this->app->singleton(PiiRedaction::class, static fn ($app): PiiRedaction => PiiRedactionFactory::make(
+        $this->app->singleton(PiiRedaction::class, static function ($app): PiiRedaction {
+            $active = (bool) $app['config']->get('ai-guardrails.enabled', true)
+                && (bool) $app['config']->get('ai-guardrails.output_handler.enabled', true);
+
+            return PiiRedactionFactory::make(
                 $app,
-                (bool) $app['config']->get('ai-guardrails.output_handler.redact_pii', true),
-            ));
-        }
+                $active && (bool) $app['config']->get('ai-guardrails.output_handler.redact_pii', true),
+            );
+        });
 
         $this->app->singleton(GuardrailOutputMiddleware::class, static function ($app): GuardrailOutputMiddleware {
             $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)

