@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
@@ -63,8 +64,16 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $patterns = $app['config']->get('ai-guardrails.input_screen.patterns', []);
                 $message = $app['config']->get('ai-guardrails.input_screen.refusal_message', 'This request was blocked by the input guardrails.');
 
+                if (! is_array($patterns)) {
+                    // A mis-typed patterns config would silently disable screening (fail open) — make it loud.
+                    Log::warning(
+                        'laravel-ai-guardrails: input_screen.patterns is not an array; no screening patterns are active.'
+                    );
+                    $patterns = [];
+                }
+
                 return new PatternInjectionScreener(
-                    is_array($patterns) ? $patterns : [],
+                    $patterns,
                     is_string($message) ? $message : 'This request was blocked by the input guardrails.',
                 );
             });

@@ -37,7 +37,9 @@ final readonly class PatternInjectionScreener implements InjectionScreener
                 continue;
             }
 
-            $result = preg_match($pattern, $prompt);
+            // Suppress the PHP warning preg_match() emits on a PCRE/UTF-8 error: many Laravel apps
+            // convert warnings to ErrorExceptions, which would bypass the fail-closed check below.
+            $result = @preg_match($pattern, $prompt);
 
             if ($result === false) {
                 // PCRE error → fail closed (block), never fail open.
