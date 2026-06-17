@@ -18,13 +18,15 @@ final class AuditEntryResource
     /** @return array<string, mixed> */
     public static function summary(InjectionAttempt $attempt): array
     {
+        $prompt = self::utf8($attempt->prompt);
+
         return [
             'id' => $attempt->id,
             'blocked' => $attempt->blocked,
             'rule_id' => $attempt->ruleId,
             'ruleset_version' => $attempt->rulesetVersion,
-            'prompt_preview' => self::preview($attempt->prompt),
-            'prompt_length' => mb_strlen($attempt->prompt, 'UTF-8'),
+            'prompt_preview' => self::preview($prompt),
+            'prompt_length' => mb_strlen($prompt, 'UTF-8'),
             'errored' => $attempt->erroredRuleIds !== [],
             'occurred_at' => self::iso($attempt),
         ];
@@ -33,14 +35,16 @@ final class AuditEntryResource
     /** @return array<string, mixed> */
     public static function detail(InjectionAttempt $attempt): array
     {
+        $prompt = self::utf8($attempt->prompt);
+
         return [
             'id' => $attempt->id,
             'blocked' => $attempt->blocked,
             'rule_id' => $attempt->ruleId,
             'principal_id' => $attempt->principalId,
             'ruleset_version' => $attempt->rulesetVersion,
-            'prompt' => $attempt->prompt,
-            'prompt_length' => mb_strlen($attempt->prompt, 'UTF-8'),
+            'prompt' => $prompt,
+            'prompt_length' => mb_strlen($prompt, 'UTF-8'),
             'errored_rule_ids' => $attempt->erroredRuleIds,
             'matched_span' => $attempt->matchedSpan,
             'occurred_at' => self::iso($attempt),
@@ -54,6 +58,16 @@ final class AuditEntryResource
         return mb_strlen($prompt, 'UTF-8') > self::PREVIEW_LIMIT
             ? mb_substr($prompt, 0, self::PREVIEW_LIMIT, 'UTF-8').'…'
             : $prompt;
+    }
+
+    /**
+     * Audit prompts are untrusted and may hold invalid byte sequences (the audit logs every attempt,
+     * including unscreenable ones). Scrub them to valid UTF-8 so mb_* never warns/returns false and
+     * the JSON response never fails to encode. Callers must pass the result through mb_* safely.
+     */
+    private static function utf8(string $prompt): string
+    {
+        return mb_check_encoding($prompt, 'UTF-8') ? $prompt : mb_scrub($prompt, 'UTF-8');
     }
 
     private static function iso(InjectionAttempt $attempt): string

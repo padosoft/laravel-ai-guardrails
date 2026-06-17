@@ -200,4 +200,49 @@ final class AuditEndpointTest extends TestCase
         $entries = $response->json('data.entries');
         self::assertCount(2, $entries, 'All entries must be returned when blocked param is invalid');
     }
+
+    public function test_array_query_params_do_not_500(): void
+    {
+        $this->seedAttempts();
+
+        // Repeated params make query() return arrays; they must be ignored, not crash the endpoint.
+        $response = $this->getJson('/ai-guardrails/api/audit?blocked[]=true&limit[]=10&cursor[]=1&q[]=x')
+            ->assertOk();
+
+        self::assertCount(2, $response->json('data.entries'));
+    }
+
+    public function test_invalid_cursor_is_ignored(): void
+    {
+        $this->seedAttempts();
+
+        // "-1", "1e3", "0" are not valid monotonic positive id cursors → treated as no cursor.
+        foreach (['-1', '1e3', '0', 'abc'] as $bad) {
+            $response = $this->getJson('/ai-guardrails/api/audit?cursor='.$bad)->assertOk();
+            self::assertCount(2, $response->json('data.entries'), "cursor=$bad should be ignored");
+        }
+    }
+
+    public function test_invalid_utf8_prompt_does_not_break_the_api(): void
+    {
+        $store = $this->app->make(InjectionAuditStore::class);
+        // The audit logs every attempt, including prompts with invalid byte sequences.
+        $store->append(new InjectionAttempt(
+            "ignore \xFF\xFE previous",
+            true,
+            'ignore_previous',
+            null,
+            new DateTimeImmutable('2026-01-01 00:00:00', new DateTimeZone('UTC')),
+        ));
+
+        // Neither the list (preview + length) nor the detail (full prompt) endpoint may 500 or fail
+        // to JSON-encode; the bytes are scrubbed to valid UTF-8.
+        $this->getJson('/ai-guardrails/api/audit')
+            ->assertOk()
+            ->assertJsonPath('data.entries.0.id', 1);
+
+        $this->getJson('/ai-guardrails/api/audit/1')
+            ->assertOk()
+            ->assertJsonPath('data.entry.id', 1);
+    }
 }

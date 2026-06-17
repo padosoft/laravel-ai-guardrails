@@ -27,26 +27,31 @@ final readonly class AuditQueryFilters
 
     public static function fromRequest(Request $request): self
     {
-        $blocked = $request->query('blocked');
-        $limit = (int) $request->query('limit', '50');
-        $cursor = $request->query('cursor');
-        $from = IsoDateParser::parseUtc($request->query('from'));
-        $to = IsoDateParser::parseUtc($request->query('to'));
+        // Every param is read as string-or-null: repeated params (e.g. `blocked[]=true`,
+        // `limit[]=10`) make query() return an array, which must NOT reach filter_var()/casts and
+        // turn this read-only endpoint into a 500.
+        $blocked = self::str($request, 'blocked');
+        $limit = self::str($request, 'limit');
+        $cursor = self::str($request, 'cursor');
 
         return new self(
             blocked: $blocked === null ? null : filter_var($blocked, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
-            ruleId: self::str($request->query('rule_id')),
-            principalId: self::str($request->query('principal_id')),
-            search: self::str($request->query('q')),
-            from: $from,
-            to: $to,
-            limit: max(1, min(200, $limit)),
-            cursor: is_numeric($cursor) ? (int) $cursor : null,
+            ruleId: self::str($request, 'rule_id'),
+            principalId: self::str($request, 'principal_id'),
+            search: self::str($request, 'q'),
+            from: IsoDateParser::parseUtc($request->query('from')),
+            to: IsoDateParser::parseUtc($request->query('to')),
+            limit: $limit !== null && ctype_digit($limit) ? max(1, min(200, (int) $limit)) : 50,
+            // The cursor is a monotonic positive id; only accept a plain positive integer (rejects
+            // "-1", "1e3", "0", arrays). ctype_digit also bounds the string to digits only.
+            cursor: $cursor !== null && ctype_digit($cursor) && $cursor !== '0' ? (int) $cursor : null,
         );
     }
 
-    private static function str(mixed $value): ?string
+    private static function str(Request $request, string $key): ?string
     {
+        $value = $request->query($key);
+
         return is_string($value) && $value !== '' ? $value : null;
     }
 }
