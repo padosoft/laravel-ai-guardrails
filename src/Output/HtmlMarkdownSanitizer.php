@@ -32,10 +32,17 @@ final readonly class HtmlMarkdownSanitizer implements ReportingOutputSanitizer
     {
         $htmlChanged = false;
         if ($this->sanitizeHtml) {
-            $escaped = $this->htmlMode === 'allowlist'
-                ? $this->allowlist($text)
-                : htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', double_encode: false);
-            $htmlChanged = $escaped !== $text;
+            if ($this->htmlMode === 'allowlist') {
+                // Allowlist mode actively strips tags/attributes — any change is a real strip.
+                $escaped = $this->allowlist($text);
+                $htmlChanged = $escaped !== $text;
+            } else {
+                $escaped = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', double_encode: false);
+                // Count only when tag-like markup (`<`/`>`) was neutralised — not the plain entity
+                // escaping of quotes/ampersands in ordinary prose (`don't`, `Tom & Jerry`), which
+                // would otherwise over-report html_stripped for normal responses.
+                $htmlChanged = $escaped !== $text && (str_contains($text, '<') || str_contains($text, '>'));
+            }
             $text = $escaped;
         }
 

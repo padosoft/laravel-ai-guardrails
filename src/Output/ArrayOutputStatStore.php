@@ -9,7 +9,8 @@ use DateTimeZone;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 
 /**
- * In-memory append-only output-stat store (tests / default). Each record is one immutable event row.
+ * In-memory append-only output-stat store (used in tests and when output_stats.store = 'array'; the
+ * config default is 'null'). Each record is one immutable event row.
  */
 final class ArrayOutputStatStore implements OutputStatStore
 {

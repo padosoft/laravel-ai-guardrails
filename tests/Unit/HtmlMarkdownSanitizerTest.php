@@ -173,4 +173,15 @@ final class HtmlMarkdownSanitizerTest extends TestCase
         self::assertFalse($report->markdownChanged);
         self::assertSame('a perfectly clean sentence', $report->text);
     }
+
+    public function test_report_does_not_flag_plain_entity_escaping_as_html_stripped(): void
+    {
+        // `don't` / `Tom & Jerry` get entity-escaped under ENT_QUOTES but contain no tag to strip,
+        // so they must NOT be counted as html_stripped (would over-report on normal prose).
+        $report = (new HtmlMarkdownSanitizer(sanitizeHtml: true, neutralizeMarkdown: false))
+            ->sanitizeReport("don't blame Tom & Jerry");
+
+        self::assertFalse($report->htmlChanged);
+        self::assertStringContainsString('&amp;', $report->text); // still escaped for safety
+    }
 }

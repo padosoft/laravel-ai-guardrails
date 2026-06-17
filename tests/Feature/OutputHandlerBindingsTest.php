@@ -9,6 +9,7 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
+use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\NullOutputStatStore;
@@ -84,5 +85,21 @@ final class OutputHandlerBindingsTest extends TestCase
         $this->app->forgetInstance(OutputStatStore::class);
 
         self::assertInstanceOf(NullOutputStatStore::class, $this->resolve(OutputStatStore::class));
+    }
+
+    public function test_empty_store_connection_and_table_degrade_to_defaults(): void
+    {
+        // Empty env vars (present but blank) must not reach DB::connection('')/table('').
+        $this->app['config']->set('ai-guardrails.output_stats.store', 'database');
+        $this->app['config']->set('ai-guardrails.output_stats.connection', '');
+        $this->app['config']->set('ai-guardrails.output_stats.table', '');
+        $this->app->forgetInstance(OutputStatStore::class);
+
+        $store = $this->resolve(OutputStatStore::class);
+        self::assertInstanceOf(DatabaseOutputStatStore::class, $store);
+
+        $ref = new \ReflectionObject($store);
+        self::assertNull($ref->getProperty('connection')->getValue($store));
+        self::assertSame('ai_guardrails_output_stats', $ref->getProperty('table')->getValue($store));
     }
 }

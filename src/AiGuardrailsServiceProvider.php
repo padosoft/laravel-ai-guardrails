@@ -127,8 +127,8 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return match ($app['config']->get('ai-guardrails.audit.store', 'null')) {
                 'array' => new ArrayInjectionAuditStore,
                 'database' => new DatabaseInjectionAuditStore(
-                    is_string($conn = $app['config']->get('ai-guardrails.audit.connection')) ? $conn : null,
-                    (string) $app['config']->get('ai-guardrails.audit.table', 'ai_guardrails_injection_audit'),
+                    self::storeConnection('ai-guardrails.audit.connection'),
+                    self::storeTable('ai-guardrails.audit.table', 'ai_guardrails_injection_audit'),
                 ),
                 default => new NullInjectionAuditStore,
             };
@@ -143,8 +143,8 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return match ($app['config']->get('ai-guardrails.firewall_log.store', 'null')) {
                 'array' => new ArrayFirewallRejectionStore,
                 'database' => new DatabaseFirewallRejectionStore(
-                    is_string($conn = $app['config']->get('ai-guardrails.firewall_log.connection')) ? $conn : null,
-                    (string) $app['config']->get('ai-guardrails.firewall_log.table', 'ai_guardrails_firewall_rejections'),
+                    self::storeConnection('ai-guardrails.firewall_log.connection'),
+                    self::storeTable('ai-guardrails.firewall_log.table', 'ai_guardrails_firewall_rejections'),
                 ),
                 default => new NullFirewallRejectionStore,
             };
@@ -159,8 +159,8 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             return match ($app['config']->get('ai-guardrails.output_stats.store', 'null')) {
                 'array' => new ArrayOutputStatStore,
                 'database' => new DatabaseOutputStatStore(
-                    is_string($conn = $app['config']->get('ai-guardrails.output_stats.connection')) ? $conn : null,
-                    (string) $app['config']->get('ai-guardrails.output_stats.table', 'ai_guardrails_output_stats'),
+                    self::storeConnection('ai-guardrails.output_stats.connection'),
+                    self::storeTable('ai-guardrails.output_stats.table', 'ai_guardrails_output_stats'),
                 ),
                 default => new NullOutputStatStore,
             };
@@ -247,6 +247,25 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
+    }
+
+    /**
+     * Resolve a configured store connection, treating a missing OR empty-string value as null (use
+     * the app's default connection). Empty env vars are common and must degrade safely.
+     */
+    private static function storeConnection(string $key): ?string
+    {
+        $value = config($key);
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** Resolve a configured store table, falling back to the default when missing or empty. */
+    private static function storeTable(string $key, string $default): string
+    {
+        $value = config($key);
+
+        return is_string($value) && $value !== '' ? $value : $default;
     }
 
     public function boot(): void
