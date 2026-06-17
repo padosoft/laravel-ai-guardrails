@@ -48,16 +48,16 @@ final class FirewallRejectionResource
             if (count($clean) >= self::MAX_VIOLATIONS) {
                 break;
             }
-            $boundedKey = self::bounded(self::utf8((string) $key), self::KEY_LIMIT);
+            $scrubbedKey = self::utf8((string) $key);
+            $boundedKey = self::bounded($scrubbedKey, self::KEY_LIMIT);
             // A truncated key could collide with another (or with a literal key already ending in the
-            // suffix); keep incrementing until unique so no entry is silently dropped.
-            if (array_key_exists($boundedKey, $clean)) {
-                $base = $boundedKey;
-                $n = 2;
-                do {
-                    $boundedKey = $base.' ('.$n.')';
-                    $n++;
-                } while (array_key_exists($boundedKey, $clean));
+            // suffix); keep incrementing until unique so no entry is silently dropped. The suffix
+            // eats into the key budget (re-bound the base) so the result still respects KEY_LIMIT.
+            $n = 2;
+            while (array_key_exists($boundedKey, $clean)) {
+                $suffix = ' ('.$n.')';
+                $boundedKey = self::bounded($scrubbedKey, self::KEY_LIMIT - mb_strlen($suffix, 'UTF-8')).$suffix;
+                $n++;
             }
             $clean[$boundedKey] = self::bounded(self::utf8($reason), self::VIOLATION_LIMIT);
         }

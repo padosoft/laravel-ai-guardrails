@@ -104,6 +104,11 @@ final class FirewallRejectionResourceTest extends TestCase
 
         self::assertCount(3, $result['violations']);
         self::assertSame(['r1', 'r2', 'r3'], array_values($result['violations']));
+        // Even disambiguated keys stay within the bound (200 + ellipsis); the suffix eats into the
+        // key budget rather than being appended on top.
+        foreach (array_keys($result['violations']) as $key) {
+            self::assertLessThanOrEqual(201, mb_strlen($key, 'UTF-8'), "key exceeds KEY_LIMIT: {$key}");
+        }
     }
 
     public function test_violation_entry_count_is_capped_but_true_total_reported(): void
