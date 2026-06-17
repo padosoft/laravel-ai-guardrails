@@ -14,6 +14,7 @@ use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
+use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
@@ -23,7 +24,9 @@ use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Screening\GuardrailInputMiddleware;
 use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
+use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
 use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
+use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
 
 final class AiGuardrailsServiceProvider extends ServiceProvider
 {
@@ -57,6 +60,20 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         }
 
         // Control B — Input screening + append-only injection audit.
+        $this->app->singleton(PromptNormalizer::class, static function ($app): PromptNormalizer {
+            $cfg = $app['config'];
+            if (! (bool) $cfg->get('ai-guardrails.normalization.enabled', true)) {
+                return new NullPromptNormalizer;
+            }
+
+            return new UnicodePromptNormalizer(
+                (bool) $cfg->get('ai-guardrails.normalization.nfkc', true),
+                (bool) $cfg->get('ai-guardrails.normalization.strip_zero_width', true),
+                (bool) $cfg->get('ai-guardrails.normalization.strip_control', true),
+                (bool) $cfg->get('ai-guardrails.normalization.casefold', true),
+            );
+        });
+
         $screenActive = (bool) config('ai-guardrails.enabled', true)
             && (bool) config('ai-guardrails.input_screen.enabled', true);
         if ($screenActive) {
@@ -72,9 +89,13 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     $patterns = [];
                 }
 
+                $maxLength = (int) $app['config']->get('ai-guardrails.normalization.max_prompt_length', 0);
+
                 return new PatternInjectionScreener(
                     $patterns,
                     is_string($message) ? $message : 'This request was blocked by the input guardrails.',
+                    $app->make(PromptNormalizer::class),
+                    max(0, $maxLength),
                 );
             });
         }

@@ -10,9 +10,12 @@ use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\NullInjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
+use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 use Padosoft\AiGuardrails\Screening\GuardrailInputMiddleware;
 use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
+use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
 use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
+use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 final class InputScreenBindingsTest extends TestCase
@@ -69,5 +72,22 @@ final class InputScreenBindingsTest extends TestCase
         $this->reregister();
 
         self::assertInstanceOf(NullInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
+    }
+
+    public function test_prompt_normalizer_binding_respects_config(): void
+    {
+        self::assertInstanceOf(
+            UnicodePromptNormalizer::class,
+            $this->resolve(PromptNormalizer::class),
+        );
+
+        $this->app['config']->set('ai-guardrails.normalization.enabled', false);
+        $this->app->forgetInstance(PromptNormalizer::class);
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        self::assertInstanceOf(
+            NullPromptNormalizer::class,
+            $this->resolve(PromptNormalizer::class),
+        );
     }
 }

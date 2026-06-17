@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Screening;
 
 use Illuminate\Support\Facades\Log;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
+use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 
 /**
  * Config-driven, deterministic PCRE-regex screener. The audit trail is the value, not the pattern
@@ -24,10 +25,20 @@ final readonly class PatternInjectionScreener implements InjectionScreener
     public function __construct(
         private array $patterns,
         private string $refusalMessage,
+        private ?PromptNormalizer $normalizer = null,
+        private int $maxPromptLength = 0,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
     {
+        // Length ceiling (prompt-bombing / token exhaustion). Checked on the original prompt.
+        if ($this->maxPromptLength > 0 && mb_strlen($prompt) > $this->maxPromptLength) {
+            return ScreenVerdict::block('too_long', $this->refusalMessage);
+        }
+
+        // Normalize before matching so homoglyph / zero-width / case evasions cannot slip through.
+        $subject = $this->normalizer !== null ? $this->normalizer->normalize($prompt) : $prompt;
+
         foreach ($this->patterns as $ruleId => $pattern) {
             if (! is_string($pattern)) {
                 // Malformed config entry (non-string pattern) — skip it rather than throw a TypeError.
@@ -39,7 +50,7 @@ final readonly class PatternInjectionScreener implements InjectionScreener
 
             // Suppress the PHP warning preg_match() emits on a PCRE/UTF-8 error: many Laravel apps
             // convert warnings to ErrorExceptions, which would bypass the fail-closed check below.
-            $result = @preg_match($pattern, $prompt);
+            $result = @preg_match($pattern, $subject);
 
             if ($result === false) {
                 // PCRE error → fail closed (block), never fail open.
