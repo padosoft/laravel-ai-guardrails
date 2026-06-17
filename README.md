@@ -164,9 +164,9 @@ php artisan ai-guardrails:audit --limit=50
 
 ## HTTP API surface (admin)
 
-A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). It is **default-OFF** — set `api.enabled = true` **and** supply an auth middleware stack via `api.middleware` (the package refuses to register an open surface). Routes are mounted under the `api.prefix` (default `ai-guardrails/api`) and named `ai-guardrails.api.*`.
+A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). It is **default-OFF** — set `api.enabled = true` **and** supply a middleware stack via `api.middleware`. The package refuses to register the routes when `api.enabled` is true but `api.middleware` is empty (a fail-hard guard against an accidentally open surface), but it does **not** inspect what that middleware does: **you must include your own authentication/authorization middleware** — these endpoints expose audit data and let an operator change security settings. Routes are mounted under the `api.prefix` (default `ai-guardrails/api`) and named `ai-guardrails.api.*`.
 
-**Envelope.** Every response is `{ "schema_version": "ai-guardrails.api.v1", "schema": "ai-guardrails.api.v1.<endpoint>", "data": { … } }` — `schema_version` is the contract version a client pins against; `schema` is a per-endpoint discriminator. (Mirrors the `padosoft-eval-harness` ReportApi house style.)
+**Envelope.** Successful (and handled-error, e.g. `404`/`409`/`422`-via-controller) responses are enveloped as `{ "schema_version": "ai-guardrails.api.v1", "schema": "ai-guardrails.api.v1.<endpoint>", "data": { … } }` — `schema_version` is the contract version a client pins against; `schema` is a per-endpoint discriminator. (Mirrors the `padosoft-eval-harness` ReportApi house style.) **Exception:** framework-level validation failures (a malformed `PUT /settings` body) return Laravel's standard `422` validation JSON, not the envelope.
 
 | Method | Path | Route name | `schema` | Backing store / toggle |
 |---|---|---|---|---|

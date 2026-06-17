@@ -19,6 +19,8 @@ final class EnvelopeUniformityTest extends TestCase
     protected function getEnvironmentSetUp($app): void
     {
         $app['config']->set('ai-guardrails.api.enabled', true);
+        // Pin the prefix so the hard-coded URLs below don't 404 under a non-default AI_GUARDRAILS_API_PREFIX.
+        $app['config']->set('ai-guardrails.api.prefix', 'ai-guardrails/api');
         $app['config']->set('ai-guardrails.api.middleware', [SubstituteBindings::class]);
         // In-memory / config stores so nothing 500s and no DB is required; hitl off → approvals empty.
         $app['config']->set('ai-guardrails.audit.store', 'array');
