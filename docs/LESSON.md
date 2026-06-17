@@ -85,3 +85,10 @@
 - `padosoft/laravel-flow` config keys to enable persistence + lock store in Testbench, migration dir name, `FlowRun->id` property.
 - Screener matched-span byte offsets (PCRE without `/u` = byte offsets; with `/u` careful with multibyte).
 - Trend `GROUP BY` day dialect (sqlite/mysql `substr`+`blocked=1` vs Postgres `to_char`/`case when`).
+
+### E1 normalization review fixes (2026-06-17)
+- **HIGH: TAG block (U+E0000–U+E007F) not stripped.** These invisible characters were actively used in 2024 invisible-text prompt injection attacks. Added to the zero-width strip regex alongside soft hyphen (U+00AD) and combining grapheme joiner (U+034F). Tests added for all three.
+- **MEDIUM: NFKC only covers fullwidth, NOT cross-script homoglyphs.** Cyrillic а (U+0430), Greek ο (U+03BF), and IPA lookalikes are NOT collapsed by NFKC. Documented in the class docblock and in the config as a known gap. Future hardening: Unicode confusables / skeleton algorithm.
+- **MEDIUM: `preg_replace() ?? $text` was fail-open.** Changed to an explicit null check with `Log::warning()` when a normalization regex fails; the skipped-pass is logged so operators can detect it. The static patterns make real-world failure virtually impossible, but fail-open posture is unacceptable in a security component.
+- **CORRECTNESS: `max_prompt_length` is code points (mb_strlen), not bytes.** Documented in the config comment. Appropriate unit for token-exhaustion concern; a byte-thinking operator who sets a low limit gets a tighter gate than intended.
+- **CORRECTNESS: Casefold breaks case-sensitive operator patterns.** Patterns without `/i` that previously matched mixed-case input will miss it after casefold. Documented in the class docblock and config comment — operators must write patterns in lowercase or add `/i`.

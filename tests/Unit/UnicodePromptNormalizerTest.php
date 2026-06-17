@@ -43,4 +43,28 @@ final class UnicodePromptNormalizerTest extends TestCase
 
         self::assertSame('hello world', $normalizer->normalize('hello world'));
     }
+
+    public function test_strips_soft_hyphen(): void
+    {
+        // U+00AD soft hyphen is invisible and can split keywords to evade pattern matching.
+        $out = (new UnicodePromptNormalizer)->normalize("ig\u{00AD}nore");
+
+        self::assertSame('ignore', $out);
+    }
+
+    public function test_strips_combining_grapheme_joiner(): void
+    {
+        // U+034F combining grapheme joiner is zero-width and can break word boundaries.
+        $out = (new UnicodePromptNormalizer)->normalize("ig\u{034F}nore");
+
+        self::assertSame('ignore', $out);
+    }
+
+    public function test_strips_unicode_tag_block_characters(): void
+    {
+        // U+E0000–U+E007F TAG characters were used in invisible-text prompt injection attacks (2024).
+        $out = (new UnicodePromptNormalizer)->normalize("ig\u{E006E}ore");
+
+        self::assertSame('igore', $out);
+    }
 }
