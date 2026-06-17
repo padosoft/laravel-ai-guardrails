@@ -28,6 +28,7 @@
 - [PHP surface](#php-surface)
 - [Wiring the agent middleware](#wiring-the-agent-middleware)
 - [Artisan surface](#artisan-surface)
+- [HTTP API surface (admin)](#http-api-surface-admin)
 - [Configuration](#configuration)
 - [Composing laravel-flow & laravel-pii-redactor](#composing-laravel-flow--laravel-pii-redactor)
 - [The append-only injection audit](#the-append-only-injection-audit)
@@ -160,6 +161,30 @@ php artisan ai-guardrails:sanitize "<script>steal()</script> ![x](http://evil/le
 # List recent injection-audit attempts (blocked and allowed)
 php artisan ai-guardrails:audit --limit=50
 ```
+
+## HTTP API surface (admin)
+
+A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). It is **default-OFF** — set `api.enabled = true` **and** supply a middleware stack via `api.middleware`. If `api.enabled` is true but `api.middleware` resolves to an empty list, the service provider **throws a `RuntimeException` at boot** (fail-closed against an accidentally open surface) — but it does **not** inspect what that middleware does: **you must include your own authentication/authorization middleware** — these endpoints expose audit data and let an operator change security settings. Routes are mounted under the `api.prefix` (default `ai-guardrails/api`) and named `ai-guardrails.api.*`.
+
+**Envelope.** Successful (and handled-error, e.g. `404`/`409`/`422`-via-controller) responses are enveloped as `{ "schema_version": "ai-guardrails.api.v1", "schema": "ai-guardrails.api.v1.<endpoint>", "data": { … } }` — `schema_version` is the contract version a client pins against; `schema` is a per-endpoint discriminator. (Mirrors the `padosoft-eval-harness` ReportApi house style.) **Exception:** framework-level validation failures (a malformed `PUT /settings` body) return Laravel's standard `422` validation JSON, not the envelope.
+
+| Method | Path | Route name | `schema` | Backing store / toggle |
+|---|---|---|---|---|
+| GET | `/overview` | `…overview` | `…v1.overview` | aggregates the controls + 24h injection counts |
+| GET | `/audit` | `…audit.index` | `…v1.audit-list` | `audit.store` (null \| array \| database) — keyset paginated (`cursor`), filters `blocked`/`rule_id`/`principal_id`/`q`/`from`/`to` |
+| GET | `/audit/{id}` | `…audit.show` | `…v1.audit-detail` | full prompt + `matched_span`; 404 on unknown/non-numeric id |
+| GET | `/audit/trend` | `…audit.trend` | `…v1.audit-trend` | per-UTC-day SQL `GROUP BY` (dialect-safe); 30-day default window |
+| GET | `/firewall` | `…firewall.index` | `…v1.firewall` | `firewall_log.store` — Control A rejections, keyset paginated |
+| GET | `/output/stats` | `…output.stats` | `…v1.output-stats` | `output_stats.store` — per-kind counts, 30-day default window |
+| GET | `/approvals` | `…approvals.index` | `…v1.approval-list` | Control D pending approvals (via `laravel-flow`); empty when HITL unavailable |
+| POST | `/approvals/{token}/approve` | `…approvals.approve` | `…v1.approval-decision` | resumes the parked tool; actor principal derived server-side |
+| POST | `/approvals/{token}/reject` | `…approvals.reject` | `…v1.approval-decision` | rejects the parked tool |
+| GET | `/settings` | `…settings.show` | `…v1.settings` | `settings.store` (config \| database) — effective overridable settings |
+| PUT | `/settings` | `…settings.update` | `…v1.settings` | persists allow-listed, type-validated overrides |
+| POST | `/try/screen` | `…try.screen` | `…v1.try-screen` | sandbox: screen a prompt (no persistence) |
+| POST | `/try/sanitize` | `…try.sanitize` | `…v1.try-sanitize` | sandbox: sanitize a text blob (no persistence) |
+
+**Append-only stores.** The audit, firewall, and output-stat tables are immutable (the model + builder throw on update/delete). `GET /settings` is current-state and mutable; `PUT /settings` only accepts keys on the `settings.overridable` allow-list and type-validates each value (booleans, enums, bounded strings) — unknown keys are dropped, malformed values are rejected `422`. When `settings.store = database`, saved overrides are overlaid onto the live config at boot so they actually take effect on the controls (fail-safe: a corrupt/null/type-mismatched row keeps the file default).
 
 ## Configuration
 
