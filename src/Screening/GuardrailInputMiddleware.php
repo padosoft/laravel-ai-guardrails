@@ -48,6 +48,7 @@ final readonly class GuardrailInputMiddleware
             $principal !== null ? (string) $principal : null,
             new DateTimeImmutable('now', new DateTimeZone('UTC')),
             $verdict->rulesetVersion,
+            $verdict->erroredRuleIds,
         ));
 
         if ($verdict->blocked) {

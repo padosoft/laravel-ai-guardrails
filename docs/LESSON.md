@@ -69,6 +69,15 @@
 - ScreenVerdict gained `?string $rulesetVersion` via a `withRulesetVersion()` wither (ctor is private). Threaded screener → verdict → middleware → `InjectionAttempt` → audit row (nullable additive column in the stub, unreleased).
 - `pattern_safety.on_match_error`: 'closed' (default, block the erroring rule) vs 'open' (skip it). Boot-time `PatternInjectionScreener::validatePatterns()` throws `InvalidScreeningPattern` when `validate_at_boot`.
 
+### E2 security fixes (2026-06-17, post-review remediation)
+- **HIGH: `pcre.backtrack_limit` was set BEFORE normalization.** The `ini_set` ran before `$normalizer->normalize()`. `UnicodePromptNormalizer` uses `preg_replace` internally; under the lowered limit it could error and return null — silently skipping zero-width/homoglyph stripping and letting evasion chars through to pattern matching. Fixed: moved `ini_set` to after normalization completes, directly before the pattern loop. Also added `try/finally` to restore the previous limit after the loop, preventing the lowered limit from persisting across the rest of the request.
+- **HIGH: `pcre.backtrack_limit` was never restored.** After the first screened prompt, the lowered limit persisted for the entire PHP process, silently degrading all other PCRE calls (routing, validation, user code). Fixed with `try { ini_set ... } finally { ini_set pcre.backtrack_limit, $prevLimit }`.
+- **MEDIUM: `on_match_error=open` left no audit trace of the skipped rule.** An attacker who forced a specific rule to error (bad UTF-8 that normalization missed, backtrack limit exhaustion) bypassed that rule while the append-only audit showed a clean pass — defeating the "audit is the value" invariant. Fix: collect errored rule IDs in the screener when `open`-skipping; surface them in `ScreenVerdict::$erroredRuleIds` (new field, backward-compat default `[]`); thread through `GuardrailInputMiddleware` → `InjectionAttempt::$erroredRuleIds` → `errored_rule_ids` nullable JSON column in the audit table.
+- **MEDIUM (acknowledged limitation): boot validation is syntax-only.** `validatePatterns()` detects malformed patterns but NOT catastrophic backtracking (a valid `/(a+)+$/` passes). Documented this clearly in the `validatePatterns()` docblock. The runtime `pcre_backtrack_limit` is the sole ReDoS bound. Added a test asserting that a known-exponential pattern passes boot validation (documents the limitation as intended behavior).
+- **Tests added for all four fixes:** backtrack limit closed → blocks (`PREG_BACKTRACK_LIMIT_ERROR`), backtrack limit open → allows + errored rule in verdict, subsequent non-erroring rules still match after an open-skip, and `pcre.backtrack_limit` is restored after `screen()` returns.
+- **Lesson: ini_set side-effects in security components.** Any `ini_set` in a screening/middleware path must be wrapped in try/finally with explicit restore. Never rely on the caller to clean up.
+
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 

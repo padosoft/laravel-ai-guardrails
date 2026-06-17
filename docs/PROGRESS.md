@@ -59,7 +59,8 @@
 - [x] ruleset_version stamped on every ScreenVerdict (withRulesetVersion wither) → threaded to InjectionAttempt + audit row (nullable column in stub + model $fillable + store read/write).
 - [x] boot-time pattern validation: `PatternInjectionScreener::validatePatterns()` + provider boot throws `InvalidScreeningPattern` when validate_at_boot (toggleable).
 - [x] configurable `on_match_error` (closed=block / open=skip), `pcre.backtrack_limit` set before matching.
-- [x] **81 tests / 147 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **Post-review security fixes (2026-06-17):** (1) moved `ini_set` to AFTER normalization so the normalizer's `preg_replace` calls are never throttled; (2) added `try/finally` to restore `pcre.backtrack_limit` — no longer persists across the request; (3) errored rule IDs tracked in open mode → `ScreenVerdict::$erroredRuleIds` → `InjectionAttempt::$erroredRuleIds` → `errored_rule_ids` nullable JSON column (audit bypass now forensically visible); (4) `validatePatterns()` docblock clarified: syntax-only, not ReDoS detection.
+- [x] **87 tests / 157 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Control B (Tasks 3+E1+E2) then complete.
 
 ### Next

@@ -40,50 +40,72 @@ final readonly class PatternInjectionScreener implements InjectionScreener
             return $this->block('too_long');
         }
 
+        // Normalize before matching so homoglyph / zero-width / case evasions cannot slip through.
+        // Normalization must complete BEFORE the backtrack limit is lowered, because the normalizer
+        // uses preg_replace internally and must not run under the restricted limit.
+        $subject = $this->normalizer !== null ? $this->normalizer->normalize($prompt) : $prompt;
+
+        // Lower the PCRE backtrack limit around the pattern loop only (ReDoS bound). Restored in
+        // the finally block so subsequent PCRE calls in the same request are unaffected.
+        $prevLimit = $this->backtrackLimit > 0 ? ini_get('pcre.backtrack_limit') : null;
         if ($this->backtrackLimit > 0) {
             ini_set('pcre.backtrack_limit', (string) $this->backtrackLimit);
         }
 
-        // Normalize before matching so homoglyph / zero-width / case evasions cannot slip through.
-        $subject = $this->normalizer !== null ? $this->normalizer->normalize($prompt) : $prompt;
+        /** @var list<string> $erroredRuleIds */
+        $erroredRuleIds = [];
 
-        foreach ($this->patterns as $ruleId => $pattern) {
-            if (! is_string($pattern)) {
-                Log::warning('laravel-ai-guardrails: ignoring non-string screening pattern.', ['rule_id' => (string) $ruleId]);
+        try {
+            foreach ($this->patterns as $ruleId => $pattern) {
+                if (! is_string($pattern)) {
+                    Log::warning('laravel-ai-guardrails: ignoring non-string screening pattern.', ['rule_id' => (string) $ruleId]);
 
-                continue;
-            }
-
-            // Suppress the PHP warning preg_match() emits on a PCRE/UTF-8 error: many Laravel apps
-            // convert warnings to ErrorExceptions, which would bypass the fail-closed check below.
-            $result = @preg_match($pattern, $subject);
-
-            if ($result === false) {
-                Log::warning('laravel-ai-guardrails: screening pattern errored.', [
-                    'rule_id' => (string) $ruleId,
-                    'preg_error' => preg_last_error_msg(),
-                    'on_match_error' => $this->onMatchError,
-                ]);
-
-                if ($this->onMatchError === 'open') {
-                    // Fail open for THIS rule only: skip it and keep screening the rest.
                     continue;
                 }
 
-                // Fail closed: a pattern that cannot be evaluated blocks the prompt.
-                return $this->block('pattern_error:'.$ruleId);
-            }
+                // Suppress the PHP warning preg_match() emits on a PCRE/UTF-8 error: many Laravel apps
+                // convert warnings to ErrorExceptions, which would bypass the fail-closed check below.
+                $result = @preg_match($pattern, $subject);
 
-            if ($result === 1) {
-                return $this->block((string) $ruleId);
+                if ($result === false) {
+                    Log::warning('laravel-ai-guardrails: screening pattern errored.', [
+                        'rule_id' => (string) $ruleId,
+                        'preg_error' => preg_last_error_msg(),
+                        'on_match_error' => $this->onMatchError,
+                    ]);
+
+                    if ($this->onMatchError === 'open') {
+                        // Fail open for THIS rule only: skip it and keep screening the rest.
+                        // Record the errored rule ID so the audit trail captures the bypass.
+                        $erroredRuleIds[] = (string) $ruleId;
+
+                        continue;
+                    }
+
+                    // Fail closed: a pattern that cannot be evaluated blocks the prompt.
+                    return $this->block('pattern_error:'.$ruleId);
+                }
+
+                if ($result === 1) {
+                    return $this->block((string) $ruleId);
+                }
+            }
+        } finally {
+            if ($prevLimit !== false && $prevLimit !== null) {
+                ini_set('pcre.backtrack_limit', $prevLimit);
             }
         }
 
-        return $this->allow();
+        return $this->allow($erroredRuleIds);
     }
 
     /**
      * Validate patterns up front (boot-time). Returns ruleId => error message for malformed entries.
+     *
+     * NOTE: this validates syntax only (detects unparseable patterns). It does NOT detect
+     * catastrophic-backtracking (ReDoS) patterns; those are bounded at runtime via
+     * `pcre_backtrack_limit`. A syntactically valid but exponential pattern (e.g. `/(a+)+$/`)
+     * will pass this check.
      *
      * @param  array<string,mixed>  $patterns
      * @return array<string,string>
@@ -112,8 +134,11 @@ final readonly class PatternInjectionScreener implements InjectionScreener
         return ScreenVerdict::block($ruleId, $this->refusalMessage)->withRulesetVersion($this->rulesetVersion);
     }
 
-    private function allow(): ScreenVerdict
+    /** @param list<string> $erroredRuleIds */
+    private function allow(array $erroredRuleIds = []): ScreenVerdict
     {
-        return ScreenVerdict::allow()->withRulesetVersion($this->rulesetVersion);
+        $verdict = ScreenVerdict::allow()->withRulesetVersion($this->rulesetVersion);
+
+        return $erroredRuleIds !== [] ? $verdict->withErroredRuleIds($erroredRuleIds) : $verdict;
     }
 }

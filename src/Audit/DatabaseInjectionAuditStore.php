@@ -28,6 +28,7 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
             'rule_id' => $attempt->ruleId,
             'principal_id' => $attempt->principalId,
             'ruleset_version' => $attempt->rulesetVersion,
+            'errored_rule_ids' => $attempt->erroredRuleIds !== [] ? $attempt->erroredRuleIds : null,
             // Persist in UTC so audit timestamps are unambiguous across deployments/timezones.
             'occurred_at' => $attempt->occurredAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s'),
         ])->save();
@@ -45,6 +46,12 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
 
         $attempts = [];
         foreach ($rows as $row) {
+            $erroredRuleIds = [];
+            if (isset($row->errored_rule_ids) && is_string($row->errored_rule_ids)) {
+                $decoded = json_decode($row->errored_rule_ids, true);
+                $erroredRuleIds = is_array($decoded) ? array_values(array_filter($decoded, 'is_string')) : [];
+            }
+
             $attempts[] = new InjectionAttempt(
                 (string) $row->prompt,
                 (bool) $row->blocked,
@@ -52,6 +59,7 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
                 $row->principal_id !== null ? (string) $row->principal_id : null,
                 new DateTimeImmutable((string) $row->occurred_at, new DateTimeZone('UTC')),
                 $row->ruleset_version !== null ? (string) $row->ruleset_version : null,
+                $erroredRuleIds,
             );
         }
 
