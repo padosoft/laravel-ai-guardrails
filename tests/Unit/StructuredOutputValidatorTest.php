@@ -53,4 +53,14 @@ final class StructuredOutputValidatorTest extends TestCase
 
         self::assertArrayHasKey('extra', $errors);
     }
+
+    public function test_nullable_union_field_accepts_null_and_member_type(): void
+    {
+        $s = new JsonSchemaTypeFactory;
+        $schema = ['note' => $s->string()->nullable()]; // serializes as ['string','null']
+
+        self::assertSame([], (new StructuredOutputValidator)->validate(['note' => null], $schema));
+        self::assertSame([], (new StructuredOutputValidator)->validate(['note' => 'hi'], $schema));
+        self::assertArrayHasKey('note', (new StructuredOutputValidator)->validate(['note' => 123], $schema));
+    }
 }
