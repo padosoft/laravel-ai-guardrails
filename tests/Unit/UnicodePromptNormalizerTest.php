@@ -67,4 +67,12 @@ final class UnicodePromptNormalizerTest extends TestCase
 
         self::assertSame('igore', $out);
     }
+
+    public function test_strips_directional_isolates_and_invisible_operators(): void
+    {
+        // U+2066 LEFT-TO-RIGHT ISOLATE (and the rest of the U+2060–U+206F invisible/format block).
+        $out = (new UnicodePromptNormalizer)->normalize("ig\u{2066}no\u{2063}re");
+
+        self::assertSame('ignore', $out);
+    }
 }

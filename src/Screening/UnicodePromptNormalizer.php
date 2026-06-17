@@ -46,11 +46,12 @@ final readonly class UnicodePromptNormalizer implements PromptNormalizer
         }
 
         if ($this->stripZeroWidth) {
-            // ZWSP..RLM, word-joiner, BOM/ZWNBSP, Mongolian vowel separator, soft hyphen,
-            // combining grapheme joiner, and Unicode TAG block (U+E0000-U+E007F) — the TAG
-            // block is used in invisible-text prompt injection attacks.
+            // ZWSP..RLM; the full U+2060–U+206F invisible/format block (word joiner, invisible math
+            // operators, directional isolates LRI/RLI/FSI/PDI, deprecated format chars); BOM/ZWNBSP;
+            // Mongolian vowel separator; soft hyphen; combining grapheme joiner; and the Unicode TAG
+            // block (U+E0000-U+E007F) used in invisible-text prompt injection attacks.
             $result = preg_replace(
-                '/[\x{200B}-\x{200F}\x{2060}\x{FEFF}\x{180E}\x{00AD}\x{034F}\x{E0000}-\x{E007F}]/u',
+                '/[\x{200B}-\x{200F}\x{2060}-\x{206F}\x{FEFF}\x{180E}\x{00AD}\x{034F}\x{E0000}-\x{E007F}]/u',
                 '',
                 $text,
             );
