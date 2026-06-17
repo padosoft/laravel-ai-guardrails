@@ -87,7 +87,9 @@ final readonly class PatternInjectionScreener implements InjectionScreener
                 }
 
                 if ($result === 1) {
-                    return $this->block((string) $ruleId);
+                    // Carry any errored rule IDs (open mode) into the block verdict so the bypass
+                    // trace is not lost when a later rule matches.
+                    return $this->block((string) $ruleId, $erroredRuleIds);
                 }
             }
         } finally {
@@ -129,9 +131,12 @@ final readonly class PatternInjectionScreener implements InjectionScreener
         return $errors;
     }
 
-    private function block(string $ruleId): ScreenVerdict
+    /** @param list<string> $erroredRuleIds */
+    private function block(string $ruleId, array $erroredRuleIds = []): ScreenVerdict
     {
-        return ScreenVerdict::block($ruleId, $this->refusalMessage)->withRulesetVersion($this->rulesetVersion);
+        $verdict = ScreenVerdict::block($ruleId, $this->refusalMessage)->withRulesetVersion($this->rulesetVersion);
+
+        return $erroredRuleIds !== [] ? $verdict->withErroredRuleIds($erroredRuleIds) : $verdict;
     }
 
     /** @param list<string> $erroredRuleIds */

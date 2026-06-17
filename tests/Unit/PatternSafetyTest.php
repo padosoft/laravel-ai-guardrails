@@ -145,4 +145,20 @@ final class PatternSafetyTest extends TestCase
 
         self::assertSame($original, ini_get('pcre.backtrack_limit'));
     }
+
+    public function test_errored_rule_ids_preserved_on_a_later_block_in_open_mode(): void
+    {
+        // The first rule errors (open → skipped + traced); a later rule matches → BLOCK. The
+        // errored-rule trace must survive into the block verdict (forensic completeness).
+        $screener = new PatternInjectionScreener(
+            ['bad_utf' => '/x/u', 'hit' => '/secret/i'],
+            'no', null, 0, 'v1', 'open',
+        );
+
+        $verdict = $screener->screen("\xFF\xFE the secret");
+
+        self::assertTrue($verdict->blocked);
+        self::assertSame('hit', $verdict->ruleId);
+        self::assertContains('bad_utf', $verdict->erroredRuleIds);
+    }
 }
