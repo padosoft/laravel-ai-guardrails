@@ -10,6 +10,7 @@ use DateTimeZone;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
@@ -62,8 +63,13 @@ final readonly class FirewalledTool implements Tool
                     $violations,
                     new DateTimeImmutable('now', new DateTimeZone('UTC')),
                 ));
-            } catch (\Throwable) {
-                // Intentionally swallowed — enforcement is independent of persistence.
+            } catch (\Throwable $e) {
+                // Enforcement is independent of persistence — log (don't rethrow) so the missing
+                // audit row is observable instead of silently lost.
+                Log::warning('laravel-ai-guardrails: failed to record a firewall rejection.', [
+                    'tool' => $description,
+                    'exception' => $e->getMessage(),
+                ]);
             }
 
             throw new ToolArgumentRejection($violations, $description);
