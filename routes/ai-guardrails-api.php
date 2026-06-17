@@ -8,6 +8,7 @@ use Padosoft\AiGuardrails\Http\AuditController;
 use Padosoft\AiGuardrails\Http\FirewallController;
 use Padosoft\AiGuardrails\Http\OutputStatsController;
 use Padosoft\AiGuardrails\Http\OverviewController;
+use Padosoft\AiGuardrails\Http\SettingsController;
 use Padosoft\AiGuardrails\Http\TryController;
 
 /**
@@ -47,6 +48,10 @@ return static function (Registrar $router, string $prefix, array $middleware): v
         $router->post('/approvals/{token}/reject', [ApprovalsController::class, 'reject'])
             ->where('token', '[A-Za-z0-9_\-\.]+')
             ->name('approvals.reject');
+
+        // Runtime settings (effective overridable config; PUT persists allow-listed overrides).
+        $router->get('/settings', [SettingsController::class, 'show'])->name('settings.show');
+        $router->put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
         $router->post('/try/screen', [TryController::class, 'screen'])->name('try.screen');
         $router->post('/try/sanitize', [TryController::class, 'sanitize'])->name('try.sanitize');

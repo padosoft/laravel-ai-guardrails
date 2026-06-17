@@ -16,6 +16,7 @@ use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
@@ -44,12 +45,21 @@ use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
 use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
 use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
 use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
+use Padosoft\AiGuardrails\Settings\ConfigGuardrailSettingsStore;
+use Padosoft\AiGuardrails\Settings\DatabaseGuardrailSettingsStore;
+use Padosoft\AiGuardrails\Settings\OverridableSettings;
 
 final class AiGuardrailsServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/ai-guardrails.php', 'ai-guardrails');
+
+        // Overlay persisted runtime settings (DB store) onto the config BEFORE the controls are wired,
+        // so what PUT /settings saves is actually what the screener/firewall/output/HITL enforce — not
+        // just what the settings API reports. Without this the API would give a false view of what is
+        // live. Effective on the next boot after a save (config changes apply per-boot, as usual).
+        $this->overlayRuntimeSettings();
 
         // Default null-object bindings. Later tasks replace these with real implementations.
         $this->app->singleton(InjectionScreener::class, NullInjectionScreener::class);
@@ -166,6 +176,18 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             };
         });
 
+        $this->app->singleton(GuardrailSettingsStore::class, static function (): GuardrailSettingsStore {
+            // Not master-switch-gated: an admin must be able to view/edit settings even when the
+            // guardrails are off (e.g. to re-enable them).
+            return match (config('ai-guardrails.settings.store', 'config')) {
+                'database' => new DatabaseGuardrailSettingsStore(
+                    self::storeConnection('ai-guardrails.settings.connection'),
+                    self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'),
+                ),
+                default => new ConfigGuardrailSettingsStore,
+            };
+        });
+
         $this->app->singleton(GuardrailInputMiddleware::class, static function ($app): GuardrailInputMiddleware {
             $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
                 && (bool) $app['config']->get('ai-guardrails.input_screen.enabled', true);
@@ -250,6 +272,42 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
     }
 
     /**
+     * Overlay persisted runtime settings (database store) onto `config('ai-guardrails.*')` so the
+     * controls actually enforce what the admin saved. No-op for config-store mode. Fails safe (keeps
+     * file config) when the table is absent or a row is corrupt — a malformed/unreadable row must
+     * never silently disable a security control.
+     */
+    private function overlayRuntimeSettings(): void
+    {
+        if (config('ai-guardrails.settings.store') !== 'database') {
+            return;
+        }
+
+        // Master kill-switch off → every control is passthrough anyway, so overlaying their settings
+        // is pointless; skip the per-boot query. (The master switch is not itself overridable.)
+        if (! config('ai-guardrails.enabled', true)) {
+            return;
+        }
+
+        if (OverridableSettings::keys() === []) {
+            return; // nothing to overlay → no DB round-trip.
+        }
+
+        // Delegate to the store so the DB read + JSON decoding + fail-safe (skip corrupt/null/
+        // type-mismatched) policy lives in ONE place — `all()` returns the effective overridable map
+        // (defaults overlaid with valid overrides), and fails safe to the file defaults if the table
+        // is missing. Overlaying a default back onto itself is a harmless no-op.
+        $store = new DatabaseGuardrailSettingsStore(
+            self::storeConnection('ai-guardrails.settings.connection'),
+            self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'),
+        );
+
+        foreach ($store->all() as $key => $value) {
+            config(['ai-guardrails.'.$key => $value]);
+        }
+    }
+
+    /**
      * Resolve a configured store connection, treating a missing OR empty-string value as null (use
      * the app's default connection). Empty env vars are common and must degrade safely.
      */
@@ -284,6 +342,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ),
                 __DIR__.'/../database/migrations/create_ai_guardrails_output_stats_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 2).'_create_ai_guardrails_output_stats_table.php'
+                ),
+                __DIR__.'/../database/migrations/create_ai_guardrails_settings_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 3).'_create_ai_guardrails_settings_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

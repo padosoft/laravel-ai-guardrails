@@ -91,7 +91,7 @@ final readonly class GuardrailOutputMiddleware
         } catch (\Throwable $e) {
             Log::warning('laravel-ai-guardrails: failed to record an output stat.', [
                 'kind' => $kind->value,
-                'exception' => $e->getMessage(),
+                'exception' => $e,
             ]);
         }
     }

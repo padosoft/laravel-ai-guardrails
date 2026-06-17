@@ -26,7 +26,7 @@ final class PiiRedactionFactory
                 return new RealPiiRedaction($app->make(RedactorEngine::class));
             } catch (Throwable $e) {
                 Log::warning('laravel-ai-guardrails: pii-redactor present but its engine could not be resolved; PII redaction disabled.', [
-                    'exception' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
         }

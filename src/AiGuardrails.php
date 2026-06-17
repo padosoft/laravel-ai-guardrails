@@ -130,7 +130,7 @@ final readonly class AiGuardrails
                 $this->outputStatStore->record(OutputStatKind::StructuredValidationFailure);
             } catch (\Throwable $e) {
                 Log::warning('laravel-ai-guardrails: failed to record a structured-validation stat.', [
-                    'exception' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
         }
