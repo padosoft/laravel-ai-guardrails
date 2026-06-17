@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\AiGuardrails\Tests\Unit;
+
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Illuminate\JsonSchema\Types\Type;
+use Padosoft\AiGuardrails\Output\StructuredOutputValidator;
+use Padosoft\AiGuardrails\Tests\TestCase;
+
+final class StructuredOutputValidatorTest extends TestCase
+{
+    /** @return array<string,Type> */
+    private function schema(): array
+    {
+        $s = new JsonSchemaTypeFactory;
+
+        return ['action' => $s->string()->required(), 'amount' => $s->integer()];
+    }
+
+    public function test_valid_structured_output_passes(): void
+    {
+        $errors = (new StructuredOutputValidator)->validate(['action' => 'refund', 'amount' => 5], $this->schema());
+
+        self::assertSame([], $errors);
+    }
+
+    public function test_missing_required_field_is_reported(): void
+    {
+        $errors = (new StructuredOutputValidator)->validate(['amount' => 5], $this->schema());
+
+        self::assertArrayHasKey('action', $errors);
+    }
+
+    public function test_wrong_type_is_reported(): void
+    {
+        $errors = (new StructuredOutputValidator)->validate(['action' => 'refund', 'amount' => 'x'], $this->schema());
+
+        self::assertArrayHasKey('amount', $errors);
+    }
+
+    public function test_unknown_fields_allowed_by_default(): void
+    {
+        $errors = (new StructuredOutputValidator)->validate(['action' => 'refund', 'extra' => 1], $this->schema());
+
+        self::assertSame([], $errors);
+    }
+
+    public function test_unknown_fields_reported_when_reject_unknown(): void
+    {
+        $errors = (new StructuredOutputValidator(rejectUnknown: true))->validate(['action' => 'refund', 'extra' => 1], $this->schema());
+
+        self::assertArrayHasKey('extra', $errors);
+    }
+
+    public function test_nullable_union_field_accepts_null_and_member_type(): void
+    {
+        $s = new JsonSchemaTypeFactory;
+        $schema = ['note' => $s->string()->nullable()]; // serializes as ['string','null']
+
+        self::assertSame([], (new StructuredOutputValidator)->validate(['note' => null], $schema));
+        self::assertSame([], (new StructuredOutputValidator)->validate(['note' => 'hi'], $schema));
+        self::assertArrayHasKey('note', (new StructuredOutputValidator)->validate(['note' => 123], $schema));
+    }
+}
