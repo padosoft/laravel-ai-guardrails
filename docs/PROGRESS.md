@@ -158,5 +158,18 @@
 - [x] **299 tests / 718 assertions** GREEN; pint + phpstan level 8 clean. Tests: DB store overlay/upsert/shrunk-allow-list/put-guard/malformed-json, runtime-overlay-disables-control + corrupt-row-keeps-default, endpoint show/update/coerce/non-overridable-ignored/422-invalid/missing-body/over-length, config|database+master-off bindings, ApiGate flag-off 404.
 - [ ] DoD loop → PR. Then Task 18 (hardening), E3–E7/E9, E9-API, E10.
 
+### Task 16 — MERGED (PR #18, squash `7dfacef`, 2026-06-17). 11 Copilot rounds (runtime overlay P1, malformed-JSON/UTF-8/timestamp hardening, null/type fail-safe, non-null column, fail-closed coercion, strict bool, list-body reject, all()/PUT fail-safe, overlay→store DRY, PSR-3 exception logging, empty-keys early-return) → clean → auto-merged.
+
+### Task 18 — API hardening + envelope uniformity (DONE locally, branch `feature/task-18-api-hardening`)
+- [x] `tests/Feature/Api/EnvelopeUniformityTest.php` — data-provider hits every read endpoint (overview, audit, audit/trend, firewall, output/stats, approvals, settings) with array/config stores + hitl off; asserts each carries `schema_version === 'ai-guardrails.api.v1'`, a `schema` under that namespace, and a `data` key (uniform envelope).
+- [x] `tests/Architecture/ApiConventionsTest.php` — (a) every `src/Http/*Controller` public action returns `JsonResponse` (reflection); (b) the registered `ai-guardrails.api.*` route names are exactly the 13 expected; (c) no `src/Http` file references `Padosoft\LaravelFlow`/`Padosoft\PiiRedactor` directly (compose-not-couple boundary extends to Http).
+- [x] README: new "HTTP API surface (admin)" section (default-OFF gate, envelope contract, full 13-endpoint table with names + schema discriminators + backing stores). R9-verified: every quoted config key + schema discriminator exists in code.
+- [x] **316 tests / 818 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. After merge: **tag v0.2.0** (admin API additive over v0.1.0 core). Then E3–E7/E9, E9-API, E10.
+
+### Roadmap status (HTTP API epic COMPLETE)
+- [x] Tasks 9–18 HTTP API: 9+17 (PR #13), 10–12 (PR #14), 13 (PR #15), 14 (PR #16), 15 (PR #17), 16 (PR #18), 18 (this branch). E1/E2/E8 folded into Controls B/C (merged).
+- [ ] Remaining: E3 monitor mode · E4 events · E5 audit hygiene/retention/purge · E6 settings-change audit · E7 tool authz · E9 mutation testing (infection ≥80 MSI) · E9-API (v2 envelope deltas) · E10 release (tag + GitHub Release).
+
 ### Next
-- Task 18 (API hardening + envelope uniformity test), then E3–E7/E9 (modes, events, audit hygiene/retention/purge, settings audit E6, tool authz, mutation testing), E9-API, E10 release.
+- Task 18 DoD → PR → merge → tag v0.2.0. Then E3–E9 enterprise-hardening cross-cuts, E9-API, E10.
