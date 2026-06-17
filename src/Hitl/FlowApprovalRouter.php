@@ -17,7 +17,9 @@ use RuntimeException;
  */
 final class FlowApprovalRouter implements ApprovalRouter
 {
-    private const FLOW_NAME = 'ai-guardrails-tool-approval';
+    /** The flow definition name for the guardrails tool-approval flow. Public so the read model can
+     *  scope `flow_approvals` to this package's runs only. */
+    public const FLOW_NAME = 'ai-guardrails-tool-approval';
 
     private const GATE = 'approval';
 
@@ -49,11 +51,17 @@ final class FlowApprovalRouter implements ApprovalRouter
 
     public function approve(string $token, array $actor = []): void
     {
+        // Register the definition first: a decision may arrive in a fresh request/worker that never
+        // called route(), and Flow::resume reconstructs the run from the registered definition.
+        $this->ensureRegistered();
+
         Flow::resume($token, [], $actor);
     }
 
     public function reject(string $token, array $actor = []): void
     {
+        $this->ensureRegistered();
+
         Flow::reject($token, [], $actor);
     }
 

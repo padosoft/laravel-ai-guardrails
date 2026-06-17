@@ -25,7 +25,9 @@ final class ApiSchema
 
     public const SCHEMA_OUTPUT_STATS = 'ai-guardrails.api.v1.output-stats';
 
-    public const SCHEMA_APPROVALS = 'ai-guardrails.api.v1.approvals';
+    public const SCHEMA_APPROVAL_LIST = 'ai-guardrails.api.v1.approval-list';
+
+    public const SCHEMA_APPROVAL_DECISION = 'ai-guardrails.api.v1.approval-decision';
 
     public const SCHEMA_SETTINGS = 'ai-guardrails.api.v1.settings';
 
