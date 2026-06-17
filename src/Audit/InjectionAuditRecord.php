@@ -28,12 +28,13 @@ final class InjectionAuditRecord extends Model
     protected $table = 'ai_guardrails_injection_audit';
 
     /** @var list<string> */
-    protected $fillable = ['prompt', 'blocked', 'rule_id', 'principal_id', 'occurred_at'];
+    protected $fillable = ['prompt', 'blocked', 'rule_id', 'principal_id', 'ruleset_version', 'errored_rule_ids', 'occurred_at'];
 
     /** @var array<string,string> */
     protected $casts = [
         'blocked' => 'boolean',
         'occurred_at' => 'immutable_datetime',
+        'errored_rule_ids' => 'array',
     ];
 
     public function newEloquentBuilder($query): InjectionAuditRecordBuilder

@@ -16,6 +16,7 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Exceptions\InvalidScreeningPattern;
 use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
@@ -96,6 +97,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     is_string($message) ? $message : 'This request was blocked by the input guardrails.',
                     $app->make(PromptNormalizer::class),
                     max(0, $maxLength),
+                    (string) $app['config']->get('ai-guardrails.pattern_safety.ruleset_version', 'v1'),
+                    (string) $app['config']->get('ai-guardrails.pattern_safety.on_match_error', 'closed'),
+                    max(0, (int) $app['config']->get('ai-guardrails.pattern_safety.pcre_backtrack_limit', 0)),
                 );
             });
         }
@@ -149,6 +153,22 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     'migrations/'.date('Y_m_d_His').'_create_ai_guardrails_injection_audit_table.php'
                 ),
             ], 'ai-guardrails-migrations');
+        }
+
+        // E2: validate screening patterns up front so a malformed regex fails loudly at boot
+        // instead of erroring on the first prompt screened.
+        if (
+            (bool) config('ai-guardrails.enabled', true)
+            && (bool) config('ai-guardrails.input_screen.enabled', true)
+            && (bool) config('ai-guardrails.pattern_safety.validate_at_boot', true)
+        ) {
+            $patterns = config('ai-guardrails.input_screen.patterns', []);
+            if (is_array($patterns)) {
+                $patternErrors = PatternInjectionScreener::validatePatterns($patterns);
+                if ($patternErrors !== []) {
+                    throw new InvalidScreeningPattern($patternErrors);
+                }
+            }
         }
 
         // Refuse to boot with an open API surface. Fail CLOSED: any value that is not a

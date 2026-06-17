@@ -12,11 +12,16 @@ use DateTimeImmutable;
  */
 final readonly class InjectionAttempt
 {
+    /**
+     * @param  list<string>  $erroredRuleIds  Rule IDs that errored under on_match_error=open (forensic bypass trace).
+     */
     public function __construct(
         public string $prompt,
         public bool $blocked,
         public ?string $ruleId,
         public ?string $principalId,
         public DateTimeImmutable $occurredAt,
+        public ?string $rulesetVersion = null,
+        public array $erroredRuleIds = [],
     ) {}
 }

@@ -41,8 +41,8 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
     {
         $store = $this->store();
 
-        $store->append(new InjectionAttempt('first', false, null, '42', new DateTimeImmutable('2026-01-01 10:00:00')));
-        $store->append(new InjectionAttempt('ignore previous', true, 'ignore_previous', '42', new DateTimeImmutable('2026-01-01 10:05:00')));
+        $store->append(new InjectionAttempt('first', false, null, '42', new DateTimeImmutable('2026-01-01 10:00:00'), 'v1'));
+        $store->append(new InjectionAttempt('ignore previous', true, 'ignore_previous', '42', new DateTimeImmutable('2026-01-01 10:05:00'), 'v1'));
 
         $recent = $store->recent(10);
 
@@ -50,6 +50,7 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
         self::assertSame('ignore previous', $recent[0]->prompt); // most recent first
         self::assertTrue($recent[0]->blocked);
         self::assertSame('ignore_previous', $recent[0]->ruleId);
+        self::assertSame('v1', $recent[0]->rulesetVersion);
         self::assertSame('first', $recent[1]->prompt);
         self::assertFalse($recent[1]->blocked);
     }

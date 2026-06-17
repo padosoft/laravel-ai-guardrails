@@ -55,5 +55,13 @@
 - [x] **73 tests / 135 assertions** GREEN (incl. TAG-block/soft-hyphen/CGJ stripping from review); pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. **Deviation from plan:** over-length is a `too_long` ScreenVerdict (auditable, matches admin v2 verdict union) instead of a thrown `PromptTooLong` exception — cleaner + consistent with the verdict model.
 
+### Task E2 — Regex safety (DONE locally, branch `feature/control-b-input-screen-e2`)
+- [x] ruleset_version stamped on every ScreenVerdict (withRulesetVersion wither) → threaded to InjectionAttempt + audit row (nullable column in stub + model $fillable + store read/write).
+- [x] boot-time pattern validation: `PatternInjectionScreener::validatePatterns()` + provider boot throws `InvalidScreeningPattern` when validate_at_boot (toggleable).
+- [x] configurable `on_match_error` (closed=block / open=skip), `pcre.backtrack_limit` set before matching.
+- [x] **Post-review security fixes (2026-06-17):** (1) moved `ini_set` to AFTER normalization so the normalizer's `preg_replace` calls are never throttled; (2) added `try/finally` to restore `pcre.backtrack_limit` — no longer persists across the request; (3) errored rule IDs tracked in open mode → `ScreenVerdict::$erroredRuleIds` → `InjectionAttempt::$erroredRuleIds` → `errored_rule_ids` nullable JSON column (audit bypass now forensically visible); (4) `validatePatterns()` docblock clarified: syntax-only, not ReDoS detection.
+- [x] **87 tests / 157 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Control B (Tasks 3+E1+E2) then complete.
+
 ### Next
-- E2 (regex safety): ruleset_version stamped on verdict + audit row, boot-time pattern validation (throw InvalidScreeningPattern), pcre.backtrack_limit, configurable on_match_error (the @preg_match fail-closed is already in). Then Task 4 Control C.
+- Task 4 — Control C (Output handler: HTML/markdown sanitize + structured-output validation + PII compose) on `feature/control-c-output-handler` off main. Then E8 (output allowlist), Control D, Artisan, arch tests, README, HTTP API (9–18), E3–E7/E9, E9-API, E10 release.
