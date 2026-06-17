@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\NullInjectionAuditStore;
+use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
@@ -21,6 +22,7 @@ use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
+use Padosoft\AiGuardrails\Hitl\ApprovalRouterFactory;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
@@ -171,6 +173,12 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $enabled,
             );
         });
+
+        // Control D — HITL approval bridge (graceful: FlowApprovalRouter when flow present + enabled).
+        $this->app->singleton(ApprovalRouter::class, static fn ($app): ApprovalRouter => ApprovalRouterFactory::make(
+            (bool) $app['config']->get('ai-guardrails.enabled', true)
+                && (bool) $app['config']->get('ai-guardrails.hitl.enabled', false),
+        ));
 
         $this->app->singleton(AiGuardrails::class, static fn ($app): AiGuardrails => new AiGuardrails(
             $app->make(InjectionScreener::class),
