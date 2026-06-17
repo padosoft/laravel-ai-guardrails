@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Routing\Registrar;
 use Padosoft\AiGuardrails\Http\AuditController;
+use Padosoft\AiGuardrails\Http\FirewallController;
 use Padosoft\AiGuardrails\Http\OverviewController;
 use Padosoft\AiGuardrails\Http\TryController;
 
@@ -26,6 +27,9 @@ return static function (Registrar $router, string $prefix, array $middleware): v
         $router->get('/audit', [AuditController::class, 'index'])->name('audit.index');
         $router->get('/audit/trend', [AuditController::class, 'trend'])->name('audit.trend');
         $router->get('/audit/{id}', [AuditController::class, 'show'])->name('audit.show');
+
+        // Firewall rejections (Control A, append-only log).
+        $router->get('/firewall', [FirewallController::class, 'index'])->name('firewall.index');
 
         $router->post('/try/screen', [TryController::class, 'screen'])->name('try.screen');
         $router->post('/try/sanitize', [TryController::class, 'sanitize'])->name('try.sanitize');

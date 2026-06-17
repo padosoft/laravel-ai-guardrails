@@ -9,6 +9,7 @@ use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Contracts\Tool;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
+use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
@@ -43,6 +44,7 @@ final readonly class AiGuardrails
         private string $hitlFallback = 'deny',
         private string $destructiveMatch = 'exact',
         private ?Closure $principalResolver = null,
+        private ?FirewallRejectionStore $firewallRejectionStore = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -66,7 +68,7 @@ final readonly class AiGuardrails
             return $tool;
         }
 
-        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver));
+        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore);
     }
 
     /**
