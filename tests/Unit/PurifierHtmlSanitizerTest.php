@@ -41,6 +41,19 @@ final class PurifierHtmlSanitizerTest extends TestCase
         self::assertStringNotContainsString('style', $out);
     }
 
+    public function test_strips_all_default_attributes_from_allowed_tags(): void
+    {
+        // HTMLPurifier permits class/id/lang/title by default unless the empty-bracket syntax
+        // is used in HTML.Allowed — verify they are also stripped.
+        $out = $this->sanitizer()->sanitize('<p class="exfil" id="leak" lang="en" title="t">text</p>');
+
+        self::assertStringContainsString('text', $out);
+        self::assertStringNotContainsString('class=', $out);
+        self::assertStringNotContainsString('id=', $out);
+        self::assertStringNotContainsString('lang=', $out);
+        self::assertStringNotContainsString('title=', $out);
+    }
+
     public function test_neutralizes_malformed_and_entity_encoded_tags(): void
     {
         // A mutation/entity-encoded payload that strip_tags would mishandle — HTMLPurifier parses it out.
@@ -71,5 +84,14 @@ final class PurifierHtmlSanitizerTest extends TestCase
         self::assertFalse($clean->htmlChanged);
         self::assertFalse($clean->markdownChanged);
         self::assertSame('a perfectly clean sentence', $clean->text);
+    }
+
+    public function test_benign_html_with_bare_ampersand_does_not_set_html_changed(): void
+    {
+        // HTMLPurifier entity-encodes bare & inside tag content, which would make $purified !== $text
+        // and produce a false-positive htmlChanged flag. Verify the report is accurate for clean input.
+        $report = $this->sanitizer()->sanitizeReport('<p>price is 10 &amp; 20</p>');
+
+        self::assertFalse($report->htmlChanged, 'Already-encoded entities must not flip htmlChanged');
     }
 }

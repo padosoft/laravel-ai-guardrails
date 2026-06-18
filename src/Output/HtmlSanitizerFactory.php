@@ -18,9 +18,17 @@ final class HtmlSanitizerFactory
 {
     /**
      * The small set of safe, non-link inline/flow tags kept by the allowlist (mirrors the built-in
-     * allowlist's tag set). All attributes are dropped; links/images carry no exfiltration target.
+     * allowlist's tag set). Links and images are absent, so there is no exfiltration target.
      */
     private const ALLOWED_TAGS = 'b,i,em,strong,code,br,p,ul,ol,li';
+
+    /**
+     * HTMLPurifier permits a set of benign global attributes (class, id, lang, dir, title,
+     * xml:lang, style) on whitelisted elements by default. We explicitly forbid them so the output
+     * carries no attributes at all, matching the built-in allowlist's strip-all-attrs behaviour.
+     * HTMLPurifier's ForbiddenAttributes uses plain `attr` (not `*.attr`) for global scope.
+     */
+    private const FORBIDDEN_ATTRS = 'class,id,lang,dir,title,xml:lang,style';
 
     /** @param  bool|null  $purifierAvailable  override the class_exists probe (testing seam). */
     public static function make(
@@ -46,6 +54,7 @@ final class HtmlSanitizerFactory
     {
         $config = HTMLPurifier_Config::createDefault();
         $config->set('HTML.Allowed', self::ALLOWED_TAGS);
+        $config->set('HTML.ForbiddenAttributes', self::FORBIDDEN_ATTRS);
         $config->set('Core.Encoding', 'UTF-8');
         // Disable the definition cache so no writable cache directory is required (portable in CI).
         $config->set('Cache.DefinitionImpl', null);
