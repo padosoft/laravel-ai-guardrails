@@ -37,10 +37,11 @@
             "Output/DatabaseOutputStatStore.php",
             "Settings/DatabaseSettingsChangeStore.php",
             "Settings/DatabaseGuardrailSettingsStore.php",
-            // AppendOnlyEloquentBuilder is intentionally NOT excluded: it contains the real append-only
-            // security guards (throws LogicException on delete/update/truncate/etc.). Its mutants are
-            // killed by DatabaseInjectionAuditStoreTest + DatabaseFirewallRejectionStoreTest feature
-            // tests which exercise every refuse() path against a SQLite in-memory database.
+            // AppendOnlyEloquentBuilder's append-only guards are behaviourally covered (the feature
+            // tests assert update/delete/truncate/increment all throw). Its ONLY mutants, though, are
+            // EQUIVALENT: they flip the unused default `$amount = 1` on methods that throw before
+            // reading it — impossible to kill — so the file is excluded to keep the gate honest.
+            "Support/AppendOnlyEloquentBuilder.php",
             "Hitl/FlowApprovalRouter.php",
             "Hitl/ToolApprovalHandler.php",
             "Hitl/ApprovalReadModel.php"
