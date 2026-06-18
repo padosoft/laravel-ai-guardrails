@@ -91,8 +91,8 @@ final class ArrayInjectionAuditStoreTest extends TestCase
         $trend = $store->trend($this->at('2026-01-01 00:00:00'), $this->at('2026-01-03 00:00:00'));
 
         self::assertSame([
-            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'allowed' => 1],
-            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'allowed' => 0],
+            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'observed' => 0, 'allowed' => 1],
+            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'observed' => 0, 'allowed' => 0],
         ], $trend);
     }
 
@@ -104,7 +104,7 @@ final class ArrayInjectionAuditStoreTest extends TestCase
 
         $trend = $store->trend($this->at('2026-01-01 00:00:00'), $this->at('2026-01-02 00:00:00'));
 
-        self::assertSame([['date' => '2026-01-01', 'total' => 1, 'blocked' => 1, 'allowed' => 0]], $trend);
+        self::assertSame([['date' => '2026-01-01', 'total' => 1, 'blocked' => 1, 'observed' => 0, 'allowed' => 0]], $trend);
     }
 
     private function seeded(): ArrayInjectionAuditStore

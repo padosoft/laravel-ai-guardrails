@@ -154,8 +154,8 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
         );
 
         self::assertSame([
-            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'allowed' => 1],
-            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'allowed' => 0],
+            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'observed' => 0, 'allowed' => 1],
+            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'observed' => 0, 'allowed' => 0],
         ], $trend);
     }
 

@@ -71,7 +71,7 @@ final class ArrayInjectionAuditStore implements InjectionAuditStore
     public function trend(DateTimeImmutable $since, DateTimeImmutable $until): array
     {
         $utc = new DateTimeZone('UTC');
-        /** @var array<string,array{date:string,total:int,blocked:int,allowed:int}> $buckets */
+        /** @var array<string,array{date:string,total:int,blocked:int,observed:int,allowed:int}> $buckets */
         $buckets = [];
 
         foreach ($this->attempts as $a) {
@@ -80,9 +80,20 @@ final class ArrayInjectionAuditStore implements InjectionAuditStore
             }
 
             $day = $a->occurredAt->setTimezone($utc)->format('Y-m-d');
-            $bucket = $buckets[$day] ?? ['date' => $day, 'total' => 0, 'blocked' => 0, 'allowed' => 0];
+            $bucket = $buckets[$day] ?? ['date' => $day, 'total' => 0, 'blocked' => 0, 'observed' => 0, 'allowed' => 0];
             $bucket['total']++;
-            $a->blocked ? $bucket['blocked']++ : $bucket['allowed']++;
+
+            if ($a->blocked) {
+                // blocked=true: rule matched AND was blocked
+                $bucket['blocked']++;
+            } elseif ($a->ruleId !== null) {
+                // blocked=false, ruleId set: rule matched but NOT blocked (monitor-mode match)
+                $bucket['observed']++;
+            } else {
+                // blocked=false, ruleId=null: no rule matched at all
+                $bucket['allowed']++;
+            }
+
             $buckets[$day] = $bucket;
         }
 

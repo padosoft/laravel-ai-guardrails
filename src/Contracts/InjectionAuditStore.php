@@ -26,7 +26,12 @@ interface InjectionAuditStore
      * Per-UTC-day attempt counts within [since, until] inclusive, oldest day first. The production
      * (database) store aggregates in SQL; in-memory stores bucket the rows they hold (GET /audit/trend).
      *
-     * @return list<array{date:string,total:int,blocked:int,allowed:int}>
+     * Three-way mutually exclusive split — invariant: total === blocked + observed + allowed.
+     *   blocked  = blocked=true (rule matched AND was blocked)
+     *   observed = blocked=false AND rule_id IS NOT NULL (monitor-mode match — detected but not blocked)
+     *   allowed  = rule_id IS NULL (no rule matched at all)
+     *
+     * @return list<array{date:string,total:int,blocked:int,observed:int,allowed:int}>
      */
     public function trend(DateTimeImmutable $since, DateTimeImmutable $until): array;
 }

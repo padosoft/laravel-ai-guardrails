@@ -102,7 +102,13 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
         $isBlocked = $this->blockedPredicate();
 
         $rows = $this->baseQuery()
-            ->selectRaw($day.' as day, count(*) as total, sum(case when '.$isBlocked.' then 1 else 0 end) as blocked')
+            ->selectRaw(
+                $day.' as day'
+                .', count(*) as total'
+                .', sum(case when '.$isBlocked.' then 1 else 0 end) as blocked'
+                .', sum(case when NOT '.$isBlocked.' AND rule_id IS NOT NULL then 1 else 0 end) as observed'
+                .', sum(case when rule_id IS NULL then 1 else 0 end) as allowed'
+            )
             ->where('occurred_at', '>=', $since->setTimezone($utc)->format('Y-m-d H:i:s'))
             ->where('occurred_at', '<=', $until->setTimezone($utc)->format('Y-m-d H:i:s'))
             ->groupByRaw($day)
@@ -111,13 +117,12 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
 
         $points = [];
         foreach ($rows as $row) {
-            $total = (int) $row->total;
-            $blocked = (int) $row->blocked;
             $points[] = [
                 'date' => (string) $row->day,
-                'total' => $total,
-                'blocked' => $blocked,
-                'allowed' => $total - $blocked,
+                'total' => (int) $row->total,
+                'blocked' => (int) $row->blocked,
+                'observed' => (int) $row->observed,
+                'allowed' => (int) $row->allowed,
             ];
         }
 
