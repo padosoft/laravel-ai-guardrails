@@ -68,6 +68,7 @@ final class ApiConventionsTest extends TestCase
             'ai-guardrails.api.approvals.index',
             'ai-guardrails.api.approvals.approve',
             'ai-guardrails.api.approvals.reject',
+            'ai-guardrails.api.settings.changes',
             'ai-guardrails.api.settings.show',
             'ai-guardrails.api.settings.update',
             'ai-guardrails.api.try.screen',

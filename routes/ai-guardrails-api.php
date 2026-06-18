@@ -50,6 +50,9 @@ return static function (Registrar $router, string $prefix, array $middleware): v
             ->name('approvals.reject');
 
         // Runtime settings (effective overridable config; PUT persists allow-listed overrides).
+        // Register the literal /settings/changes before the bare /settings verbs (no wildcard clash,
+        // but kept adjacent for clarity). GET /settings/changes is the append-only change audit (E6).
+        $router->get('/settings/changes', [SettingsController::class, 'changes'])->name('settings.changes');
         $router->get('/settings', [SettingsController::class, 'show'])->name('settings.show');
         $router->put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 

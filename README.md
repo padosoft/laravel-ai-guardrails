@@ -185,11 +185,12 @@ A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). 
 | POST | `/approvals/{token}/approve` | `…approvals.approve` | `…v1.approval-decision` | resumes the parked tool; actor principal derived server-side |
 | POST | `/approvals/{token}/reject` | `…approvals.reject` | `…v1.approval-decision` | rejects the parked tool |
 | GET | `/settings` | `…settings.show` | `…v1.settings` | `settings.store` (config \| database) — effective overridable settings |
-| PUT | `/settings` | `…settings.update` | `…v1.settings` | persists allow-listed, type-validated overrides |
+| PUT | `/settings` | `…settings.update` | `…v1.settings` | persists allow-listed, type-validated overrides; appends a change record + dispatches `SettingsChanged` |
+| GET | `/settings/changes` | `…settings.changes` | `…v1.settings-changes` | `settings_audit.store` (null \| array \| database) — append-only WHO/WHAT change log |
 | POST | `/try/screen` | `…try.screen` | `…v1.try-screen` | sandbox: screen a prompt (no persistence) |
 | POST | `/try/sanitize` | `…try.sanitize` | `…v1.try-sanitize` | sandbox: sanitize a text blob (no persistence) |
 
-**Append-only stores.** The audit, firewall, and output-stat tables are immutable (the model + builder throw on update/delete). `GET /settings` is current-state and mutable; `PUT /settings` only accepts keys on the `settings.overridable` allow-list and type-validates each value (booleans, enums, bounded strings) — unknown keys are dropped, malformed values are rejected `422`. When `settings.store = database`, saved overrides are overlaid onto the live config at boot so they actually take effect on the controls (fail-safe: a corrupt/null/type-mismatched row keeps the file default).
+**Append-only stores.** The audit, firewall, output-stat, and settings-change tables are immutable (the model + builder throw on update/delete). `GET /settings` is current-state and mutable; `PUT /settings` only accepts keys on the `settings.overridable` allow-list and type-validates each value (booleans, enums, bounded strings) — unknown keys are dropped, malformed values are rejected `422`. When `settings.store = database`, saved overrides are overlaid onto the live config at boot so they actually take effect on the controls (fail-safe: a corrupt/null/type-mismatched row keeps the file default). Every **effective** change (before ≠ after) is recorded to the `settings_audit` store with the **server-derived** actor (never client-supplied) and surfaced by `GET /settings/changes`.
 
 ## Configuration
 

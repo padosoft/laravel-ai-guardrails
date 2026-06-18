@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * Proves the `{schema_version, schema, data}` envelope is applied UNIFORMLY across every read
  * endpoint: same schema_version, a per-endpoint schema discriminator under that namespace, and data.
- * Covers all 7 200-OK read endpoints plus the audit.show 404 path (envelope applies on all statuses).
+ * Covers all 8 200-OK read endpoints plus the audit.show 404 path (envelope applies on all statuses).
  */
 final class EnvelopeUniformityTest extends TestCase
 {
@@ -41,6 +41,7 @@ final class EnvelopeUniformityTest extends TestCase
             ['/ai-guardrails/api/output/stats', ApiSchema::SCHEMA_OUTPUT_STATS],
             ['/ai-guardrails/api/approvals', ApiSchema::SCHEMA_APPROVAL_LIST],
             ['/ai-guardrails/api/settings', ApiSchema::SCHEMA_SETTINGS],
+            ['/ai-guardrails/api/settings/changes', ApiSchema::SCHEMA_SETTINGS_CHANGES],
         ];
     }
 
