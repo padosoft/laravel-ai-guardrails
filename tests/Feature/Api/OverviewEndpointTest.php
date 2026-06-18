@@ -24,9 +24,33 @@ final class OverviewEndpointTest extends TestCase
             ->assertJsonPath('schema', 'ai-guardrails.api.v1.overview')
             ->assertJsonStructure([
                 'data' => [
-                    'controls' => [['key', 'label', 'enabled']],
+                    'controls' => [['key', 'label', 'enabled', 'mode']],
                     'totals' => ['attempts_24h', 'blocked_24h', 'sampled'],
+                    'ruleset_version',
                 ],
             ]);
+    }
+
+    public function test_overview_surfaces_each_control_mode(): void
+    {
+        $this->app['config']->set('ai-guardrails.modes.input_screen', 'monitor');
+        $this->app['config']->set('ai-guardrails.modes.tool_firewall', 'enforce');
+        $this->app['config']->set('ai-guardrails.output_handler.enabled', false); // → off
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+        $modes = collect($data['controls'])->pluck('mode', 'key');
+
+        self::assertSame('monitor', $modes['input_screen']);
+        self::assertSame('enforce', $modes['tool_firewall']);
+        self::assertSame('off', $modes['output_handler']); // disabled → off, regardless of modes.*
+    }
+
+    public function test_overview_reports_the_active_ruleset_version(): void
+    {
+        $this->app['config']->set('ai-guardrails.pattern_safety.ruleset_version', 'v7');
+
+        $this->getJson('/ai-guardrails/api/overview')
+            ->assertOk()
+            ->assertJsonPath('data.ruleset_version', 'v7');
     }
 }
