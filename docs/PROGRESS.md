@@ -204,5 +204,16 @@
 - [x] **366 tests / 934 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
 
+### Task E5 — MERGED (PR #22, squash `bb2d63b`, 2026-06-18). Local autopilot added `--days=0` mutating-run guard + pre-audit log + redact-null-pii span-preserve test; CI green; no bot comments → auto-merged.
+
+### Task E6 — Settings-change append-only audit (DONE locally, branch `feature/e6-settings-audit`)
+- [x] `SettingsChange` DTO + `SettingsChangeStore` contract (record/recent); Null/Array/Database stores; immutable `SettingsChangeRecord` model + builder (shared AppendOnlyEloquentBuilder) + migration stub (`ai_guardrails_settings_changes`, JSON old/new value, no updated_at). New `settings_audit` config block (store/connection/table, default null).
+- [x] `SettingsChanged` domain event (actor + per-key changes). SettingsController::update diffs EFFECTIVE settings (before vs after the write — so a config-store no-op records nothing), records one row per changed key with the **server-derived** actor (`auth()->guard()->id()`, never client-supplied), dispatches one event. New `GET /settings/changes` endpoint (`settings.changes`, `…v1.settings-changes`).
+- [x] Provider binds `SettingsChangeStore` (null|array|database) + publishes the migration. Route registered; ApiConventionsTest expected-names updated (now 14 routes); EnvelopeUniformityTest covers the new read endpoint (8 endpoints).
+- [x] Tests: `SettingsChangeAuditTest` (HTTP: records effective change, server-side actor, no-op records nothing, SettingsChanged event), `DatabaseSettingsChangeStoreTest` (round-trip incl. bool JSON + null actor, append-only delete throws, bindings null|array|database).
+- [x] README: `GET /settings/changes` + `PUT /settings` audit note in the API table + settings-change append-only paragraph (R9).
+- [x] **375 tests / 970 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then E7 tool-authz, E9 mutation, E9-API, E10 release.
+
 ### Next
-- E5 DoD → PR → merge. Then E6–E9, E9-API, E10.
+- E6 DoD → PR → merge. Then E7, E9, E9-API, E10.

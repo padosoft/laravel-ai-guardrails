@@ -28,6 +28,7 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
+use Padosoft\AiGuardrails\Contracts\SettingsChangeStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Exceptions\InvalidScreeningPattern;
 use Padosoft\AiGuardrails\Firewall\ArrayFirewallRejectionStore;
@@ -50,8 +51,11 @@ use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
 use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
 use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
 use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
+use Padosoft\AiGuardrails\Settings\ArraySettingsChangeStore;
 use Padosoft\AiGuardrails\Settings\ConfigGuardrailSettingsStore;
 use Padosoft\AiGuardrails\Settings\DatabaseGuardrailSettingsStore;
+use Padosoft\AiGuardrails\Settings\DatabaseSettingsChangeStore;
+use Padosoft\AiGuardrails\Settings\NullSettingsChangeStore;
 use Padosoft\AiGuardrails\Settings\OverridableSettings;
 use Padosoft\AiGuardrails\Support\ResolvesControlMode;
 
@@ -206,6 +210,19 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     self::storeTable('ai-guardrails.settings.table', 'ai_guardrails_settings'),
                 ),
                 default => new ConfigGuardrailSettingsStore,
+            };
+        });
+
+        // E6 — append-only audit of settings changes (WHO changed WHAT via PUT /settings). Default-OFF
+        // (null) like the other persistence stores; the admin enables array/database.
+        $this->app->singleton(SettingsChangeStore::class, static function ($app): SettingsChangeStore {
+            return match ($app['config']->get('ai-guardrails.settings_audit.store', 'null')) {
+                'array' => new ArraySettingsChangeStore,
+                'database' => new DatabaseSettingsChangeStore(
+                    self::storeConnection('ai-guardrails.settings_audit.connection'),
+                    self::storeTable('ai-guardrails.settings_audit.table', 'ai_guardrails_settings_changes'),
+                ),
+                default => new NullSettingsChangeStore,
             };
         });
 
@@ -387,6 +404,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ),
                 __DIR__.'/../database/migrations/create_ai_guardrails_settings_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 3).'_create_ai_guardrails_settings_table.php'
+                ),
+                __DIR__.'/../database/migrations/create_ai_guardrails_settings_changes_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 4).'_create_ai_guardrails_settings_changes_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

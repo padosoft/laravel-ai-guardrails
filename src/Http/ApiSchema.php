@@ -31,6 +31,8 @@ final class ApiSchema
 
     public const SCHEMA_SETTINGS = 'ai-guardrails.api.v1.settings';
 
+    public const SCHEMA_SETTINGS_CHANGES = 'ai-guardrails.api.v1.settings-changes';
+
     public const SCHEMA_TRY_SCREEN = 'ai-guardrails.api.v1.try-screen';
 
     public const SCHEMA_TRY_SANITIZE = 'ai-guardrails.api.v1.try-sanitize';

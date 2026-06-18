@@ -92,6 +92,13 @@ return [
         ],
     ],
 
+    // Append-only audit of WHO changed WHICH setting via PUT /settings (the actor is server-derived). Task E6.
+    'settings_audit' => [
+        'store' => env('AI_GUARDRAILS_SETTINGS_AUDIT_STORE', 'null'), // null | array | database
+        'connection' => env('AI_GUARDRAILS_SETTINGS_AUDIT_CONNECTION'),
+        'table' => env('AI_GUARDRAILS_SETTINGS_AUDIT_TABLE', 'ai_guardrails_settings_changes'),
+    ],
+
     // HTTP API surface (consumed by the laravel-ai-guardrails-admin SPA). DEFAULT-OFF. Task 9.
     'api' => [
         'enabled' => env('AI_GUARDRAILS_API_ENABLED', false),
