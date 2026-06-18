@@ -52,6 +52,8 @@
 
 `laravel-ai-guardrails` closes that gap with four **deterministic, offline, unit-testable** controls. No second LLM call, no network, no non-determinism — the audit trail is the product, not a regex you have to trust.
 
+> 📚 **Full documentation:** **[doc.laravel-ai-guardrails.padosoft.com](https://doc.laravel-ai-guardrails.padosoft.com)** — guides, the four controls in depth, architecture & ADRs, configuration reference, and the HTTP/MCP surfaces.
+
 ## What makes it different
 
 - **Untrusted-input posture, everywhere.** Tool arguments, prompts, *and* model output are all treated as hostile.
