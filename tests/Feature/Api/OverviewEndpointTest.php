@@ -53,4 +53,29 @@ final class OverviewEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.ruleset_version', 'v7');
     }
+
+    public function test_overview_hitl_defaults_to_mode_off_when_unconfigured(): void
+    {
+        // HITL is off-by-default (unlike the other three controls). Without explicit config,
+        // enabled=false must imply mode='off' — not 'enforce' (the ResolvesControlMode fallback).
+        $this->app['config']->offsetUnset('ai-guardrails.hitl.enabled');
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+        $hitl = collect($data['controls'])->firstWhere('key', 'hitl');
+
+        self::assertFalse($hitl['enabled']);
+        self::assertSame('off', $hitl['mode']);
+    }
+
+    public function test_overview_master_kill_switch_sets_all_modes_to_off(): void
+    {
+        $this->app['config']->set('ai-guardrails.enabled', false);
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+        $modes = collect($data['controls'])->pluck('mode');
+
+        foreach ($modes as $mode) {
+            self::assertSame('off', $mode);
+        }
+    }
 }

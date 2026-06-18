@@ -240,8 +240,9 @@
 
 ### Task E9-API — v2 envelope deltas (DONE locally, branch `feature/e9-api-deltas`)
 - [x] `OverviewAggregator`: each control entry now carries `mode` (resolved enforce|monitor|off via `ResolvesControlMode`, reflecting the master→enabled→modes.* gate), and the payload carries the active `ruleset_version` (so the admin can correlate audit rows — which already carry their own ruleset_version — with what's live). Additive → schema stays `…v1.overview` (backward-compatible; no consumer breakage).
-- [x] Tests: OverviewEndpointTest asserts the new `mode`/`ruleset_version` structure + a 3-state mode reflection (monitor/enforce/off) + ruleset_version value. README overview row updated (R9).
-- [x] **421 tests / 1079 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **Bug fix (review):** HITL defaults off (unlike other controls); using `ResolvesControlMode::for` directly would return `mode='enforce'` when `hitl.enabled` is absent, contradicting `enabled=false`. Fixed by short-circuiting to `ControlMode::Off` whenever `$masterOn && $controlOn` is already false — reusing the computed booleans rather than re-reading config. Added `test_overview_hitl_defaults_to_mode_off_when_unconfigured`.
+- [x] **Test gap (review):** Added `test_overview_master_kill_switch_sets_all_modes_to_off` — master `enabled=false` → all modes = 'off' end-to-end.
+- [x] **423 tests / 1087 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E10 release (tag SemVer + GitHub Release).
 
 ### Next
