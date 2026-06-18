@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Hitl;
 
+use Composer\InstalledVersions;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 use Padosoft\LaravelFlow\LaravelFlowServiceProvider;
-use ReflectionClass;
 
 /**
  * Turnkey HITL (Control D) setup (Task L4): runs the laravel-flow migrations so the flow_runs /
@@ -56,12 +56,13 @@ final class HitlInstallCommand extends Command
         return self::SUCCESS;
     }
 
-    /** Absolute path to laravel-flow's migrations, resolved from the provider location (vendor-safe). */
+    /** Absolute path to laravel-flow's migrations — resolved via Composer's package registry (vendor-safe, depth-independent). */
     private function flowMigrationsPath(): string
     {
-        $providerFile = (string) (new ReflectionClass(LaravelFlowServiceProvider::class))->getFileName();
+        $root = InstalledVersions::getInstallPath('padosoft/laravel-flow')
+            ?? throw new \RuntimeException('laravel-flow is not installed.');
 
-        return dirname($providerFile, 2).'/database/migrations';
+        return $root.DIRECTORY_SEPARATOR.'database'.DIRECTORY_SEPARATOR.'migrations';
     }
 
     private function hasTable(string $table): bool

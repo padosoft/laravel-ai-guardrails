@@ -53,7 +53,7 @@ final class HitlStatusCommand extends Command
         if ($flowInstalled && (! $runsTable || ! $approvalsTable)) {
             $this->warn('Create the flow tables:  php artisan ai-guardrails:hitl-install');
         }
-        if (! $persistence) {
+        if ($flowInstalled && ! $persistence) {
             $this->warn('Enable flow persistence:  LARAVEL_FLOW_PERSISTENCE_ENABLED=true');
         }
         if (! $hitlEnabled) {

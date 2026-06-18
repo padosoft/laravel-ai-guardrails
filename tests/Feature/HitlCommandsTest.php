@@ -68,6 +68,14 @@ final class HitlCommandsTest extends TestCase
             ->assertFailed();
     }
 
+    public function test_install_is_idempotent(): void
+    {
+        $this->artisan('ai-guardrails:hitl-install')->assertSuccessful();
+        // Second run: migrator tracks what ran — must not throw or fail.
+        $this->artisan('ai-guardrails:hitl-install')->assertSuccessful();
+        self::assertTrue(Schema::hasTable('flow_runs'));
+    }
+
     public function test_install_publishes_and_migrates_the_flow_tables(): void
     {
         // Starting clean (no flow tables): install publishes the flow migrations and runs them.
