@@ -252,5 +252,9 @@
 - [x] Tagged **v0.3.0** (annotated) at `0414ace` + cut the GitHub Release "v0.3.0 — Enterprise hardening" (additive/backward-compatible over v0.2.0; default-safe toggles). https://github.com/padosoft/laravel-ai-guardrails/releases/tag/v0.3.0
 - [x] **423 tests / 1087 assertions** green (PHP 8.3/8.4/8.5 × Laravel 13); PHPStan level 8; Pint clean; Infection ≥80% MSI in CI.
 
-## ✅ ROADMAP 100% COMPLETE
+### v1.0.0 line — closing all documented limitations (spec: docs/superpowers/specs/2026-06-18-...)
+- **L1 — Confusables fold (Control B) — DONE locally, branch `feature/v1-l1-confusables`.** `ConfusablesFolder` (curated Cyrillic/Greek→Latin skeleton map) + `UnicodePromptNormalizer.foldConfusables` pass (config `normalization.fold_confusables`, default on, before casefold). Closes the cross-script homoglyph gap: "ignоre previous" (Cyrillic о) now blocked. Tests: folder per-script, normalizer both-states, screener end-to-end evasion both-states. README limitation updated. **432 tests** GREEN; pint + phpstan clean. [ ] DoD loop → PR.
+- [ ] L2 HTML purify · L3 toolCalls opt-in · L4 HITL turnkey · L5 MCP surface · then tag **v1.0.0**.
+
+## ✅ ROADMAP 100% COMPLETE (v0.3.0)
 Task -1 governance · Tasks 0–8 core (4 controls + E1/E2/E8 + Artisan + arch tests + README) · Tasks 9–18 HTTP API (v0.2.0) · E3 modes · E4 events · E5 hygiene/retention · E6 settings-audit · E7 tool-authz · E9 mutation gate · E9-API deltas · **E10 release v0.3.0**. Nothing outstanding. Follow-ups left as documented limitations (MCP surface; cross-script homoglyph confusables; the `-admin` SPA is a separate package).

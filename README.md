@@ -278,7 +278,7 @@ Every failure path **fails closed**. The master kill-switch and per-control togg
 ## Known limitations
 
 - Control C rewrites `$response->text` and structured string fields; the model's **`toolCalls` are not sanitized** by C (they are governed by Controls A/D).
-- NFKC normalization folds fullwidth/compatibility characters but does **not** collapse cross-script homoglyphs (Cyrillic `а` ≠ Latin `a`).
+- Cross-script homoglyphs are folded to a Latin skeleton before matching via a **curated** confusables map (`normalization.fold_confusables`, default on) — Cyrillic `а`/`о`/`е`…, Greek `ο`/`α`/`ρ`…. It is a high-value curated subset, not the full Unicode confusables data, so an exotic look-alike outside the map can still slip through; extend `ConfusablesFolder::MAP` for your threat model.
 - The HTML `allowlist` mode is a convenience, not HTMLPurifier-grade — for rendering rich untrusted HTML, use a dedicated sanitizer.
 - Control D's full flow persistence (approval tokens, resume) is configured by the host application.
 
