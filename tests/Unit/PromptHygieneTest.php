@@ -55,6 +55,13 @@ final class PromptHygieneTest extends TestCase
         self::assertNotSame($h->apply('a'), $h->apply('b'));
     }
 
+    public function test_truncate_to_zero_yields_an_empty_string(): void
+    {
+        // truncate_at=0 keeps zero code points — the `max(0, …)` floor must hold (a mutated `max(1, …)`
+        // would leak the first character).
+        self::assertSame('', (new PromptHygiene('truncate', 0, $this->pii()))->apply('hello'));
+    }
+
     public function test_truncate_keeps_only_the_first_n_code_points(): void
     {
         $h = new PromptHygiene('truncate', 5, $this->pii());
