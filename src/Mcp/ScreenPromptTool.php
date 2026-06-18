@@ -18,7 +18,7 @@ final class ScreenPromptTool extends Tool
 {
     protected string $name = 'screen_prompt';
 
-    protected string $description = 'Screen a prompt for prompt-injection. Returns whether it is blocked, the matched rule id, the active ruleset version, and the refusal message.';
+    protected string $description = 'Screen a prompt for prompt-injection. Returns whether it is blocked, the matched rule id (and ruleset version when blocked), and the refusal message.';
 
     public function schema(JsonSchema $schema): array
     {
@@ -34,7 +34,9 @@ final class ScreenPromptTool extends Tool
         return Response::json([
             'blocked' => $verdict->blocked,
             'rule_id' => $verdict->ruleId,
-            'ruleset_version' => $verdict->rulesetVersion,
+            // Only expose the ruleset version when a rule matched — leaking it on every benign call
+            // would allow adversarial callers to fingerprint the active ruleset and target bypasses.
+            'ruleset_version' => $verdict->blocked ? $verdict->rulesetVersion : null,
             'message' => $verdict->blocked ? $verdict->refusalMessage : null,
         ]);
     }

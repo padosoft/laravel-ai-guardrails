@@ -18,19 +18,28 @@ final class SanitizeOutputTool extends Tool
 {
     protected string $name = 'sanitize_output';
 
-    protected string $description = 'Sanitize untrusted model output: escape/neutralise HTML and markdown exfiltration vectors and redact PII. Returns the cleaned text.';
+    /** Maximum number of characters accepted per call (guards against CPU/memory amplification via the sanitisation pipeline). */
+    private const MAX_TEXT_LENGTH = 65_535;
+
+    protected string $description = 'Sanitize untrusted model output: escape/neutralise HTML and markdown exfiltration vectors and redact PII. Returns the cleaned text (max 65 535 chars).';
 
     public function schema(JsonSchema $schema): array
     {
         return [
-            'text' => $schema->string()->description('The untrusted text to sanitize.')->required(),
+            'text' => $schema->string()->description('The untrusted text to sanitize (max 65 535 chars).')->max(self::MAX_TEXT_LENGTH)->required(),
         ];
     }
 
     public function handle(Request $request): Response
     {
+        $text = (string) $request->get('text', '');
+
+        if (mb_strlen($text) > self::MAX_TEXT_LENGTH) {
+            return Response::error(sprintf('The text field must not exceed %d characters.', self::MAX_TEXT_LENGTH));
+        }
+
         return Response::json([
-            'text' => AiGuardrails::sanitize((string) $request->get('text', '')),
+            'text' => AiGuardrails::sanitize($text),
         ]);
     }
 }
