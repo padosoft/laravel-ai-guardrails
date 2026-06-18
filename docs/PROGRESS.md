@@ -171,5 +171,13 @@
 - [x] Tasks 9–18 HTTP API: 9+17 (PR #13), 10–12 (PR #14), 13 (PR #15), 14 (PR #16), 15 (PR #17), 16 (PR #18), 18 (this branch). E1/E2/E8 folded into Controls B/C (merged).
 - [ ] Remaining: E3 monitor mode · E4 events · E5 audit hygiene/retention/purge · E6 settings-change audit · E7 tool authz · E9 mutation testing (infection ≥80 MSI) · E9-API (v2 envelope deltas) · E10 release (tag + GitHub Release).
 
+### Task E3 — Enforce/monitor/off modes (DONE locally, branch `feature/e3-monitor-mode`)
+- [x] `ControlMode` enum (enforce|monitor|off + isActive/enforces/observes/resolve) + `ResolvesControlMode::for(control, enabledKey)` — gate order: master kill-switch off → Off; per-control `enabled=false` → Off (back-compat with Tasks 2–5); else `modes.<control>` picks posture (default enforce).
+- [x] Threaded `ControlMode` into all four controls as an optional trailing ctor param (default Enforce for back-compat): FirewalledTool (monitor → record rejection + re-scope but no throw), GuardrailInputMiddleware (monitor → audit blocked=false + ruleId, reach model), GuardrailOutputMiddleware (monitor → record would-sanitize stats but return ORIGINAL text), ApprovalGatedTool (monitor → run delegate directly, no parking).
+- [x] Provider resolves each control's mode via `ResolvesControlMode::for(...)`: a control is wired with real collaborators when active (enforce||monitor); `ApprovalRouter` real only when hitl **enforces** (monitor never calls the router). Mode passed to AiGuardrails ctor (firewallMode/hitlMode) + both middlewares.
+- [x] `tests/Feature/MonitorModeTest.php` — 3-state matrix (enforce/monitor/off) × 4 controls (R43). 12 tests / 26 assertions.
+- [x] **332 tests / 866 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then E4 events, E5 hygiene/retention, E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
+
 ### Next
-- Task 18 DoD → PR → merge → tag v0.2.0. Then E3–E9 enterprise-hardening cross-cuts, E9-API, E10.
+- E3 DoD → PR → merge. Then E4–E9 enterprise-hardening cross-cuts, E9-API, E10.

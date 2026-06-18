@@ -48,6 +48,7 @@ use Padosoft\AiGuardrails\Screening\UnicodePromptNormalizer;
 use Padosoft\AiGuardrails\Settings\ConfigGuardrailSettingsStore;
 use Padosoft\AiGuardrails\Settings\DatabaseGuardrailSettingsStore;
 use Padosoft\AiGuardrails\Settings\OverridableSettings;
+use Padosoft\AiGuardrails\Support\ResolvesControlMode;
 
 final class AiGuardrailsServiceProvider extends ServiceProvider
 {
@@ -65,9 +66,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         $this->app->singleton(InjectionScreener::class, NullInjectionScreener::class);
 
         // Control A — Tool firewall collaborators (configured from the tool_firewall block).
-        // The master kill-switch (ai-guardrails.enabled) degrades every control to pass-through.
-        $firewallActive = (bool) config('ai-guardrails.enabled', true)
-            && (bool) config('ai-guardrails.tool_firewall.enabled', true);
+        // A control is wired with REAL collaborators when its mode is active (enforce OR monitor); off
+        // (incl. master kill-switch off) degrades it to the null-object pass-through implementations.
+        $firewallActive = ResolvesControlMode::for('tool_firewall', 'ai-guardrails.tool_firewall.enabled')->isActive();
         if ($firewallActive) {
             $this->app->singleton(ArgumentScoper::class, static function ($app): ArgumentScoper {
                 $ownerKeys = $app['config']->get('ai-guardrails.tool_firewall.owner_keys', []);
@@ -99,8 +100,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             );
         });
 
-        $screenActive = (bool) config('ai-guardrails.enabled', true)
-            && (bool) config('ai-guardrails.input_screen.enabled', true);
+        $screenActive = ResolvesControlMode::for('input_screen', 'ai-guardrails.input_screen.enabled')->isActive();
         if ($screenActive) {
             $this->app->singleton(InjectionScreener::class, static function ($app): InjectionScreener {
                 $patterns = $app['config']->get('ai-guardrails.input_screen.patterns', []);
@@ -189,15 +189,15 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(GuardrailInputMiddleware::class, static function ($app): GuardrailInputMiddleware {
-            $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
-                && (bool) $app['config']->get('ai-guardrails.input_screen.enabled', true);
+            $mode = ResolvesControlMode::for('input_screen', 'ai-guardrails.input_screen.enabled');
 
             return new GuardrailInputMiddleware(
                 $app->make(InjectionScreener::class),
                 $app->make(InjectionAuditStore::class),
                 // Resolve the principal defensively: auth may be unbound (CLI / minimal apps).
                 static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
-                $enabled,
+                $mode->isActive(),
+                $mode,
             );
         });
 
@@ -205,10 +205,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         // Config is read lazily inside the closures (not at registration time) so that the
         // config repository is guaranteed to be fully bootstrapped when the singleton resolves.
         $this->app->singleton(OutputSanitizer::class, static function ($app): OutputSanitizer {
-            if (
-                ! (bool) $app['config']->get('ai-guardrails.enabled', true)
-                || ! (bool) $app['config']->get('ai-guardrails.output_handler.enabled', true)
-            ) {
+            // Active when the output handler's mode is enforce OR monitor (monitor still needs the real
+            // sanitizer to compute what enforcement WOULD neutralise for the stats).
+            if (! ResolvesControlMode::for('output_handler', 'ai-guardrails.output_handler.enabled')->isActive()) {
                 return new PassthroughSanitizer;
             }
 
@@ -220,8 +219,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(PiiRedaction::class, static function ($app): PiiRedaction {
-            $active = (bool) $app['config']->get('ai-guardrails.enabled', true)
-                && (bool) $app['config']->get('ai-guardrails.output_handler.enabled', true);
+            $active = ResolvesControlMode::for('output_handler', 'ai-guardrails.output_handler.enabled')->isActive();
 
             return PiiRedactionFactory::make(
                 $app,
@@ -230,21 +228,22 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(GuardrailOutputMiddleware::class, static function ($app): GuardrailOutputMiddleware {
-            $enabled = (bool) $app['config']->get('ai-guardrails.enabled', true)
-                && (bool) $app['config']->get('ai-guardrails.output_handler.enabled', true);
+            $mode = ResolvesControlMode::for('output_handler', 'ai-guardrails.output_handler.enabled');
 
             return new GuardrailOutputMiddleware(
                 $app->make(OutputSanitizer::class),
                 $app->make(PiiRedaction::class),
-                $enabled,
+                $mode->isActive(),
                 $app->make(OutputStatStore::class),
+                $mode,
             );
         });
 
-        // Control D — HITL approval bridge (graceful: FlowApprovalRouter when flow present + enabled).
-        $this->app->singleton(ApprovalRouter::class, static fn ($app): ApprovalRouter => ApprovalRouterFactory::make(
-            (bool) $app['config']->get('ai-guardrails.enabled', true)
-                && (bool) $app['config']->get('ai-guardrails.hitl.enabled', false),
+        // Control D — HITL approval bridge (graceful: FlowApprovalRouter when flow present + enforcing).
+        // Monitor mode never calls the router (the gated tool runs the delegate directly), so only an
+        // ENFORCING hitl mode needs the real router; otherwise the null-object router is bound.
+        $this->app->singleton(ApprovalRouter::class, static fn (): ApprovalRouter => ApprovalRouterFactory::make(
+            ResolvesControlMode::for('hitl', 'ai-guardrails.hitl.enabled')->enforces(),
         ));
 
         $this->app->singleton(AiGuardrails::class, static function ($app): AiGuardrails {
@@ -266,6 +265,8 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
                 $app->make(FirewallRejectionStore::class),
                 $app->make(OutputStatStore::class),
+                ResolvesControlMode::for('tool_firewall', 'ai-guardrails.tool_firewall.enabled'),
+                ResolvesControlMode::for('hitl', 'ai-guardrails.hitl.enabled'),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');

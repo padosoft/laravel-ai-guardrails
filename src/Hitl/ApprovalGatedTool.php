@@ -11,6 +11,7 @@ use InvalidArgumentException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
+use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
 
 /**
@@ -19,6 +20,10 @@ use Stringable;
  * The real execution happens later, when a human approves (the flow runs the tool then). When
  * approval is unavailable (flow absent), the configured fallback applies: 'deny' refuses, 'pass'
  * executes the delegate.
+ *
+ * Modes: `enforce` parks the call (the behaviour above); `monitor` executes the delegate directly
+ * (auto-pass / shadow rollout — the destructive call is observed to run but NOT gated). `off` never
+ * wraps the tool, so this decorator only sees enforce/monitor.
  *
  * Security notes:
  * - The plain-text approval token is NEVER returned to the model; only a non-secret run reference
@@ -37,6 +42,7 @@ final readonly class ApprovalGatedTool implements Tool
         private Closure $principalResolver,
         private string $toolName,
         private string $fallback = 'deny',
+        private ControlMode $mode = ControlMode::Enforce,
     ) {
         if (! in_array($this->fallback, ['deny', 'pass'], true)) {
             throw new InvalidArgumentException(
@@ -52,6 +58,12 @@ final readonly class ApprovalGatedTool implements Tool
 
     public function handle(Request $request): Stringable|string
     {
+        // Monitor (shadow rollout): do not gate — run the destructive call directly so an operator can
+        // observe behaviour without parking. Only enforce actually routes the call for approval.
+        if (! $this->mode->enforces()) {
+            return $this->delegate->handle($request);
+        }
+
         if (! $this->router->isAvailable()) {
             return $this->fallback === 'pass'
                 ? $this->delegate->handle($request)
