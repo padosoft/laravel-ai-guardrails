@@ -77,6 +77,7 @@ final class StructuredOutputValidatorTest extends TestCase
         self::assertTrue($m->invoke($v, 'number', 1));
         self::assertTrue($m->invoke($v, 'number', 1.5));
         self::assertFalse($m->invoke($v, 'number', '1'));
+        self::assertFalse($m->invoke($v, 'number', true)); // a bool is not a number
         self::assertTrue($m->invoke($v, 'boolean', true));
         self::assertFalse($m->invoke($v, 'boolean', 1));
         self::assertTrue($m->invoke($v, 'array', [1, 2]));
