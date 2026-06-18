@@ -238,7 +238,21 @@ composer require padosoft/laravel-flow          # enables Control D (human appro
 composer require padosoft/laravel-pii-redactor  # enables PII redaction in Control C
 ```
 
-When a package is absent, `class_exists` guards bind null-object implementations, and the boundary is enforced by an architecture test (flow is referenced only in `src/Hitl`, pii-redactor only in `src/Output`).
+When a package is absent, `class_exists` guards bind null-object implementations, and the boundary is enforced by an architecture test (flow is referenced only in `src/Hitl`, pii-redactor + HTMLPurifier only in `src/Output`).
+
+### HITL setup (Control D)
+
+Control D needs `laravel-flow` installed and its tables migrated. Two commands make that turnkey and verifiable:
+
+```bash
+# Run laravel-flow's migrations (flow_runs / flow_approvals) straight from vendor — scoped, idempotent
+php artisan ai-guardrails:hitl-install
+
+# Diagnose the setup: flow installed? persistence on? tables present? hitl + master enabled?
+php artisan ai-guardrails:hitl-status
+```
+
+Then set `LARAVEL_FLOW_PERSISTENCE_ENABLED=true` and `AI_GUARDRAILS_HITL_ENABLED=true`. `hitl-status` exits non-zero (and prints exactly what is missing) until HITL can actually gate a destructive call.
 
 ## The append-only injection audit
 

@@ -43,6 +43,8 @@ use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Hitl\ApprovalRouterFactory;
+use Padosoft\AiGuardrails\Hitl\HitlInstallCommand;
+use Padosoft\AiGuardrails\Hitl\HitlStatusCommand;
 use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
@@ -444,6 +446,8 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 GuardrailsSanitizeCommand::class,
                 GuardrailsAuditCommand::class,
                 GuardrailsPurgeCommand::class,
+                HitlStatusCommand::class,
+                HitlInstallCommand::class,
             ]);
         }
 
