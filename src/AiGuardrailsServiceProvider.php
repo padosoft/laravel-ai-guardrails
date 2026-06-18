@@ -46,7 +46,7 @@ use Padosoft\AiGuardrails\Hitl\ApprovalRouterFactory;
 use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
-use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
+use Padosoft\AiGuardrails\Output\HtmlSanitizerFactory;
 use Padosoft\AiGuardrails\Output\NullOutputStatStore;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Output\PiiRedactionFactory;
@@ -260,10 +260,12 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 return new PassthroughSanitizer;
             }
 
-            return new HtmlMarkdownSanitizer(
+            // L2: HtmlSanitizerFactory upgrades html_mode=allowlist to HTMLPurifier when installed,
+            // gracefully falling back to the built-in allowlist otherwise (vendor ref stays in src/Output).
+            return HtmlSanitizerFactory::make(
+                (string) $app['config']->get('ai-guardrails.output_handler.html_mode', 'escape'),
                 (bool) $app['config']->get('ai-guardrails.output_handler.sanitize_html', true),
                 (bool) $app['config']->get('ai-guardrails.output_handler.neutralize_markdown', true),
-                (string) $app['config']->get('ai-guardrails.output_handler.html_mode', 'escape'),
             );
         });
 
