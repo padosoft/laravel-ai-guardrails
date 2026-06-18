@@ -1,0 +1,90 @@
+{
+  "title": "laravel-ai-guardrails",
+  "description": "Deterministic, offline-first prompt-injection guardrails for laravel/ai — four composable controls that treat everything the model touches as untrusted.",
+  "url": "https://doc.laravel-ai-guardrails.padosoft.com",
+  "src": "docs",
+  "out": "_site",
+  "base": "/",
+  "favicon": "assets/favicon.svg",
+  "theme": { "name": "default", "defaultMode": "dark", "customCss": ["assets/custom.css"] },
+  "autoTitleFromH1": true,
+  "copyCode": true,
+  "pageNavigation": true,
+  "minify": true,
+  "markdown": { "breaks": true },
+  "layout": {
+    "spa": true,
+    "header": { "enabled": true },
+    "sidebar": { "collapsible": true, "defaultCollapsed": false },
+    "optionsMenu": { "position": "header", "components": { "search": true, "themeSwitch": true } }
+  },
+  "footer": {
+    "style": "minimal",
+    "branding": true,
+    "content": "© Padosoft — [padosoft.com](https://padosoft.com) · [GitHub](https://github.com/padosoft/laravel-ai-guardrails) · Apache-2.0",
+    "columns": [
+      { "title": "Project", "links": [ { "title": "GitHub", "path": "https://github.com/padosoft/laravel-ai-guardrails", "external": true } ] }
+    ]
+  },
+  "navigation": [
+    { "title": "Get Started", "icon": "rocket", "children": [
+      { "title": "Introduction", "path": "/" },
+      { "title": "Quickstart", "path": "/quickstart" },
+      { "title": "Installation", "path": "/installation" }
+    ]},
+    { "title": "The Four Controls", "icon": "shield", "children": [
+      { "title": "Overview", "path": "/controls/overview" },
+      { "title": "A — Tool Firewall", "path": "/controls/tool-firewall" },
+      { "title": "B — Input Screening + Audit", "path": "/controls/input-screening" },
+      { "title": "C — Output Handler", "path": "/controls/output-handler" },
+      { "title": "D — HITL Bridge", "path": "/controls/hitl-bridge" }
+    ]},
+    { "title": "Concepts & Theory", "icon": "book-open", "children": [
+      { "title": "Threat model", "path": "/concepts/threat-model" },
+      { "title": "Untrusted-input posture", "path": "/concepts/untrusted-input" },
+      { "title": "Prompt normalization & confusables", "path": "/concepts/normalization" },
+      { "title": "Append-only audit", "path": "/concepts/append-only" },
+      { "title": "Enforce / monitor / off modes", "path": "/concepts/modes" }
+    ]},
+    { "title": "Architecture", "icon": "network", "children": [
+      { "title": "Overview", "path": "/architecture/overview" },
+      { "title": "Request pipeline", "path": "/architecture/pipeline" },
+      { "title": "Compose-not-couple", "path": "/architecture/compose-not-couple" },
+      { "title": "Decision records (ADR)", "path": "/architecture/decisions" }
+    ]},
+    { "title": "Guides", "icon": "wrench", "children": [
+      { "title": "Wiring the agent middleware", "path": "/guides/middleware" },
+      { "title": "Guarding & authorizing tools", "path": "/guides/tools" },
+      { "title": "Human-in-the-loop approvals", "path": "/guides/hitl" },
+      { "title": "Domain events → SIEM/Slack", "path": "/guides/events" },
+      { "title": "Audit hygiene & GDPR retention", "path": "/guides/retention" },
+      { "title": "The MCP surface", "path": "/guides/mcp" }
+    ]},
+    { "title": "Operations", "icon": "settings", "children": [
+      { "title": "Configuration reference", "path": "/operations/configuration" },
+      { "title": "The HTTP admin API", "path": "/operations/http-api" },
+      { "title": "Observability & mutation testing", "path": "/operations/observability" }
+    ]},
+    { "title": "Reference", "icon": "list", "children": [
+      { "title": "PHP facade", "path": "/reference/facade" },
+      { "title": "Artisan commands", "path": "/reference/artisan" },
+      { "title": "Domain events", "path": "/reference/events" },
+      { "title": "Versioning & releases", "path": "/reference/versioning" },
+      { "title": "Best practices", "path": "/reference/best-practices" }
+    ]},
+    { "title": "Links", "children": [
+      { "title": "GitHub", "path": "https://github.com/padosoft/laravel-ai-guardrails", "external": true },
+      { "title": "Packagist", "path": "https://packagist.org/packages/padosoft/laravel-ai-guardrails", "external": true }
+    ]}
+  ],
+  "plugins": {
+    "search": { "enabled": true, "semantic": true, "placeholder": "Search the docs…" },
+    "git": { "repo": "https://github.com/padosoft/laravel-ai-guardrails", "branch": "main", "editLink": true, "lastUpdated": true, "commitHistory": true, "dateFormat": "relative" },
+    "seo": { "defaultDescription": "Deterministic, offline-first prompt-injection guardrails for laravel/ai.", "aiBots": true, "openGraph": {}, "twitter": { "cardType": "summary_large_image" } },
+    "sitemap": { "defaultChangefreq": "weekly", "defaultPriority": 0.8 },
+    "mermaid": {},
+    "math": {},
+    "llms": { "fullContext": true },
+    "analytics": { "enabled": false }
+  }
+}

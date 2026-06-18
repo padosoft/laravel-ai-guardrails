@@ -1,0 +1,5 @@
+node_modules/
+_site/
+.docmd-search/*
+!.docmd-search/config.json
+docs/.docmd-search/
