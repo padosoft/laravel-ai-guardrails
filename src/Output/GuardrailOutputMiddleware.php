@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Output;
 
 use Closure;
+use DateTimeImmutable;
+use DateTimeZone;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\AgentResponse;
@@ -13,6 +16,7 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\ReportingOutputSanitizer;
+use Padosoft\AiGuardrails\Events\OutputSanitized;
 use Padosoft\AiGuardrails\Support\ControlMode;
 
 /**
@@ -34,6 +38,7 @@ final readonly class GuardrailOutputMiddleware
         private bool $enabled = true,
         private ?OutputStatStore $stats = null,
         private ?ControlMode $mode = null,
+        private ?Dispatcher $events = null,
     ) {}
 
     public function handle(AgentPrompt $prompt, Closure $next): mixed
@@ -51,14 +56,27 @@ final readonly class GuardrailOutputMiddleware
         // enforce → apply the cleaned text; monitor → count what WOULD change but keep the original.
         $apply = $mode->enforces();
 
+        // Accumulate every neutralised kind across text + structured so a single domain event is
+        // dispatched per response (the per-kind stats are still recorded individually by the store).
+        $kinds = [];
+
         if ($response instanceof AgentResponse) {
-            $response->text = $this->clean($response->text, $apply);
+            $response->text = $this->clean($response->text, $apply, $kinds);
 
             // StructuredAgentResponse extends AgentResponse, so $text above is already handled; its
             // structured fields are additional untrusted model output and must be cleaned too.
             if ($response instanceof StructuredAgentResponse) {
-                $response->structured = $this->cleanStructured($response->structured, $apply);
+                $response->structured = $this->cleanStructured($response->structured, $apply, $kinds);
             }
+        }
+
+        // One event per response when at least one neutralisation occurred (deduped kinds), from the
+        // same path that recorded the stats. In monitor mode the kinds reflect would-be enforcement.
+        if ($kinds !== []) {
+            $this->events?->dispatch(new OutputSanitized(
+                array_values(array_unique($kinds)),
+                new DateTimeImmutable('now', new DateTimeZone('UTC')),
+            ));
         }
 
         return $response;
@@ -68,18 +86,20 @@ final readonly class GuardrailOutputMiddleware
      * Compute the sanitized text and record per-kind stats for everything that changed. Returns the
      * cleaned text when $apply (enforce) or the ORIGINAL untouched text when not (monitor) — the stats
      * are recorded either way so monitor mode reports exactly what enforcement would have done.
+     *
+     * @param  list<string>  $kinds  accumulator (by ref): every neutralised OutputStatKind value is appended.
      */
-    private function clean(string $text, bool $apply): string
+    private function clean(string $text, bool $apply, array &$kinds): string
     {
         // Use the reporting sanitizer when available so html/markdown neutralisations can be counted
         // separately; otherwise fall back to plain sanitize() (no per-kind stats).
         if ($this->sanitizer instanceof ReportingOutputSanitizer) {
             $report = $this->sanitizer->sanitizeReport($text);
             if ($report->htmlChanged) {
-                $this->recordStat(OutputStatKind::HtmlStripped);
+                $this->recordStat(OutputStatKind::HtmlStripped, $kinds);
             }
             if ($report->markdownChanged) {
-                $this->recordStat(OutputStatKind::MarkdownSanitized);
+                $this->recordStat(OutputStatKind::MarkdownSanitized, $kinds);
             }
             $sanitized = $report->text;
         } else {
@@ -88,7 +108,7 @@ final readonly class GuardrailOutputMiddleware
 
         $redacted = $this->pii->redact($sanitized);
         if ($redacted !== $sanitized) {
-            $this->recordStat(OutputStatKind::PiiRedaction);
+            $this->recordStat(OutputStatKind::PiiRedaction, $kinds);
         }
 
         return $apply ? $redacted : $text;
@@ -96,10 +116,15 @@ final readonly class GuardrailOutputMiddleware
 
     /**
      * Fire-and-forget stat write: a store failure (DB down, etc.) must never abort the sanitization
-     * pass — that would leave model output un-neutralised. Log instead of propagating.
+     * pass — that would leave model output un-neutralised. Log instead of propagating. The kind is
+     * appended to the accumulator regardless of store success so the domain event stays accurate.
+     *
+     * @param  list<string>  $kinds  accumulator (by ref)
      */
-    private function recordStat(OutputStatKind $kind): void
+    private function recordStat(OutputStatKind $kind, array &$kinds): void
     {
+        $kinds[] = $kind->value;
+
         if ($this->stats === null) {
             return;
         }
@@ -116,15 +141,16 @@ final readonly class GuardrailOutputMiddleware
 
     /**
      * @param  array<mixed>  $data
+     * @param  list<string>  $kinds  accumulator (by ref)
      * @return array<mixed>
      */
-    private function cleanStructured(array $data, bool $apply): array
+    private function cleanStructured(array $data, bool $apply, array &$kinds): array
     {
         foreach ($data as $key => $value) {
             if (is_array($value)) {
-                $data[$key] = $this->cleanStructured($value, $apply);
+                $data[$key] = $this->cleanStructured($value, $apply, $kinds);
             } elseif (is_string($value)) {
-                $data[$key] = $this->clean($value, $apply);
+                $data[$key] = $this->clean($value, $apply, $kinds);
             }
         }
 

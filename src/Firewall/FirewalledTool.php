@@ -7,6 +7,7 @@ namespace Padosoft\AiGuardrails\Firewall;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
@@ -16,6 +17,7 @@ use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Events\ToolArgumentRejected;
 use Padosoft\AiGuardrails\Exceptions\ToolArgumentRejection;
 use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
@@ -43,6 +45,7 @@ final readonly class FirewalledTool implements Tool
         private Closure $principalResolver,
         private ?FirewallRejectionStore $rejectionStore = null,
         private ControlMode $mode = ControlMode::Enforce,
+        private ?Dispatcher $events = null,
     ) {}
 
     public function description(): Stringable|string
@@ -64,14 +67,16 @@ final readonly class FirewalledTool implements Tool
         if ($violations !== []) {
             $description = (string) $this->delegate->description();
 
+            $rejection = new FirewallRejection(
+                $description,
+                $principal !== null ? (string) $principal : null,
+                $violations,
+                new DateTimeImmutable('now', new DateTimeZone('UTC')),
+            );
+
             // Fire-and-forget: a store failure (DB down, etc.) must never suppress the rejection.
             try {
-                $this->rejectionStore?->record(new FirewallRejection(
-                    $description,
-                    $principal !== null ? (string) $principal : null,
-                    $violations,
-                    new DateTimeImmutable('now', new DateTimeZone('UTC')),
-                ));
+                $this->rejectionStore?->record($rejection);
             } catch (\Throwable $e) {
                 // Enforcement is independent of persistence — log (don't rethrow) so the missing
                 // firewall rejection record is observable instead of silently lost.
@@ -80,6 +85,9 @@ final readonly class FirewalledTool implements Tool
                     'exception' => $e,
                 ]);
             }
+
+            // Emit from the same path as the record (independent of persistence success).
+            $this->events?->dispatch(new ToolArgumentRejected($rejection));
 
             // enforce → block; monitor → record + pass through. Owner-key re-scoping is preserved in
             // both modes (the principal's value always wins for owner keys). Schema-violating args

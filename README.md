@@ -32,6 +32,7 @@
 - [Configuration](#configuration)
 - [Composing laravel-flow & laravel-pii-redactor](#composing-laravel-flow--laravel-pii-redactor)
 - [The append-only injection audit](#the-append-only-injection-audit)
+- [Domain events](#domain-events)
 - [Security & threat model](#security--threat-model)
 - [Known limitations](#known-limitations)
 - [Testing](#testing)
@@ -222,6 +223,20 @@ When a package is absent, `class_exists` guards bind null-object implementations
 ## The append-only injection audit
 
 The audit is the product value of Control B. Every screening attempt — blocked *and* allowed — is appended to an immutable store. The Eloquent model and its query builder **throw on update / delete / upsert / touch / increment / truncate**; the table has no `updated_at`. Timestamps are stored in UTC. (A sanctioned, audited retention/erasure maintenance command is part of the enterprise-hardening line.)
+
+## Domain events
+
+Every guardrail decision dispatches a domain event from the **same code path** that writes the audit / stat record, so you can wire SIEM, Slack, or PagerDuty with a single listener. Events are gated by `events.enabled` (default on); set it to `false` to silence them without touching the controls.
+
+| Event | Dispatched when |
+|---|---|
+| `Padosoft\AiGuardrails\Events\InjectionBlocked` | Control B refused a prompt (enforce) |
+| `Padosoft\AiGuardrails\Events\InjectionObserved` | Control B detected an injection but passed it through (monitor) |
+| `Padosoft\AiGuardrails\Events\ToolArgumentRejected` | Control A found owner-key / schema violations in a tool call |
+| `Padosoft\AiGuardrails\Events\DestructiveToolRouted` | Control D parked a destructive call for human approval (carries the non-secret run reference only) |
+| `Padosoft\AiGuardrails\Events\OutputSanitized` | Control C neutralised HTML / markdown / structured / PII in a response (one event per response, deduped kinds) |
+
+In `monitor` mode the `Observed`/`Rejected`/`Sanitized` events still fire (the host distinguishes via the control's configured mode), so you can alert on would-have-blocked traffic during a shadow rollout.
 
 ## Security & threat model
 

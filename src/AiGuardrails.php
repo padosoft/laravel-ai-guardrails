@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails;
 
 use Closure;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Tool;
@@ -52,6 +53,7 @@ final readonly class AiGuardrails
         private ?OutputStatStore $outputStatStore = null,
         private ?ControlMode $firewallMode = null,
         private ?ControlMode $hitlMode = null,
+        private ?Dispatcher $events = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -82,7 +84,7 @@ final readonly class AiGuardrails
             return $tool;
         }
 
-        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore, $mode);
+        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore, $mode, $this->events);
     }
 
     /**
@@ -107,7 +109,7 @@ final readonly class AiGuardrails
         // Narrow to the literal union; any value other than 'pass' fails safe to 'deny'.
         $fallback = $this->hitlFallback === 'pass' ? 'pass' : 'deny';
 
-        return new ApprovalGatedTool($tool, $this->router, $this->resolver($principalResolver), $toolName, $fallback, $mode);
+        return new ApprovalGatedTool($tool, $this->router, $this->resolver($principalResolver), $toolName, $fallback, $mode, $this->events);
     }
 
     /**

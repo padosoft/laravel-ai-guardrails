@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails;
 
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
@@ -198,6 +200,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 static fn () => rescue(static fn () => auth()->guard()->id(), null, false),
                 $mode->isActive(),
                 $mode,
+                self::eventDispatcher($app),
             );
         });
 
@@ -236,6 +239,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $mode->isActive(),
                 $app->make(OutputStatStore::class),
                 $mode,
+                self::eventDispatcher($app),
             );
         });
 
@@ -267,9 +271,23 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $app->make(OutputStatStore::class),
                 ResolvesControlMode::for('tool_firewall', 'ai-guardrails.tool_firewall.enabled'),
                 ResolvesControlMode::for('hitl', 'ai-guardrails.hitl.enabled'),
+                self::eventDispatcher($app),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
+    }
+
+    /**
+     * The event dispatcher to wire into the controls — null when domain events are disabled
+     * (`events.enabled=false`), so each control's `?Dispatcher` falls back to emitting nothing. E4.
+     */
+    private static function eventDispatcher(Application $app): ?Dispatcher
+    {
+        if (! (bool) config('ai-guardrails.events.enabled', true)) {
+            return null;
+        }
+
+        return $app->make(Dispatcher::class);
     }
 
     /**
