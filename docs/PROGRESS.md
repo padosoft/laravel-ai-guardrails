@@ -223,7 +223,8 @@
 - [x] `AiGuardrails::guard()` composes authorize → re-scope → validate → run: wraps FirewalledTool with AuthorizedTool only when authz enabled (authorizer is `?ToolAuthorizer`, null when disabled). Provider binds ToolAuthorizer (Gate when enabled, else AllowAll) + new `tool_authorization.ability` config key.
 - [x] Tests: `RecursiveArgumentScoperTest` (depth both-states + nested null-refusal + array-valued owner key), `ToolAuthorizationTest` (decorator allow/deny, Gate fail-closed ×3, guard() composition both-states).
 - [x] README: tool-authorization section (Gate define example, fail-closed) + config table rows (R9).
-- [x] **390 tests / 1001 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **Decision (owner_key_depth default):** local review proposed `top_level` for back-compat; overrode to **`recursive`** (config + provider fallback consistent) — an IDOR-prevention firewall must close nested holes by default, recursive only ever overwrites a model-supplied owner key (never weakens a tool), v0.x permits the hardening. Locked by provider-default tests. Added `test_gate_fails_closed_when_unauthenticated` from review.
+- [x] **393 tests / 1004 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E9 mutation testing, E9-API, E10 release.
 
 ### Next

@@ -171,4 +171,27 @@ final class ToolAuthorizationTest extends TestCase
         $guarded = $this->rebuild()->guard(new FakeOwnedTool);
         self::assertInstanceOf(FirewalledTool::class, $guarded);
     }
+
+    // ---- owner_key_depth provider default (fail-secure) ----------------------------------------
+
+    public function test_provider_wires_recursive_scoping_by_default(): void
+    {
+        // No explicit owner_key_depth → the published-config default (recursive) applies: a nested
+        // owner key is re-scoped. This locks the fail-secure fallback (a missing key → MORE scoping).
+        $this->app->forgetInstance(ArgumentScoper::class);
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        $result = $this->resolve(ArgumentScoper::class)->scope(['order' => ['user_id' => '999']], '42');
+        self::assertSame('42', $result['order']['user_id']);
+    }
+
+    public function test_provider_respects_explicit_top_level_depth(): void
+    {
+        $this->app['config']->set('ai-guardrails.tool_authorization.owner_key_depth', 'top_level');
+        $this->app->forgetInstance(ArgumentScoper::class);
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        $result = $this->resolve(ArgumentScoper::class)->scope(['order' => ['user_id' => '999']], '42');
+        self::assertSame('999', $result['order']['user_id']); // nested key left alone
+    }
 }

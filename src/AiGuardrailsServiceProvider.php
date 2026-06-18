@@ -86,7 +86,10 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             $this->app->singleton(ArgumentScoper::class, static function ($app): ArgumentScoper {
                 $ownerKeys = $app['config']->get('ai-guardrails.tool_firewall.owner_keys', []);
                 // E7: owner_key_depth=recursive re-scopes owner keys at any nesting depth, not just top-level.
-                $recursive = $app['config']->get('ai-guardrails.tool_authorization.owner_key_depth', 'top_level') === 'recursive';
+                // Fallback matches the published config default (recursive) and the fail-secure posture
+                // (a missing key resolves to MORE scoping, never less). recursive only ever closes an IDOR
+                // hole — it can't weaken a security-conscious tool. Only an explicit 'top_level' opts out.
+                $recursive = $app['config']->get('ai-guardrails.tool_authorization.owner_key_depth', 'recursive') !== 'top_level';
 
                 return new UserScopedArgumentScoper(is_array($ownerKeys) ? array_values($ownerKeys) : [], $recursive);
             });
