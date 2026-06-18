@@ -245,5 +245,12 @@
 - [x] **423 tests / 1087 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E10 release (tag SemVer + GitHub Release).
 
-### Next
-- E9-API DoD → merge. Then E10: tag (e.g. v0.3.0 — additive enterprise-hardening over v0.2.0) + GitHub Release.
+### Task E9-API — MERGED (PR #26, squash `0414ace`, 2026-06-18). Local review caught a real bug (HITL mode falsely 'enforce' when hitl.enabled absent) → short-circuit to Off when disabled. CI green.
+
+### Task E10 — Release v0.3.0 (DONE, 2026-06-18)
+- [x] All enterprise-hardening epics (E3–E9 + E9-API) merged to `main`; main CI green at closure SHA `0414ace`.
+- [x] Tagged **v0.3.0** (annotated) at `0414ace` + cut the GitHub Release "v0.3.0 — Enterprise hardening" (additive/backward-compatible over v0.2.0; default-safe toggles). https://github.com/padosoft/laravel-ai-guardrails/releases/tag/v0.3.0
+- [x] **423 tests / 1087 assertions** green (PHP 8.3/8.4/8.5 × Laravel 13); PHPStan level 8; Pint clean; Infection ≥80% MSI in CI.
+
+## ✅ ROADMAP 100% COMPLETE
+Task -1 governance · Tasks 0–8 core (4 controls + E1/E2/E8 + Artisan + arch tests + README) · Tasks 9–18 HTTP API (v0.2.0) · E3 modes · E4 events · E5 hygiene/retention · E6 settings-audit · E7 tool-authz · E9 mutation gate · E9-API deltas · **E10 release v0.3.0**. Nothing outstanding. Follow-ups left as documented limitations (MCP surface; cross-script homoglyph confusables; the `-admin` SPA is a separate package).
