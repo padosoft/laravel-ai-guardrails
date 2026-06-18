@@ -25,16 +25,20 @@ use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
  * Write patterns in lowercase, or add the /i flag — case-sensitive patterns without /i will miss
  * mixed-case inputs after casefold normalization.
  */
-final readonly class UnicodePromptNormalizer implements PromptNormalizer
+final class UnicodePromptNormalizer implements PromptNormalizer
 {
+    private readonly ConfusablesFolder $resolvedFolder;
+
     public function __construct(
-        private bool $nfkc = true,
-        private bool $stripZeroWidth = true,
-        private bool $stripControl = true,
-        private bool $casefold = true,
-        private bool $foldConfusables = true,
-        private ?ConfusablesFolder $confusablesFolder = null,
-    ) {}
+        private readonly bool $nfkc = true,
+        private readonly bool $stripZeroWidth = true,
+        private readonly bool $stripControl = true,
+        private readonly bool $casefold = true,
+        private readonly bool $foldConfusables = true,
+        ?ConfusablesFolder $confusablesFolder = null,
+    ) {
+        $this->resolvedFolder = $confusablesFolder ?? new ConfusablesFolder;
+    }
 
     public function normalize(string $prompt): string
     {
@@ -86,7 +90,7 @@ final readonly class UnicodePromptNormalizer implements PromptNormalizer
             // Map cross-script homoglyphs (Cyrillic/Greek look-alikes) to a Latin skeleton so an
             // attacker can't slip "ignоre" (Cyrillic о) past the patterns. Runs before casefold so the
             // skeleton (lowercase Latin) and any native Latin are lower-cased together below.
-            $text = ($this->confusablesFolder ?? new ConfusablesFolder)->fold($text);
+            $text = $this->resolvedFolder->fold($text);
         }
 
         if ($this->casefold) {

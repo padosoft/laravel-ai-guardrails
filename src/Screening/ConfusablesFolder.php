@@ -31,7 +31,16 @@ final class ConfusablesFolder
         "\u{0430}" => 'a', "\u{0435}" => 'e', "\u{043E}" => 'o', "\u{0440}" => 'p',
         "\u{0441}" => 'c', "\u{0445}" => 'x', "\u{0443}" => 'y', "\u{0456}" => 'i',
         "\u{0458}" => 'j', "\u{0455}" => 's', "\u{051B}" => 'q', "\u{051D}" => 'w',
-        "\u{04BB}" => 'h', "\u{0501}" => 'd', "\u{0261}" => 'g',
+        "\u{04BB}" => 'h', "\u{0501}" => 'd',
+        // Lowercase counterparts of uppercase-mapped Cyrillic — mb_strtolower folds Cyrillic case AFTER
+        // the confusables pass, so without these an attacker using native lowercase Cyrillic evades:
+        "\u{043C}" => 'm', // м small em  (≈ Latin m)
+        "\u{043D}" => 'h', // н small en  (≈ Latin h in many fonts)
+        "\u{0432}" => 'b', // в small ve  (≈ Latin b in bold fonts)
+        "\u{0442}" => 't', // т small te  (≈ Latin t in italic/monospace)
+        "\u{043A}" => 'k', // к small ka  (≈ Latin k)
+        // ── IPA / Phonetic Latin ──
+        "\u{0261}" => 'g', // Latin small letter script g (IPA) ≈ Latin g
         // ── Cyrillic uppercase (→ lowercase Latin skeleton) ──
         "\u{0410}" => 'a', "\u{0412}" => 'b', "\u{0415}" => 'e', "\u{041A}" => 'k',
         "\u{041C}" => 'm', "\u{041D}" => 'h', "\u{041E}" => 'o', "\u{0420}" => 'p',
@@ -40,6 +49,7 @@ final class ConfusablesFolder
         // ── Greek lowercase ──
         "\u{03BF}" => 'o', "\u{03B1}" => 'a', "\u{03C1}" => 'p', "\u{03BD}" => 'v',
         "\u{03B9}" => 'i', "\u{03BA}" => 'k', "\u{03C5}" => 'u',
+        "\u{03C4}" => 't', // τ small tau (≈ Latin t; uppercase Τ already mapped above)
         // ── Greek uppercase (→ lowercase Latin skeleton) ──
         "\u{0391}" => 'a', "\u{0392}" => 'b', "\u{0395}" => 'e', "\u{0397}" => 'h',
         "\u{0399}" => 'i', "\u{039A}" => 'k', "\u{039C}" => 'm', "\u{039D}" => 'n',

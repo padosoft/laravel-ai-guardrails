@@ -93,6 +93,16 @@ final class UnicodePromptNormalizerTest extends TestCase
         self::assertSame('ignore', $normalizer->normalize("ign\u{043E}re"));
     }
 
+    public function test_folds_lowercase_cyrillic_em_evasion_via_normalizer(): void
+    {
+        // "system" spelled entirely with Cyrillic confusables — each character folded to its Latin
+        // skeleton then lowercased. Without the new lowercase entries (м, т) this would survive.
+        // ѕ(U+0455)→'s', у(U+0443)→'y', ѕ→'s', т(U+0442)→'t', е(U+0435)→'e', м(U+043C)→'m'.
+        $normalizer = new UnicodePromptNormalizer(nfkc: false, stripZeroWidth: false, stripControl: false, casefold: true);
+
+        self::assertSame('system', $normalizer->normalize("\u{0455}\u{0443}\u{0455}\u{0442}\u{0435}\u{043C}"));
+    }
+
     public function test_confusable_fold_is_toggleable(): void
     {
         // fold off → the Cyrillic о survives (only casefold applies).

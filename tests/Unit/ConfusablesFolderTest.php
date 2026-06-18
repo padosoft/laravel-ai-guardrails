@@ -15,8 +15,34 @@ final class ConfusablesFolderTest extends TestCase
 
         // "ignоrе" with a Cyrillic о (U+043E) and е (U+0435) → ASCII skeleton.
         self::assertSame('ignore', $folder->fold("ign\u{043E}r\u{0435}"));
-        // Each high-value lowercase Cyrillic confusable.
+        // Each high-value lowercase Cyrillic confusable (original set).
         self::assertSame('aeopcxyij', $folder->fold("\u{0430}\u{0435}\u{043E}\u{0440}\u{0441}\u{0445}\u{0443}\u{0456}\u{0458}"));
+    }
+
+    public function test_folds_cyrillic_lowercase_counterparts_of_uppercase_mapped_chars(): void
+    {
+        $folder = new ConfusablesFolder;
+
+        // м (U+043C) ≈ m, н (U+043D) ≈ h, в (U+0432) ≈ b, т (U+0442) ≈ t, к (U+043A) ≈ k.
+        // Without these, an attacker writing all-lowercase Cyrillic would evade the fold because
+        // mb_strtolower leaves Cyrillic lowercase as Cyrillic (the fold runs before casefold).
+        self::assertSame('m', $folder->fold("\u{043C}"));
+        self::assertSame('h', $folder->fold("\u{043D}"));
+        self::assertSame('b', $folder->fold("\u{0432}"));
+        self::assertSame('t', $folder->fold("\u{0442}"));
+        self::assertSame('k', $folder->fold("\u{043A}"));
+        // A realistic evasion attempt: "system" with all characters replaced by Cyrillic confusables.
+        // ѕ(U+0455)→'s', у(U+0443)→'y', ѕ→'s', т(U+0442)→'t'(NEW), е(U+0435)→'e', м(U+043C)→'m'(NEW).
+        self::assertSame('system', $folder->fold("\u{0455}\u{0443}\u{0455}\u{0442}\u{0435}\u{043C}"));
+    }
+
+    public function test_folds_greek_tau_lowercase(): void
+    {
+        $folder = new ConfusablesFolder;
+
+        // Greek lowercase τ (U+03C4) ≈ Latin t. Uppercase Τ (U+03A4) was already mapped; the
+        // lowercase counterpart was missing and could be used to evade "system", "instructions", etc.
+        self::assertSame('t', $folder->fold("\u{03C4}"));
     }
 
     public function test_folds_uppercase_cyrillic_to_lowercase_latin_skeleton(): void
