@@ -115,6 +115,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 (bool) $cfg->get('ai-guardrails.normalization.strip_zero_width', true),
                 (bool) $cfg->get('ai-guardrails.normalization.strip_control', true),
                 (bool) $cfg->get('ai-guardrails.normalization.casefold', true),
+                (bool) $cfg->get('ai-guardrails.normalization.fold_confusables', true),
             );
         });
 

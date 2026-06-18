@@ -16,10 +16,10 @@ use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
  * Degrades gracefully if the intl extension is absent (NFKC is skipped; the other passes still run).
  * All PCRE uses the /u flag.
  *
- * KNOWN GAP: NFKC handles fullwidth Latin (ｉｇｎｏｒｅ → ignore) but does NOT collapse cross-script
- * lookalikes (Cyrillic а ≠ Latin a, Greek ο ≠ Latin o, IPA homoglyphs, etc.). Operators writing
- * patterns should be aware that such characters pass through as-is. See Unicode confusables /
- * skeleton algorithm for future hardening.
+ * Cross-script homoglyphs: NFKC handles fullwidth Latin (ｉｇｎｏｒｅ → ignore) but does NOT collapse
+ * cross-alphabet look-alikes (Cyrillic а ≠ Latin a, Greek ο ≠ Latin o). The `foldConfusables` pass
+ * (see {@see ConfusablesFolder}) closes that gap by mapping a curated set of those look-alikes to a
+ * Latin skeleton before matching. It is a lossy, one-way fold applied on the match path only.
  *
  * PATTERN AUTHORING NOTE: All patterns are matched against the casefolded, NFKC-normalized form.
  * Write patterns in lowercase, or add the /i flag — case-sensitive patterns without /i will miss
@@ -32,6 +32,8 @@ final readonly class UnicodePromptNormalizer implements PromptNormalizer
         private bool $stripZeroWidth = true,
         private bool $stripControl = true,
         private bool $casefold = true,
+        private bool $foldConfusables = true,
+        private ?ConfusablesFolder $confusablesFolder = null,
     ) {}
 
     public function normalize(string $prompt): string
@@ -78,6 +80,13 @@ final readonly class UnicodePromptNormalizer implements PromptNormalizer
             } else {
                 $text = $result;
             }
+        }
+
+        if ($this->foldConfusables) {
+            // Map cross-script homoglyphs (Cyrillic/Greek look-alikes) to a Latin skeleton so an
+            // attacker can't slip "ignоre" (Cyrillic о) past the patterns. Runs before casefold so the
+            // skeleton (lowercase Latin) and any native Latin are lower-cased together below.
+            $text = ($this->confusablesFolder ?? new ConfusablesFolder)->fold($text);
         }
 
         if ($this->casefold) {

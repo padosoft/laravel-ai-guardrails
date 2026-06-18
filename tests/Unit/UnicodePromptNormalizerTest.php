@@ -84,4 +84,20 @@ final class UnicodePromptNormalizerTest extends TestCase
 
         self::assertSame("\u{FF49}\u{FF47}\u{FF4E}", $normalizer->normalize("\u{FF49}\u{FF47}\u{FF4E}"));
     }
+
+    public function test_folds_cross_script_confusables_when_enabled(): void
+    {
+        // Cyrillic о (U+043E) → Latin o so the canonical form matches. Casefold + fold both on.
+        $normalizer = new UnicodePromptNormalizer(nfkc: false, stripZeroWidth: false, stripControl: false, casefold: true);
+
+        self::assertSame('ignore', $normalizer->normalize("ign\u{043E}re"));
+    }
+
+    public function test_confusable_fold_is_toggleable(): void
+    {
+        // fold off → the Cyrillic о survives (only casefold applies).
+        $normalizer = new UnicodePromptNormalizer(nfkc: false, stripZeroWidth: false, stripControl: false, casefold: true, foldConfusables: false);
+
+        self::assertSame("ign\u{043E}re", $normalizer->normalize("ign\u{043E}re"));
+    }
 }

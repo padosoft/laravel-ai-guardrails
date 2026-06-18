@@ -129,6 +129,9 @@ return [
         'strip_zero_width' => true,
         'strip_control' => true,
         'casefold' => true,
+        // Fold cross-script homoglyphs (Cyrillic/Greek look-alikes) to a Latin skeleton before
+        // matching, so e.g. "ignоre" (Cyrillic о) can't evade the patterns. Curated map; Task L1.
+        'fold_confusables' => true,
         'decode_base64_blobs' => false,
         // Maximum prompt length in Unicode code points (not bytes). Prompts exceeding this limit
         // are blocked with verdict 'too_long' before screening. 0 = unlimited.
