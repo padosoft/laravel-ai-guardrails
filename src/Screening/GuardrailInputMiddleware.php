@@ -14,11 +14,14 @@ use Laravel\Ai\Responses\Data\Usage;
 use Padosoft\AiGuardrails\Audit\InjectionAttempt;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
+use Padosoft\AiGuardrails\Support\ControlMode;
 
 /**
- * laravel/ai agent middleware (Control B). Screens the prompt BEFORE the model is called; on a
- * block it refuses by returning a fabricated AgentResponse WITHOUT invoking $next (the model is
- * never reached). EVERY attempt — blocked and allowed — is appended to the append-only audit.
+ * laravel/ai agent middleware (Control B). Screens the prompt BEFORE the model is called; in
+ * `enforce` mode a block refuses by returning a fabricated AgentResponse WITHOUT invoking $next (the
+ * model is never reached). In `monitor` mode the detection is audited (`blocked=false`, rule id set)
+ * but the prompt is passed through. EVERY attempt — blocked, observed, and allowed — is appended to
+ * the append-only audit. `off` → pure pass-through.
  */
 final readonly class GuardrailInputMiddleware
 {
@@ -28,12 +31,16 @@ final readonly class GuardrailInputMiddleware
         private InjectionAuditStore $audit,
         private ?Closure $principalResolver = null,
         private bool $enabled = true,
+        private ?ControlMode $mode = null,
     ) {}
 
     public function handle(AgentPrompt $prompt, Closure $next): mixed
     {
-        // Master / control disabled → true pass-through: no screening, no audit, no auth resolution.
-        if (! $this->enabled) {
+        // Explicit mode wins; otherwise the legacy `enabled` flag maps true→enforce, false→off.
+        $mode = $this->mode ?? ($this->enabled ? ControlMode::Enforce : ControlMode::Off);
+
+        // Control off → true pass-through: no screening, no audit, no auth resolution.
+        if (! $mode->isActive()) {
             return $next($prompt);
         }
 
@@ -41,9 +48,13 @@ final readonly class GuardrailInputMiddleware
 
         $principal = $this->principalResolver !== null ? ($this->principalResolver)() : null;
 
+        // In monitor mode the prompt is NOT blocked, so the audit records blocked=false but keeps the
+        // matched rule id — distinguishing an observed injection from a clean allow.
+        $willBlock = $verdict->blocked && $mode->enforces();
+
         $this->audit->append(new InjectionAttempt(
             $prompt->prompt,
-            $verdict->blocked,
+            $willBlock,
             $verdict->ruleId,
             $principal !== null ? (string) $principal : null,
             new DateTimeImmutable('now', new DateTimeZone('UTC')),
@@ -52,7 +63,7 @@ final readonly class GuardrailInputMiddleware
             $verdict->matchedSpan,
         ));
 
-        if ($verdict->blocked) {
+        if ($willBlock) {
             // Refuse without calling the model: $next is never invoked.
             return new AgentResponse(
                 $prompt->invocationId ?? '',

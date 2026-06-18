@@ -7,10 +7,12 @@ namespace Padosoft\AiGuardrails\Hitl;
 use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
+use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
 
 /**
@@ -19,6 +21,11 @@ use Stringable;
  * The real execution happens later, when a human approves (the flow runs the tool then). When
  * approval is unavailable (flow absent), the configured fallback applies: 'deny' refuses, 'pass'
  * executes the delegate.
+ *
+ * Modes: `enforce` parks the call (the behaviour above); `monitor` executes the delegate directly
+ * (shadow rollout — the destructive call runs unblocked) and emits a structured log entry so the
+ * operator can observe which calls would have been gated. E4 events will replace the log entry with
+ * a domain event. `off` never wraps the tool, so this decorator only sees enforce/monitor.
  *
  * Security notes:
  * - The plain-text approval token is NEVER returned to the model; only a non-secret run reference
@@ -37,6 +44,7 @@ final readonly class ApprovalGatedTool implements Tool
         private Closure $principalResolver,
         private string $toolName,
         private string $fallback = 'deny',
+        private ControlMode $mode = ControlMode::Enforce,
     ) {
         if (! in_array($this->fallback, ['deny', 'pass'], true)) {
             throw new InvalidArgumentException(
@@ -52,6 +60,20 @@ final readonly class ApprovalGatedTool implements Tool
 
     public function handle(Request $request): Stringable|string
     {
+        // Monitor (shadow rollout): do not gate — run the destructive call directly. A structured
+        // log entry is emitted so operators can see which calls would have been parked (until E4
+        // events replace this with a domain event). Request args are intentionally omitted to avoid
+        // logging PII/secrets; the tool name + principal provide sufficient signal for alerting.
+        if (! $this->mode->enforces()) {
+            Log::info('laravel-ai-guardrails: HITL monitor — would-have-gated destructive call ran unblocked.', [
+                'tool' => $this->toolName,
+                'delegate' => $this->delegate::class,
+                'principal' => ($this->principalResolver)(),
+            ]);
+
+            return $this->delegate->handle($request);
+        }
+
         if (! $this->router->isAvailable()) {
             return $this->fallback === 'pass'
                 ? $this->delegate->handle($request)

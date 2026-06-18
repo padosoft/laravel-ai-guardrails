@@ -17,6 +17,7 @@ use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
 use Padosoft\AiGuardrails\Exceptions\ToolArgumentRejection;
+use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
 
 /**
@@ -24,6 +25,13 @@ use Stringable;
  * (1) re-scope owner keys to the authenticated principal, (2) validate the scoped
  * arguments against the tool's own schema, (3) reject (throw) on any violation,
  * otherwise (4) delegate with the scoped arguments. Untrusted-input posture.
+ *
+ * Monitor-mode security note: in `monitor` the owner-key re-scoping IS applied (the
+ * principal's value always overwrites model-supplied owner keys), but schema violations
+ * — unknown fields, type mismatches — are NOT stripped; they reach the delegate tool.
+ * This is intentional for shadow rollout: the `FirewallRejectionStore` records every
+ * violation so operators can see what enforcement would block. Only use `monitor` when
+ * the downstream delegate is known to ignore unrecognised arguments.
  */
 final readonly class FirewalledTool implements Tool
 {
@@ -34,6 +42,7 @@ final readonly class FirewalledTool implements Tool
         private ToolArgumentValidator $validator,
         private Closure $principalResolver,
         private ?FirewallRejectionStore $rejectionStore = null,
+        private ControlMode $mode = ControlMode::Enforce,
     ) {}
 
     public function description(): Stringable|string
@@ -72,7 +81,13 @@ final readonly class FirewalledTool implements Tool
                 ]);
             }
 
-            throw new ToolArgumentRejection($violations, $description);
+            // enforce → block; monitor → record + pass through. Owner-key re-scoping is preserved in
+            // both modes (the principal's value always wins for owner keys). Schema-violating args
+            // (unknown fields, type mismatches) still reach the delegate in monitor mode — see the
+            // class-level security note. The rejection is recorded by rejectionStore either way.
+            if ($this->mode->enforces()) {
+                throw new ToolArgumentRejection($violations, $description);
+            }
         }
 
         return $this->delegate->handle(new Request($scoped));

@@ -21,6 +21,7 @@ use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
 use Padosoft\AiGuardrails\Output\StructuredOutputValidator;
 use Padosoft\AiGuardrails\Screening\ScreenVerdict;
+use Padosoft\AiGuardrails\Support\ControlMode;
 
 /**
  * The package's single PHP entry point (Facade-backed). Composes the four controls: screen() &
@@ -49,6 +50,8 @@ final readonly class AiGuardrails
         private ?Closure $principalResolver = null,
         private ?FirewallRejectionStore $firewallRejectionStore = null,
         private ?OutputStatStore $outputStatStore = null,
+        private ?ControlMode $firewallMode = null,
+        private ?ControlMode $hitlMode = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -62,7 +65,8 @@ final readonly class AiGuardrails
     }
 
     /**
-     * Wrap a tool with the firewall (re-scope owner keys + validate args). No-op when disabled.
+     * Wrap a tool with the firewall (re-scope owner keys + validate args). No-op when the control is
+     * off; in `monitor` the wrapper re-scopes + records rejections but does not throw (shadow rollout).
      *
      * @param  (Closure():(int|string|null))|null  $principalResolver
      */
@@ -72,26 +76,38 @@ final readonly class AiGuardrails
             return $tool;
         }
 
-        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore);
+        // Back-compat: when no explicit mode was wired (direct construction), enforce.
+        $mode = $this->firewallMode ?? ControlMode::Enforce;
+        if (! $mode->isActive()) {
+            return $tool;
+        }
+
+        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore, $mode);
     }
 
     /**
-     * Wrap a destructive tool with the HITL approval bridge. No-op when disabled.
+     * Wrap a destructive tool with the HITL approval bridge. No-op when the control is off; in
+     * `monitor` the wrapper runs the delegate directly (observe, do not park).
      *
      * @param  (Closure():(int|string|null))|null  $principalResolver
      */
     public function routeForApproval(Tool $tool, string $toolName, ?Closure $principalResolver = null): Tool
     {
-        // No gating when the master kill-switch OR the HITL control is off (otherwise a 'deny'
-        // fallback would wrongly block the tool even though approval gating is disabled).
-        if (! $this->enabled || ! $this->hitlEnabled) {
+        if (! $this->enabled) {
+            return $tool;
+        }
+
+        // Explicit mode wins; otherwise derive from the legacy hitl.enabled flag (true→enforce). No
+        // gating when off (otherwise a 'deny' fallback would wrongly block an un-gated tool).
+        $mode = $this->hitlMode ?? ($this->hitlEnabled ? ControlMode::Enforce : ControlMode::Off);
+        if (! $mode->isActive()) {
             return $tool;
         }
 
         // Narrow to the literal union; any value other than 'pass' fails safe to 'deny'.
         $fallback = $this->hitlFallback === 'pass' ? 'pass' : 'deny';
 
-        return new ApprovalGatedTool($tool, $this->router, $this->resolver($principalResolver), $toolName, $fallback);
+        return new ApprovalGatedTool($tool, $this->router, $this->resolver($principalResolver), $toolName, $fallback, $mode);
     }
 
     /**
