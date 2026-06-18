@@ -187,7 +187,8 @@
 - [x] Provider wires the dispatcher via `eventDispatcher($app)` helper → null when `events.enabled=false` (both-states). Threaded into both middlewares + AiGuardrails ctor (→ guard()/routeForApproval() decorators).
 - [x] `tests/Feature/DomainEventsTest.php` — Event::fake() coverage of all 5 events + clean-path no-event + both-states gate. 9 tests.
 - [x] README: new "Domain events" section (5 event FQCNs + `events.enabled` gate — R9 verified).
-- [x] **341 tests / 881 assertions** GREEN; pint + phpstan level 8 clean.
+- [x] **Local review fixes (autopilot):** `$enforced` flag added to the shared-class events (ToolArgumentRejected, OutputSanitized) so the host distinguishes enforce vs monitor without inspecting config; input middleware dispatches BEFORE the audit append so a DB outage can't silence the SIEM signal; README security note that the injection events carry the raw prompt (don't forward the full InjectionAttempt to external webhooks — anticipates E5 hygiene).
+- [x] **344 tests / 884 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E5 audit hygiene/retention/purge, E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
 
 ### Next
