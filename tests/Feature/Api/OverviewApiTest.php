@@ -20,7 +20,7 @@ final class OverviewApiTest extends TestCase
         $app['config']->set('ai-guardrails.audit.store', 'array');
     }
 
-    private function seedAttempt(bool $blocked, ?string $ruleId = null): void
+    private function seedAttempt(bool $blocked, ?string $ruleId = null, ?DateTimeImmutable $occurredAt = null): void
     {
         /** @var InjectionAuditStore $store */
         $store = $this->app->make(InjectionAuditStore::class);
@@ -29,7 +29,7 @@ final class OverviewApiTest extends TestCase
             blocked: $blocked,
             ruleId: $ruleId,
             principalId: 'u1',
-            occurredAt: new DateTimeImmutable('now', new DateTimeZone('UTC')),
+            occurredAt: $occurredAt ?? new DateTimeImmutable('now', new DateTimeZone('UTC')),
         ));
     }
 
@@ -45,6 +45,7 @@ final class OverviewApiTest extends TestCase
         $this->assertArrayHasKey('observed_24h', $data['totals']);
         $this->assertArrayHasKey('pending_approvals', $data['totals']);
         $this->assertSame(1, $data['totals']['observed_24h']);
+        $this->assertSame(0, $data['totals']['pending_approvals']);
         foreach ($data['controls'] as $control) {
             $this->assertArrayHasKey('posture', $control);
             $this->assertArrayHasKey('spark', $control);
@@ -110,5 +111,31 @@ final class OverviewApiTest extends TestCase
         $this->assertSame('Engaged', $controls['input_screen']['posture']);
         $this->assertSame('Observing', $controls['tool_firewall']['posture']);
         $this->assertSame('Disabled', $controls['output_handler']['posture']);
+        $this->assertSame('Disabled', $controls['hitl']['posture']);
+    }
+
+    public function test_attempt_older_than_12h_is_excluded_from_spark(): void
+    {
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+        // An attempt exactly 13 hours ago — must NOT appear in any spark bucket.
+        $this->seedAttempt(blocked: true, ruleId: null, occurredAt: $now->modify('-13 hours'));
+
+        // A recent attempt (within the last hour) — should appear in the last bucket (index 11).
+        $this->seedAttempt(blocked: false, ruleId: null, occurredAt: $now->modify('-30 minutes'));
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        foreach ($data['controls'] as $control) {
+            $spark = $control['spark'];
+            $this->assertCount(12, $spark);
+
+            // The 13h-old attempt must not contribute any count — only the recent one should.
+            $total = array_sum($spark);
+            $this->assertSame(1, $total, "Expected exactly 1 spark count (recent attempt only), got {$total} for control {$control['key']}");
+
+            // The recent attempt falls in bucket index 11 (current hour).
+            $this->assertSame(1, $spark[11], "Expected bucket 11 (current hour) to have count 1 for control {$control['key']}");
+        }
     }
 }

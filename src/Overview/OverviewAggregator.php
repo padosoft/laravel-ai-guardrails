@@ -44,10 +44,15 @@ final readonly class OverviewAggregator
         // observed: rule matched (ruleId set) but NOT blocked — shadow-rollout monitor hits
         $observed24h = array_filter($in24h, static fn ($a): bool => $a->ruleId !== null && ! $a->blocked);
 
-        // Fetch the recent 12h window for sparkline buckets (hourly; most recent last)
+        // Fetch the recent 12h window for sparkline buckets (hourly; most recent last).
+        // Use strictly-greater-than so a row at exactly T-12h is excluded: the bucket formula
+        // gives hoursAgo=12 → bucketIndex=-1 (out of range), so the pre-filter and bucket
+        // assignment must agree on the boundary.
         $cutoff12h = $now->modify('-12 hours');
-        $in12h = array_filter($recent, static fn ($a): bool => $a->occurredAt >= $cutoff12h);
+        $in12h = array_filter($recent, static fn ($a): bool => $a->occurredAt > $cutoff12h);
 
+        // NOTE: the audit store does not attribute attempts to a specific control, so every
+        // control shares the same trailing-12h sparkline (derived from all injection attempts).
         return [
             'controls' => [
                 $this->control('tool_firewall', 'Tool Firewall', $in12h, $now),
