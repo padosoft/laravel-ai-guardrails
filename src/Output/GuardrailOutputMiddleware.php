@@ -8,9 +8,11 @@ use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\AgentResponse;
+use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
@@ -23,8 +25,9 @@ use Padosoft\AiGuardrails\Support\ControlMode;
  * laravel/ai agent middleware (Control C). Treats the model response as untrusted: after the model
  * runs it rewrites `$response->text` in place — sanitize (HTML/markdown) then redact PII. For a
  * StructuredAgentResponse it ALSO recursively sanitizes every string leaf of `$structured` (those
- * fields are model-produced and may be rendered in a UI). Tool calls are governed by Controls A/D
- * (documented limitation). Each neutralisation is counted via the OutputStatStore (GET /output/stats).
+ * fields are model-produced and may be rendered in a UI). Tool calls are primarily governed by
+ * Controls A/D; an OPT-IN `sanitize_tool_calls` flag (default off) additionally cleans their string
+ * arguments as defense-in-depth. Each neutralisation is counted via the OutputStatStore (GET /output/stats).
  *
  * Modes: `enforce` rewrites the output; `monitor` records the SAME would-sanitize stats (so an
  * operator can see what enforcement would neutralise) but returns the ORIGINAL text unchanged
@@ -39,6 +42,7 @@ final readonly class GuardrailOutputMiddleware
         private ?OutputStatStore $stats = null,
         private ?ControlMode $mode = null,
         private ?Dispatcher $events = null,
+        private bool $sanitizeToolCalls = false,
     ) {}
 
     public function handle(AgentPrompt $prompt, Closure $next): mixed
@@ -67,6 +71,14 @@ final readonly class GuardrailOutputMiddleware
             // structured fields are additional untrusted model output and must be cleaned too.
             if ($response instanceof StructuredAgentResponse) {
                 $response->structured = $this->cleanStructured($response->structured, $apply, $kinds);
+            }
+
+            // L3 (opt-in, default off): defense-in-depth over the model's tool-call arguments. Tool
+            // calls are normally executed and governed by Controls A/D, so this is only for hosts that
+            // render/log the arguments; in monitor mode ($apply false) the leaves are left unchanged.
+            // $response->toolCalls is always a Collection (initialised by TextResponse).
+            if ($this->sanitizeToolCalls) {
+                $response->toolCalls = $this->cleanToolCalls($response->toolCalls, $apply, $kinds);
             }
         }
 
@@ -139,6 +151,37 @@ final readonly class GuardrailOutputMiddleware
                 'exception' => $e,
             ]);
         }
+    }
+
+    /**
+     * Sanitize the string leaves of each tool call's arguments. Each item is a ToolCall (production)
+     * whose `$arguments` array is cleaned in place, or a plain array (lightweight callers) cleaned
+     * structurally. Non-string/non-array leaves and unrecognised item shapes are left untouched.
+     *
+     * @param  Collection<array-key,mixed>  $toolCalls
+     * @param  list<string>  $kinds  accumulator (by ref)
+     * @return Collection<array-key,mixed>
+     */
+    private function cleanToolCalls(Collection $toolCalls, bool $apply, array &$kinds): Collection
+    {
+        return $toolCalls->map(function (mixed $call) use ($apply, &$kinds): mixed {
+            if ($call instanceof ToolCall) {
+                $cleaned = $this->cleanStructured($call->arguments, $apply, $kinds);
+                // In monitor mode ($apply false) stats are recorded above but the object must not
+                // be mutated — skip the assignment so the original arguments array is preserved.
+                if ($apply) {
+                    $call->arguments = $cleaned;
+                }
+
+                return $call;
+            }
+
+            if (is_array($call)) {
+                return $this->cleanStructured($call, $apply, $kinds);
+            }
+
+            return $call;
+        });
     }
 
     /**

@@ -37,6 +37,11 @@ return [
         'html_mode' => env('AI_GUARDRAILS_HTML_MODE', 'escape'),
         // PII redaction is delegated to padosoft/laravel-pii-redactor when present.
         'redact_pii' => env('AI_GUARDRAILS_REDACT_PII', true),
+        // OPT-IN defense-in-depth (Task L3): also sanitize the string leaves of the model's tool-call
+        // arguments. DEFAULT OFF — tool args are normally executed (governed by Controls A/D), and
+        // rewriting them could corrupt a legitimate call. Enable ONLY when tool-call arguments are
+        // rendered/logged in a context where HTML/markdown/PII matters.
+        'sanitize_tool_calls' => env('AI_GUARDRAILS_SANITIZE_TOOL_CALLS', false),
     ],
 
     // Control D — HITL bridge (default-OFF: requires padosoft/laravel-flow + persistence).
