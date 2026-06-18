@@ -45,6 +45,7 @@ use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
 use Padosoft\AiGuardrails\Hitl\ApprovalRouterFactory;
 use Padosoft\AiGuardrails\Hitl\HitlInstallCommand;
 use Padosoft\AiGuardrails\Hitl\HitlStatusCommand;
+use Padosoft\AiGuardrails\Mcp\McpServerRegistrar;
 use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
@@ -481,6 +482,12 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         }
 
         $this->registerApiRoutes($effectiveMiddleware);
+
+        // MCP surface (Task L5) — DEFAULT-OFF. The registrar keeps the laravel/mcp reference inside
+        // src/Mcp and no-ops when the package is absent (compose-not-couple).
+        if ((bool) config('ai-guardrails.mcp.enabled', false)) {
+            McpServerRegistrar::registerIfAvailable();
+        }
     }
 
     /**

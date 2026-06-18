@@ -27,6 +27,9 @@
             "Http",
             "Console",
             "Overview",
+            // MCP adapter surface (L5) — thin tool/server adapters over the facade; same IO-adapter
+            // category as Http/Console (their mutants are JSON keys + delegation, behaviourally low-signal).
+            "Mcp",
             // Persistence + vendor-adapter layers (the package's architectural integration boundaries,
             // per CLAUDE.md: flow adapters live in src/Hitl, persistence in the Database* stores). These
             // are exercised by the database / laravel-flow integration tests; mutating their SQL dialect

@@ -87,6 +87,11 @@ final class ConventionsTest extends TestCase
             if (str_contains($content, 'HTMLPurifier') && ! str_contains($unix, '/src/Output/')) {
                 $violations[] = "{$file} references HTMLPurifier outside src/Output";
             }
+
+            // laravel/mcp (L5) may only be referenced inside the src/Mcp adapter dir.
+            if (str_contains($content, 'Laravel\\Mcp') && ! str_contains($unix, '/src/Mcp/')) {
+                $violations[] = "{$file} references Laravel\\Mcp outside src/Mcp";
+            }
         }
 
         self::assertSame([], $violations, "compose-not-couple boundary violated:\n".implode("\n", $violations));

@@ -104,6 +104,13 @@ return [
         'table' => env('AI_GUARDRAILS_SETTINGS_AUDIT_TABLE', 'ai_guardrails_settings_changes'),
     ],
 
+    // MCP surface (Task L5): exposes screen/sanitize/audit as MCP tools to AI clients via laravel/mcp.
+    // DEFAULT-OFF — requires `laravel/mcp` and an explicit opt-in; registered as a local (stdio) server
+    // under the handle "ai-guardrails" (php artisan mcp:start ai-guardrails).
+    'mcp' => [
+        'enabled' => env('AI_GUARDRAILS_MCP_ENABLED', false),
+    ],
+
     // HTTP API surface (consumed by the laravel-ai-guardrails-admin SPA). DEFAULT-OFF. Task 9.
     'api' => [
         'enabled' => env('AI_GUARDRAILS_API_ENABLED', false),
