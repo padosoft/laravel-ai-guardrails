@@ -10,6 +10,7 @@ use Padosoft\AiGuardrails\Audit\HygienicInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\InjectionAttempt;
 use Padosoft\AiGuardrails\Audit\PromptHygiene;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
+use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 final class HygienicInjectionAuditStoreTest extends TestCase
@@ -69,5 +70,23 @@ final class HygienicInjectionAuditStoreTest extends TestCase
         // recent() reflects the hashed prompt written through the decorator.
         self::assertSame('sha256:'.hash('sha256', 'secret'), $store->recent()[0]->prompt);
         self::assertCount(1, $store->recent());
+    }
+
+    /**
+     * When `redact` mode is active but the PII package is absent (null-object returns the input unchanged),
+     * the equality check must preserve the matched-span — not drop it — because no transformation occurred.
+     * This guards against a future refactor replacing the equality check with transformsContent().
+     */
+    public function test_redact_with_null_pii_preserves_span_when_content_unchanged(): void
+    {
+        $inner = new ArrayInjectionAuditStore;
+        $store = new HygienicInjectionAuditStore($inner, new PromptHygiene('redact', 2000, new NullPiiRedaction));
+
+        $store->append($this->attempt('no pii here'));
+
+        $recent = $inner->recent();
+        self::assertSame('no pii here', $recent[0]->prompt);
+        // NullPiiRedaction returns input unchanged → equality holds → span must be preserved, not dropped.
+        self::assertSame([0, 4], $recent[0]->matchedSpan);
     }
 }

@@ -62,8 +62,12 @@ final class GuardrailsPurgeCommandTest extends TestCase
         self::assertCount(1, $rows);
         self::assertSame('recent prompt', $rows[0]->prompt); // only the old row was deleted
 
-        // The erasure is actor-audited.
-        Log::shouldHaveReceived('info')->withArgs(static fn (string $m, array $c): bool => str_contains($m, 'retention maintenance')
+        // Pre-audit entry must be written (intent recorded BEFORE the mutation).
+        Log::shouldHaveReceived('info')->withArgs(static fn (string $m, array $c): bool => str_contains($m, 'retention maintenance starting')
+            && $c['actor'] === 'alice')->once();
+
+        // Post-audit entry records the affected-row count.
+        Log::shouldHaveReceived('info')->withArgs(static fn (string $m, array $c): bool => str_contains($m, 'retention maintenance applied')
             && $c['actor'] === 'alice'
             && $c['strategy'] === 'purge'
             && $c['affected'] === 1)->once();
@@ -113,5 +117,22 @@ final class GuardrailsPurgeCommandTest extends TestCase
 
         $this->artisan('ai-guardrails:purge', ['--strategy' => 'purge', '--days' => '30', '--actor' => 'x'])
             ->assertFailed();
+    }
+
+    public function test_days_zero_is_rejected_for_a_mutating_run(): void
+    {
+        $this->artisan('ai-guardrails:purge', ['--strategy' => 'purge', '--days' => '0', '--actor' => 'x'])
+            ->assertFailed();
+
+        // No rows touched — the guard fires before any query.
+        self::assertCount(2, $this->rows());
+    }
+
+    public function test_days_zero_is_allowed_for_dry_run(): void
+    {
+        $this->artisan('ai-guardrails:purge', ['--strategy' => 'purge', '--days' => '0', '--dry-run' => true])
+            ->assertSuccessful();
+
+        self::assertCount(2, $this->rows()); // dry-run never mutates
     }
 }

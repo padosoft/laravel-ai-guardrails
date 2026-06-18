@@ -39,7 +39,12 @@ final readonly class PromptHygiene
         };
     }
 
-    /** True when this mode may change the prompt content (so the stored matched-span no longer aligns). */
+    /**
+     * True when this mode MAY change the prompt content (reports mode capability, not runtime result).
+     * Note: `redact` returns true even when the PII package is absent (null-object) and no substitution
+     * actually occurs at runtime. The decorator uses a string-equality check on the actual output — not
+     * this method — to decide whether the matched-span still aligns with the stored prompt.
+     */
     public function transformsContent(): bool
     {
         return $this->mode !== 'raw';

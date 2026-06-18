@@ -66,6 +66,13 @@ final class GuardrailsPurgeCommand extends Command
             return self::FAILURE;
         }
 
+        // Guard against --days=0 on a mutating run: cutoff would be ~now(), matching every row.
+        if (! $dryRun && $days < 1) {
+            $this->error('--days must be >= 1 for a mutating run (use --dry-run to preview a days=0 count).');
+
+            return self::FAILURE;
+        }
+
         $cutoff = Carbon::now(new DateTimeZone('UTC'))->subDays($days)->format('Y-m-d H:i:s');
         $table = (string) $this->config('audit.table', 'ai_guardrails_injection_audit');
         $connection = $this->config('audit.connection');
@@ -80,6 +87,16 @@ final class GuardrailsPurgeCommand extends Command
             return self::SUCCESS;
         }
 
+        // Pre-audit: log the intent BEFORE the mutation so accountability is established even if the
+        // mutation is interrupted. A second post-run entry records the actual affected-row count.
+        Log::info('laravel-ai-guardrails: retention maintenance starting.', [
+            'actor' => trim((string) $actor),
+            'strategy' => $strategy,
+            'days' => $days,
+            'cutoff_utc' => $cutoff,
+            'table' => $table,
+        ]);
+
         $affected = $strategy === 'purge'
             ? $candidates()->delete()
             : $candidates()->update([
@@ -90,7 +107,6 @@ final class GuardrailsPurgeCommand extends Command
                 'match_end' => null,
             ]);
 
-        // Actor-audited: a permanent record of WHO erased WHAT, so the erasure itself is accountable.
         Log::info('laravel-ai-guardrails: retention maintenance applied.', [
             'actor' => trim((string) $actor),
             'strategy' => $strategy,
