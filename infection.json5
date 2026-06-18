@@ -14,10 +14,19 @@
         "directories": [
             "src"
         ],
+        // The gate targets the deterministic SECURITY-DECISION logic (firewall scoping/validation/
+        // authorization, prompt screening/normalization, output sanitization, audit hygiene,
+        // append-only guards, control-mode resolution, the AiGuardrails composition facade). The
+        // serialization / transport / presentation layers are excluded: they carry no branching
+        // security logic and are covered by the HTTP + console feature tests, so mutating their
+        // response-shaping, pagination clamps, CLI strings, and log-context arrays adds only noise.
         "excludes": [
             "AiGuardrailsServiceProvider.php",
             "Facades",
-            "Exceptions"
+            "Exceptions",
+            "Http",
+            "Console",
+            "Overview"
         ]
     },
     "mutators": {
