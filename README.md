@@ -212,7 +212,7 @@ Every behaviour is a config toggle (`config/ai-guardrails.php`). The four contro
 | `audit.store` | `'null'` | `'null'` \| `'array'` \| `'database'` (string tokens). |
 | `tool_authorization.enabled` | `false` | Gate tool use behind a Laravel `Gate` ability (fail-closed) — separate from owner-key re-scoping. |
 | `tool_authorization.ability` | `ai-guardrails:use-tool` | The Gate ability checked (with the tool class) before a guarded tool runs. |
-| `tool_authorization.owner_key_depth` | `recursive` | `recursive` re-scopes owner keys at any nesting depth; `top_level` only at the top. |
+| `tool_authorization.owner_key_depth` | `top_level` | `recursive` re-scopes owner keys at any nesting depth; `top_level` only at the top. |
 | `api.enabled` | `false` | The default-OFF HTTP admin API surface. |
 
 ### Tool authorization (Control A+)

@@ -131,6 +131,14 @@ final class ToolAuthorizationTest extends TestCase
         self::assertFalse($this->gateAuthorizer()->authorize(FakeOwnedTool::class));
     }
 
+    public function test_gate_fails_closed_when_unauthenticated(): void
+    {
+        GateFacade::define(self::ABILITY, static fn ($user, string $cls): bool => true);
+        // deliberately no actingAs() — no authenticated user
+
+        self::assertFalse($this->gateAuthorizer()->authorize(FakeOwnedTool::class));
+    }
+
     // ---- guard() composition (both-states) -----------------------------------------------------
 
     private function rebuild(): AiGuardrails

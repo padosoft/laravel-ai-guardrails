@@ -166,7 +166,7 @@ return [
         // The Gate ability checked (with the tool class) before a guarded tool runs. Define it in the
         // host: Gate::define('ai-guardrails:use-tool', fn ($user, string $toolClass) => ...). Fail-closed.
         'ability' => env('AI_GUARDRAILS_TOOL_AUTHZ_ABILITY', 'ai-guardrails:use-tool'),
-        'owner_key_depth' => env('AI_GUARDRAILS_OWNER_KEY_DEPTH', 'recursive'), // top_level | recursive
+        'owner_key_depth' => env('AI_GUARDRAILS_OWNER_KEY_DEPTH', 'top_level'), // top_level | recursive
         'destructive_match' => env('AI_GUARDRAILS_DESTRUCTIVE_MATCH', 'exact'), // exact | substring
     ],
 ];
