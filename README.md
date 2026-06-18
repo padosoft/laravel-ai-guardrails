@@ -240,6 +240,18 @@ composer require padosoft/laravel-pii-redactor  # enables PII redaction in Contr
 
 When a package is absent, `class_exists` guards bind null-object implementations, and the boundary is enforced by an architecture test (flow is referenced only in `src/Hitl`, pii-redactor + HTMLPurifier only in `src/Output`).
 
+### MCP surface
+
+A fourth surface (after PHP, Artisan, HTTP API): expose the guardrails to AI clients via [`laravel/mcp`](https://packagist.org/packages/laravel/mcp). **Default-OFF** — install the package and set `mcp.enabled = true`:
+
+```bash
+composer require laravel/mcp
+# config/ai-guardrails.php → 'mcp' => ['enabled' => true]
+php artisan mcp:start ai-guardrails   # local (stdio) server
+```
+
+Registered under the handle `ai-guardrails` with three tools: `screen_prompt` (Control B verdict), `sanitize_output` (Control C clean), and `recent_injection_audit` (read the append-only log). The `laravel/mcp` reference is confined to `src/Mcp` (architecture test).
+
 ### HITL setup (Control D)
 
 Control D needs `laravel-flow` installed and its tables migrated. Two commands make that turnkey and verifiable:
