@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Hitl;
 
 use Closure;
+use DateTimeImmutable;
+use DateTimeZone;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +15,7 @@ use InvalidArgumentException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
+use Padosoft\AiGuardrails\Events\DestructiveToolRouted;
 use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
 
@@ -45,6 +49,7 @@ final readonly class ApprovalGatedTool implements Tool
         private string $toolName,
         private string $fallback = 'deny',
         private ControlMode $mode = ControlMode::Enforce,
+        private ?Dispatcher $events = null,
     ) {
         if (! in_array($this->fallback, ['deny', 'pass'], true)) {
             throw new InvalidArgumentException(
@@ -80,18 +85,29 @@ final readonly class ApprovalGatedTool implements Tool
                 : "This destructive action [{$this->toolName}] is blocked: human approval is required but unavailable.";
         }
 
+        $principal = ($this->principalResolver)();
+
         try {
             $pending = $this->router->route(
                 $this->toolName,
                 $this->delegate::class,
                 $request->toArray(),
-                ($this->principalResolver)(),
+                $principal,
             );
         } catch (\Throwable) {
             // ANY router failure (flow misconfiguration, token issuance, persistence, etc.) — fail
             // safe (deny). A destructive action must never proceed when approval routing breaks.
             return "This destructive action [{$this->toolName}] is blocked: the approval system could not park the request.";
         }
+
+        // Emit from the same path that parked the call. Carries the non-secret run reference only
+        // (never the approval token) so the host can notify an approver / wire SIEM.
+        $this->events?->dispatch(new DestructiveToolRouted(
+            $this->toolName,
+            $principal,
+            $pending->runId,
+            new DateTimeImmutable('now', new DateTimeZone('UTC')),
+        ));
 
         // Return only the non-secret run reference. The plain-text approval token is intentionally
         // withheld from the model response to prevent token leakage via conversation logs or relay.

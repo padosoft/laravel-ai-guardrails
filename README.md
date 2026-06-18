@@ -32,6 +32,7 @@
 - [Configuration](#configuration)
 - [Composing laravel-flow & laravel-pii-redactor](#composing-laravel-flow--laravel-pii-redactor)
 - [The append-only injection audit](#the-append-only-injection-audit)
+- [Domain events](#domain-events)
 - [Security & threat model](#security--threat-model)
 - [Known limitations](#known-limitations)
 - [Testing](#testing)
@@ -222,6 +223,22 @@ When a package is absent, `class_exists` guards bind null-object implementations
 ## The append-only injection audit
 
 The audit is the product value of Control B. Every screening attempt — blocked *and* allowed — is appended to an immutable store. The Eloquent model and its query builder **throw on update / delete / upsert / touch / increment / truncate**; the table has no `updated_at`. Timestamps are stored in UTC. (A sanctioned, audited retention/erasure maintenance command is part of the enterprise-hardening line.)
+
+## Domain events
+
+Every guardrail decision dispatches a domain event from the **same code path** that writes the audit / stat record, so you can wire SIEM, Slack, or PagerDuty with a single listener. Events are gated by `events.enabled` (default on); set it to `false` to silence them without touching the controls.
+
+| Event | Dispatched when | `$enforced` |
+|---|---|---|
+| `Padosoft\AiGuardrails\Events\InjectionBlocked` | Control B refused a prompt (enforce) | n/a — separate class |
+| `Padosoft\AiGuardrails\Events\InjectionObserved` | Control B detected an injection but passed it through (monitor) | n/a — separate class |
+| `Padosoft\AiGuardrails\Events\ToolArgumentRejected` | Control A found owner-key / schema violations in a tool call | `true` = call blocked; `false` = monitor, call proceeded |
+| `Padosoft\AiGuardrails\Events\DestructiveToolRouted` | Control D parked a destructive call for human approval (carries the non-secret run reference only) | n/a — enforce only |
+| `Padosoft\AiGuardrails\Events\OutputSanitized` | Control C neutralised HTML / markdown / structured / PII in a response (one event per response, deduped kinds) | `true` = text rewritten; `false` = monitor, text unchanged |
+
+In `monitor` mode the `Observed`/`Rejected`/`Sanitized` events still fire. The `$enforced` property on `ToolArgumentRejected` and `OutputSanitized` encodes the enforcement decision directly in the payload — listeners do not need to read the live config to distinguish a real block from a shadow observation.
+
+> **Security note — `InjectionBlocked` / `InjectionObserved` carry the raw prompt text** (via `$attempt->prompt`). If you ship these events to an external webhook (Slack, PagerDuty, SIEM), be aware that the payload may contain PII or sensitive input. Extract only the fields you need (`ruleId`, `blocked`, `occurredAt`) rather than forwarding the full `InjectionAttempt` object.
 
 ## Security & threat model
 

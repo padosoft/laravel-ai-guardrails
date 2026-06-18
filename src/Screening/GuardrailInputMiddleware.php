@@ -7,6 +7,7 @@ namespace Padosoft\AiGuardrails\Screening;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
+use Illuminate\Contracts\Events\Dispatcher;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\Data\Meta;
@@ -14,6 +15,8 @@ use Laravel\Ai\Responses\Data\Usage;
 use Padosoft\AiGuardrails\Audit\InjectionAttempt;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
+use Padosoft\AiGuardrails\Events\InjectionBlocked;
+use Padosoft\AiGuardrails\Events\InjectionObserved;
 use Padosoft\AiGuardrails\Support\ControlMode;
 
 /**
@@ -32,6 +35,7 @@ final readonly class GuardrailInputMiddleware
         private ?Closure $principalResolver = null,
         private bool $enabled = true,
         private ?ControlMode $mode = null,
+        private ?Dispatcher $events = null,
     ) {}
 
     public function handle(AgentPrompt $prompt, Closure $next): mixed
@@ -52,7 +56,7 @@ final readonly class GuardrailInputMiddleware
         // matched rule id — distinguishing an observed injection from a clean allow.
         $willBlock = $verdict->blocked && $mode->enforces();
 
-        $this->audit->append(new InjectionAttempt(
+        $attempt = new InjectionAttempt(
             $prompt->prompt,
             $willBlock,
             $verdict->ruleId,
@@ -61,7 +65,16 @@ final readonly class GuardrailInputMiddleware
             $verdict->rulesetVersion,
             $verdict->erroredRuleIds,
             $verdict->matchedSpan,
-        ));
+        );
+
+        // Emit BEFORE the audit append so the domain event is independent of persistence success.
+        // A DB outage must not silence the SIEM signal. enforce → Blocked; monitor → Observed.
+        // Clean allows (verdict->blocked=false) produce no event.
+        if ($verdict->blocked) {
+            $this->events?->dispatch($willBlock ? new InjectionBlocked($attempt) : new InjectionObserved($attempt));
+        }
+
+        $this->audit->append($attempt);
 
         if ($willBlock) {
             // Refuse without calling the model: $next is never invoked.

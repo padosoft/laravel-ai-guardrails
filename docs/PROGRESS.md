@@ -179,5 +179,17 @@
 - [x] **332 tests / 866 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E4 events, E5 hygiene/retention, E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
 
+### Task E3 — MERGED (PR #20, squash `b540b11`, 2026-06-18). Local autopilot review added a HITL-monitor observability log + monitor-mode security docs; CI green on all PHP; no Copilot bot comments → auto-merged.
+
+### Task E4 — Domain events (DONE locally, branch `feature/e4-domain-events`)
+- [x] `src/Events/{InjectionBlocked,InjectionObserved,ToolArgumentRejected,DestructiveToolRouted,OutputSanitized}` — readonly event classes. Injection/firewall events carry the immutable DTO (InjectionAttempt / FirewallRejection); routed carries the non-secret runId only; sanitized carries deduped kind list.
+- [x] Dispatched via an optional `?Dispatcher $events` (trailing ctor param, default null = no events) from the SAME path that writes the audit/stat record: GuardrailInputMiddleware (Blocked when enforce-block, Observed when monitor-detect, none on clean allow), FirewalledTool (Rejected on violations, both modes, independent of store success), ApprovalGatedTool (Routed after a successful enforce park), GuardrailOutputMiddleware (one Sanitized per response, deduped kinds, accumulator threaded by-ref through clean/cleanStructured).
+- [x] Provider wires the dispatcher via `eventDispatcher($app)` helper → null when `events.enabled=false` (both-states). Threaded into both middlewares + AiGuardrails ctor (→ guard()/routeForApproval() decorators).
+- [x] `tests/Feature/DomainEventsTest.php` — Event::fake() coverage of all 5 events + clean-path no-event + both-states gate. 9 tests.
+- [x] README: new "Domain events" section (5 event FQCNs + `events.enabled` gate — R9 verified).
+- [x] **Local review fixes (autopilot):** `$enforced` flag added to the shared-class events (ToolArgumentRejected, OutputSanitized) so the host distinguishes enforce vs monitor without inspecting config; input middleware dispatches BEFORE the audit append so a DB outage can't silence the SIEM signal; README security note that the injection events carry the raw prompt (don't forward the full InjectionAttempt to external webhooks — anticipates E5 hygiene).
+- [x] **344 tests / 884 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then E5 audit hygiene/retention/purge, E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
+
 ### Next
-- E3 DoD → PR → merge. Then E4–E9 enterprise-hardening cross-cuts, E9-API, E10.
+- E4 DoD → PR → merge. Then E5–E9, E9-API, E10.
