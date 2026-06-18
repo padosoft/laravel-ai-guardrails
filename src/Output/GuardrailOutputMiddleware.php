@@ -166,7 +166,12 @@ final readonly class GuardrailOutputMiddleware
     {
         return $toolCalls->map(function (mixed $call) use ($apply, &$kinds): mixed {
             if ($call instanceof ToolCall) {
-                $call->arguments = $this->cleanStructured($call->arguments, $apply, $kinds);
+                $cleaned = $this->cleanStructured($call->arguments, $apply, $kinds);
+                // In monitor mode ($apply false) stats are recorded above but the object must not
+                // be mutated — skip the assignment so the original arguments array is preserved.
+                if ($apply) {
+                    $call->arguments = $cleaned;
+                }
 
                 return $call;
             }

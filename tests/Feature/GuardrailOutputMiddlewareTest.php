@@ -146,6 +146,30 @@ final class GuardrailOutputMiddlewareTest extends TestCase
         self::assertGreaterThan(0, $stats->count()); // but the would-sanitize stat was recorded
     }
 
+    public function test_tool_call_object_not_mutated_in_monitor_mode(): void
+    {
+        // ToolCall object shape: monitor must not reassign ->arguments (even to an identical copy).
+        $stats = new ArrayOutputStatStore;
+        $original = new ToolCall('id-1', 'refund', ['memo' => '<i>x</i>']);
+        $originalArgs = $original->arguments;
+
+        $response = AgentResponseFactory::make('hi');
+        $response->toolCalls = collect([$original]);
+
+        $out = (new GuardrailOutputMiddleware(
+            new HtmlMarkdownSanitizer,
+            new NullPiiRedaction,
+            stats: $stats,
+            mode: ControlMode::Monitor,
+            sanitizeToolCalls: true,
+        ))->handle(AgentPromptFactory::make('hi'), static fn ($prompt) => $response);
+
+        $call = $out->toolCalls->first();
+        self::assertSame($originalArgs, $call->arguments); // exact same array reference — not replaced
+        self::assertSame('<i>x</i>', $call->arguments['memo']); // HTML not escaped
+        self::assertGreaterThan(0, $stats->count()); // would-sanitize stat recorded
+    }
+
     public function test_disabled_middleware_leaves_response_untouched(): void
     {
         $middleware = new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction, enabled: false);
