@@ -8,7 +8,9 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
 use Padosoft\AiGuardrails\Contracts\SettingsChangeStore;
@@ -66,8 +68,12 @@ final class SettingsController
         ]);
     }
 
-    public function changes(SettingsChangeStore $audit): JsonResponse
+    public function changes(Request $request, SettingsChangeStore $audit): JsonResponse
     {
+        // Honour an optional ?limit= query param (1–200), defaulting to 50. This lets the admin
+        // SPA page back through the audit log when there are more than 50 recent entries.
+        $limit = max(1, min(200, (int) $request->query('limit', '50')));
+
         return Envelope::make(ApiSchema::SCHEMA_SETTINGS_CHANGES, [
             'changes' => array_map(static fn (SettingsChange $c): array => [
                 'id' => $c->id,
@@ -76,7 +82,7 @@ final class SettingsController
                 'old_value' => $c->oldValue,
                 'new_value' => $c->newValue,
                 'occurred_at' => $c->occurredAt->setTimezone(new DateTimeZone('UTC'))->format(DATE_ATOM),
-            ], $audit->recent()),
+            ], $audit->recent($limit)),
         ]);
     }
 
@@ -112,10 +118,15 @@ final class SettingsController
         $events->dispatch(new SettingsChanged($actorId, $changes, $occurredAt));
     }
 
-    /** The authenticated principal, resolved defensively (auth may be unbound). Never client-supplied. */
+    /**
+     * The authenticated principal, resolved defensively (auth may be unbound). Never client-supplied.
+     * Uses auth()->user() (not auth()->guard()->id()) so non-default guards (sanctum, api, …) are
+     * resolved correctly — auth()->guard() without a name returns the *default* driver, which would
+     * silently yield null even for an authenticated request on a different guard.
+     */
     private function actorId(): ?string
     {
-        $id = rescue(static fn () => auth()->guard()->id(), null, false);
+        $id = rescue(static fn () => Auth::user()?->getAuthIdentifier(), null, false);
 
         return $id !== null ? (string) $id : null;
     }

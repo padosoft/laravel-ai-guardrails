@@ -117,4 +117,39 @@ final class SettingsChangeAuditTest extends TestCase
                 && $e->changes[0]->newValue === false;
         });
     }
+
+    public function test_second_identical_put_is_a_no_op_after_db_round_trip(): void
+    {
+        // First PUT: false differs from the default (true) → one audit entry expected.
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.enabled' => false]])
+            ->assertOk();
+
+        // Second PUT: false again — after the DB round-trip the effective value is still false (bool),
+        // so the before==after diff must produce zero new entries. If the DB returned int 0 instead of
+        // false (type-mismatch), this would incorrectly append a second record.
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.enabled' => false]])
+            ->assertOk();
+
+        $this->getJson('/ai-guardrails/api/settings/changes')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.changes');
+    }
+
+    public function test_changes_limit_query_param_is_respected(): void
+    {
+        // Write 3 distinct changes.
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.enabled' => false]])->assertOk();
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.enabled' => true]])->assertOk();
+        $this->putJson('/ai-guardrails/api/settings', ['settings' => ['input_screen.enabled' => false]])->assertOk();
+
+        // ?limit=1 must return exactly one (the most recent) entry.
+        $this->getJson('/ai-guardrails/api/settings/changes?limit=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.changes');
+
+        // Without limit the default (50) applies — all 3 are returned.
+        $this->getJson('/ai-guardrails/api/settings/changes')
+            ->assertOk()
+            ->assertJsonCount(3, 'data.changes');
+    }
 }
