@@ -227,5 +227,13 @@
 - [x] **393 tests / 1004 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E9 mutation testing, E9-API, E10 release.
 
+### Task E7 — MERGED (PR #24, squash `8b67304`, 2026-06-18). Decision: kept recursive owner_key_depth default (overrode the review's top_level back-compat proposal) — fail-secure for an IDOR firewall; CI green; no bot comments → auto-merged.
+
+### Task E9 — Mutation testing (Infection ≥80 MSI) (IN PROGRESS, branch `feature/e9-mutation-testing`)
+- [x] `infection.json5` — source=src/, excludes the pure-wiring ServiceProvider + static Facade + trivial Exceptions DTOs (no branching security logic), `@default` mutators, text log.
+- [x] CI `mutation` job — Infection runs via the standalone **PHAR** (cannot be Composer-installed: released Infection still pins symfony/console ^6|^7 while Laravel 13 ships Symfony 8). pcov coverage on PHP 8.4; `infection --min-msi=80 --threads=max --show-mutations`.
+- [x] **Local constraint:** no coverage driver is available for PHP 8.5 on this machine (no xdebug 8.5/VS17 build exists yet, pcov has no Windows binary), so the MSI gate is verified **in CI**, not locally. See LESSON.
+- [ ] Push → CI mutation job reports MSI → if <80, kill escaped mutants with tests (don't game excludes) → green → PR → merge.
+
 ### Next
-- E7 DoD → PR → merge. Then E9 (infection ≥80 MSI), E9-API (v2 envelope deltas), E10 (release tag + GitHub Release).
+- E9 mutation green in CI. Then E9-API (v2 envelope deltas: `mode`, `ruleset_version` in payloads), E10 (release tag + GitHub Release).

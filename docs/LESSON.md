@@ -86,6 +86,10 @@
 - **Lesson: ini_set side-effects in security components.** Any `ini_set` in a screening/middleware path must be wrapped in try/finally with explicit restore. Never rely on the caller to clean up.
 
 
+### E9 — Mutation testing setup (2026-06-18)
+- **Infection cannot be Composer-installed** in this project: every released `infection/infection` (≤0.31.x) pins `symfony/console ^6.4||^7.0`, but Laravel 13 pulls `symfony/console v8`, and `sebastian/diff 7` (PHPUnit 12) also conflicts. Use the **standalone PHAR** (it bundles its own deps and only shells out to the project's `vendor/bin/phpunit`). In CI: `shivammathur/setup-php` with `tools: infection`.
+- **No local coverage driver for PHP 8.5:** xdebug has no `8.5/VS17` Windows build yet (`API20250925,NTS,VS17` is too new), pcov ships no official Windows binary. So mutation testing runs **only in CI** (ubuntu + pcov on PHP 8.4). Infection will not run without a coverage driver — don't fake a local run.
+
 ### Decisions
 - **No Playwright in this repo** — it is code + HTTP API only; UI/Playwright lives in `laravel-ai-guardrails-admin`. (Per the project rule "se è solo codice non importa".)
 
