@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
 use Padosoft\AiGuardrails\Support\ControlMode;
+use PHPUnit\Framework\TestCase;
 
 final class ControlModeTest extends TestCase
 {

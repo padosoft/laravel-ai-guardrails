@@ -34,7 +34,15 @@ enum ControlMode: string
         return $this === self::Monitor;
     }
 
-    /** Parse a config value, falling back to a boolean `enabled` flag (true→enforce, false→off). */
+    /**
+     * Parse a config value, falling back to a boolean `enabled` flag (true→enforce, false→off).
+     *
+     * NOTE: A recognised string value ('enforce'|'monitor'|'off') takes precedence over
+     * `$enabledFallback`. The `$enabledFallback=false` guard is intentionally NOT applied when a
+     * valid string mode is present — that gate belongs to the caller (see `ResolvesControlMode::for`
+     * which checks `enabled` before calling this method). Direct callers should be aware that
+     * `resolve('monitor', false)` returns `Monitor`, not `Off`.
+     */
     public static function resolve(mixed $mode, bool $enabledFallback): self
     {
         if (is_string($mode)) {

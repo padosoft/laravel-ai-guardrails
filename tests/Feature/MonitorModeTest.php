@@ -31,6 +31,7 @@ use Padosoft\AiGuardrails\Tests\Doubles\AgentResponseFactory;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeDestructiveTool;
 use Padosoft\AiGuardrails\Tests\Doubles\FakeOwnedTool;
 use Padosoft\AiGuardrails\Tests\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * E3 — three-state (enforce | monitor | off) matrix for each of the four controls (R43).
@@ -245,6 +246,9 @@ final class MonitorModeTest extends TestCase
 
     public function test_control_d_monitor_runs_the_delegate_directly(): void
     {
+        $log = \Mockery::spy(LoggerInterface::class);
+        $this->app->instance('log', $log);
+
         $tool = new FakeDestructiveTool;
         // A 'deny' fallback would block under enforce; monitor must auto-pass regardless.
         $gated = new ApprovalGatedTool($tool, new NullApprovalRouter, static fn (): string => '42', 'refund', fallback: 'deny', mode: ControlMode::Monitor);
@@ -253,6 +257,15 @@ final class MonitorModeTest extends TestCase
 
         self::assertSame('refunded', $result);
         self::assertTrue($tool->executed, 'monitor observes but lets the call run');
+
+        // Observability: a structured log entry must be emitted so operators can see the would-have-gated call.
+        $log->shouldHaveReceived('info')
+            ->once()
+            ->withArgs(static function (string $message, array $context): bool {
+                return str_contains($message, 'HITL monitor')
+                    && ($context['tool'] ?? '') === 'refund'
+                    && ($context['principal'] ?? '') === '42';
+            });
     }
 
     public function test_control_d_off_is_not_wrapped(): void
