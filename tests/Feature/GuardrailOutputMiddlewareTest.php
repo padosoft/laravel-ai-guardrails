@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use Laravel\Ai\Responses\Data\Meta;
+use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
@@ -15,6 +16,7 @@ use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
+use Padosoft\AiGuardrails\Support\ControlMode;
 use Padosoft\AiGuardrails\Tests\Doubles\AgentPromptFactory;
 use Padosoft\AiGuardrails\Tests\Doubles\AgentResponseFactory;
 use Padosoft\AiGuardrails\Tests\TestCase;
@@ -81,8 +83,8 @@ final class GuardrailOutputMiddlewareTest extends TestCase
 
     public function test_tool_calls_pass_through_untouched(): void
     {
-        // Documented limitation: Control C only rewrites text/structured; the model's tool calls
-        // are governed by Controls A (firewall) and D (HITL), not sanitized here.
+        // By DEFAULT (sanitize_tool_calls off): Control C only rewrites text/structured; the model's
+        // tool calls are governed by Controls A (firewall) and D (HITL), not sanitized here.
         $response = AgentResponseFactory::make('<script>x</script>');
         $response->toolCalls = collect(['refund' => ['amount' => '<b>10</b>']]);
 
@@ -93,6 +95,55 @@ final class GuardrailOutputMiddlewareTest extends TestCase
 
         self::assertSame(['refund' => ['amount' => '<b>10</b>']], $out->toolCalls->all()); // untouched
         self::assertStringContainsString('&lt;script&gt;', $out->text); // text still sanitized
+    }
+
+    public function test_tool_call_arguments_sanitized_when_opted_in(): void
+    {
+        // L3 opt-in: string leaves of the tool-call arguments are cleaned (plain-array shape).
+        $response = AgentResponseFactory::make('hi');
+        $response->toolCalls = collect(['refund' => ['amount' => '<b>10</b>', 'note' => ['deep' => '<script>x</script>']]]);
+
+        $out = (new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction, sanitizeToolCalls: true))->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => $response,
+        );
+
+        $args = $out->toolCalls->all()['refund'];
+        self::assertStringContainsString('&lt;b&gt;', $args['amount']);
+        self::assertStringContainsString('&lt;script&gt;', $args['note']['deep']); // nested leaf cleaned
+    }
+
+    public function test_tool_call_object_arguments_sanitized_when_opted_in(): void
+    {
+        // Production shape: a ToolCall object whose ->arguments array is cleaned in place.
+        $response = AgentResponseFactory::make('hi');
+        $response->toolCalls = collect([new ToolCall('id-1', 'refund', ['memo' => '<i>x</i>'])]);
+
+        $out = (new GuardrailOutputMiddleware(new HtmlMarkdownSanitizer, new NullPiiRedaction, sanitizeToolCalls: true))->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($prompt) => $response,
+        );
+
+        self::assertStringContainsString('&lt;i&gt;', $out->toolCalls->first()->arguments['memo']);
+    }
+
+    public function test_tool_calls_not_mutated_in_monitor_mode(): void
+    {
+        // Monitor records would-sanitize stats but must NOT rewrite tool-call args (shadow rollout).
+        $stats = new ArrayOutputStatStore;
+        $response = AgentResponseFactory::make('hi');
+        $response->toolCalls = collect(['refund' => ['amount' => '<b>10</b>']]);
+
+        $out = (new GuardrailOutputMiddleware(
+            new HtmlMarkdownSanitizer,
+            new NullPiiRedaction,
+            stats: $stats,
+            mode: ControlMode::Monitor,
+            sanitizeToolCalls: true,
+        ))->handle(AgentPromptFactory::make('hi'), static fn ($prompt) => $response);
+
+        self::assertSame(['refund' => ['amount' => '<b>10</b>']], $out->toolCalls->all()); // unchanged
+        self::assertGreaterThan(0, $stats->count()); // but the would-sanitize stat was recorded
     }
 
     public function test_disabled_middleware_leaves_response_untouched(): void

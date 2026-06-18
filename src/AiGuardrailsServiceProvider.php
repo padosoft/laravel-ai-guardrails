@@ -288,6 +288,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $app->make(OutputStatStore::class),
                 $mode,
                 self::eventDispatcher($app),
+                (bool) $app['config']->get('ai-guardrails.output_handler.sanitize_tool_calls', false),
             );
         });
 
