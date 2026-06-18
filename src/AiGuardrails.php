@@ -17,6 +17,8 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Contracts\ToolAuthorizer;
+use Padosoft\AiGuardrails\Firewall\AuthorizedTool;
 use Padosoft\AiGuardrails\Firewall\FirewalledTool;
 use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
@@ -54,6 +56,7 @@ final readonly class AiGuardrails
         private ?ControlMode $firewallMode = null,
         private ?ControlMode $hitlMode = null,
         private ?Dispatcher $events = null,
+        private ?ToolAuthorizer $toolAuthorizer = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -84,7 +87,15 @@ final readonly class AiGuardrails
             return $tool;
         }
 
-        return new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore, $mode, $this->events);
+        $firewalled = new FirewalledTool($tool, $this->scoper, $this->validator, $this->resolver($principalResolver), $this->firewallRejectionStore, $mode, $this->events);
+
+        // E7: when a tool authorizer is wired (tool_authorization.enabled), gate use of the tool BEFORE
+        // re-scoping/validation. Disabled → no authorizer is injected, so the firewall stands alone.
+        if ($this->toolAuthorizer !== null) {
+            return new AuthorizedTool($firewalled, $this->toolAuthorizer, $tool::class);
+        }
+
+        return $firewalled;
     }
 
     /**

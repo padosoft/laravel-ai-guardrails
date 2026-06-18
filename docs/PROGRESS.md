@@ -215,5 +215,16 @@
 - [x] **375 tests / 970 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E7 tool-authz, E9 mutation, E9-API, E10 release.
 
+### Task E6 — MERGED (PR #23, squash `5b733ec`, 2026-06-18). Local autopilot added `Auth::user()` multi-guard actor derivation + `?limit=` on GET /settings/changes + bool round-trip no-op test; CI green; no bot comments → auto-merged.
+
+### Task E7 — Tool authorization gate + recursive owner-key scoping (DONE locally, branch `feature/e7-tool-authz`)
+- [x] `UserScopedArgumentScoper` gains `recursive` mode (`tool_authorization.owner_key_depth`): overwrites owner keys at ANY nesting depth (overwrite-only, never injects into nested objects); the null-principal refusal is recursive too. `top_level` keeps Task 2 behaviour. Constructor default recursive=false (back-compat for direct construction); provider passes the config (default recursive).
+- [x] `ToolAuthorizer` contract + `AllowAllToolAuthorizer` (null-object) + `GateToolAuthorizer` (Laravel Gate ability `tool_authorization.ability`, FAILS CLOSED: undefined ability / unauthenticated / throwing policy → deny, logged) + `AuthorizedTool` decorator + `ToolNotAuthorized` exception.
+- [x] `AiGuardrails::guard()` composes authorize → re-scope → validate → run: wraps FirewalledTool with AuthorizedTool only when authz enabled (authorizer is `?ToolAuthorizer`, null when disabled). Provider binds ToolAuthorizer (Gate when enabled, else AllowAll) + new `tool_authorization.ability` config key.
+- [x] Tests: `RecursiveArgumentScoperTest` (depth both-states + nested null-refusal + array-valued owner key), `ToolAuthorizationTest` (decorator allow/deny, Gate fail-closed ×3, guard() composition both-states).
+- [x] README: tool-authorization section (Gate define example, fail-closed) + config table rows (R9).
+- [x] **390 tests / 1001 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then E9 mutation testing, E9-API, E10 release.
+
 ### Next
-- E6 DoD → PR → merge. Then E7, E9, E9-API, E10.
+- E7 DoD → PR → merge. Then E9 (infection ≥80 MSI), E9-API (v2 envelope deltas), E10 (release tag + GitHub Release).
