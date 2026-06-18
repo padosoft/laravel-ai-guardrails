@@ -280,6 +280,10 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
     /**
      * The event dispatcher to wire into the controls — null when domain events are disabled
      * (`events.enabled=false`), so each control's `?Dispatcher` falls back to emitting nothing. E4.
+     *
+     * NOTE: evaluated once at first container resolution (singleton build time). A runtime-settings
+     * overlay (E6) that flips `events.enabled` after first resolution will NOT take effect until
+     * the singleton is re-built (e.g., `app()->forgetInstance(...)` or a new request lifecycle).
      */
     private static function eventDispatcher(Application $app): ?Dispatcher
     {

@@ -71,11 +71,13 @@ final readonly class GuardrailOutputMiddleware
         }
 
         // One event per response when at least one neutralisation occurred (deduped kinds), from the
-        // same path that recorded the stats. In monitor mode the kinds reflect would-be enforcement.
+        // same path that recorded the stats. $enforced mirrors $apply: true = text was rewritten;
+        // false = monitor mode (kinds reflect would-be enforcement, output is unchanged).
         if ($kinds !== []) {
             $this->events?->dispatch(new OutputSanitized(
                 array_values(array_unique($kinds)),
                 new DateTimeImmutable('now', new DateTimeZone('UTC')),
+                $apply,
             ));
         }
 

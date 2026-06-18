@@ -67,13 +67,14 @@ final readonly class GuardrailInputMiddleware
             $verdict->matchedSpan,
         );
 
-        $this->audit->append($attempt);
-
-        // Emit a domain event from the SAME path that wrote the audit row (only on a detection — a
-        // clean allow produces no event). enforce → Blocked; monitor → Observed (would-have-blocked).
+        // Emit BEFORE the audit append so the domain event is independent of persistence success.
+        // A DB outage must not silence the SIEM signal. enforce → Blocked; monitor → Observed.
+        // Clean allows (verdict->blocked=false) produce no event.
         if ($verdict->blocked) {
             $this->events?->dispatch($willBlock ? new InjectionBlocked($attempt) : new InjectionObserved($attempt));
         }
+
+        $this->audit->append($attempt);
 
         if ($willBlock) {
             // Refuse without calling the model: $next is never invoked.

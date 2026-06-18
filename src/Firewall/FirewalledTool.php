@@ -87,7 +87,8 @@ final readonly class FirewalledTool implements Tool
             }
 
             // Emit from the same path as the record (independent of persistence success).
-            $this->events?->dispatch(new ToolArgumentRejected($rejection));
+            // $enforced=true when the call will be blocked below; false in monitor (proceeds).
+            $this->events?->dispatch(new ToolArgumentRejected($rejection, $this->mode->enforces()));
 
             // enforce → block; monitor → record + pass through. Owner-key re-scoping is preserved in
             // both modes (the principal's value always wins for owner keys). Schema-violating args
