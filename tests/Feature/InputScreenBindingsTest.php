@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
 use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
-use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
-use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
+use Padosoft\AiGuardrails\Audit\HygienicInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\NullInjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
@@ -52,13 +51,15 @@ final class InputScreenBindingsTest extends TestCase
 
     public function test_audit_store_factory_resolves_per_config(): void
     {
+        // E5: a real store (array/database) is wrapped by the hygiene decorator; the inner-store
+        // selection + transformation behaviour is covered by AuditHygieneBindingsTest. Null is unwrapped.
         $this->app['config']->set('ai-guardrails.audit.store', 'array');
         $this->reregister();
-        self::assertInstanceOf(ArrayInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
+        self::assertInstanceOf(HygienicInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
 
         $this->app['config']->set('ai-guardrails.audit.store', 'database');
         $this->reregister();
-        self::assertInstanceOf(DatabaseInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
+        self::assertInstanceOf(HygienicInjectionAuditStore::class, $this->resolve(InjectionAuditStore::class));
 
         $this->app['config']->set('ai-guardrails.audit.store', 'null');
         $this->reregister();

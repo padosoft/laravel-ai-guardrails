@@ -191,5 +191,17 @@
 - [x] **344 tests / 884 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E5 audit hygiene/retention/purge, E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
 
+### Task E4 — MERGED (PR #21, squash `8733c63`, 2026-06-18). Local autopilot added `$enforced` to shared-class events + dispatch-before-audit + raw-prompt README note; CI green; no bot comments → auto-merged.
+
+### Task E5 — Audit hygiene + retention/purge (DONE locally, branch `feature/e5-audit-hygiene`)
+- [x] `src/Audit/PromptHygiene.php` — transform the prompt per `audit_hygiene.prompt_storage`: raw | redact (default, composes pii-redactor) | hash (`sha256:…`) | truncate (`truncate_at` code points). Unknown mode fails safe to redact (never raw).
+- [x] `src/Audit/HygienicInjectionAuditStore.php` — decorator applying hygiene on the WRITE path of any inner store (covers middleware + artisan screen). Drops the byte-offset matched_span when the prompt is transformed (no longer aligns); read methods delegate.
+- [x] Provider wraps a real audit store with the hygiene decorator (null store left unwrapped); the PII redactor is resolved INDEPENDENTLY of the output handler via `PiiRedactionFactory::make($app, true)` (keeps the vendor ref in src/Output).
+- [x] `src/Console/GuardrailsPurgeCommand.php` (`ai-guardrails:purge`) — sanctioned, actor-audited GDPR retention: keep (no-op) | anonymize (null prompt+principal of rows older than `retention.days`) | purge (hard-delete). Uses the RAW query builder to bypass the immutable model (the ONLY erasure path); `--dry-run` reports without mutating; `--actor` required for a mutating run; requires `audit.store=database`. Logs actor/strategy/cutoff/affected.
+- [x] Tests: `PromptHygieneTest` (4 modes + fail-safe), `HygienicInjectionAuditStoreTest` (redact transforms + span dropped, raw passthrough, read-delegation), `AuditHygieneBindingsTest` (provider wrapping both-states + master-off), `GuardrailsPurgeCommandTest` (keep/purge/anonymize/dry-run/actor-required/non-db/invalid-strategy, DB-backed + Log spy). Updated `InputScreenBindingsTest` to expect the hygiene wrapper.
+- [x] README: audit-hygiene + retention/erasure paragraphs + `ai-guardrails:purge` in the Artisan surface (R9).
+- [x] **363 tests / 927 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then E6 settings-audit, E7 tool-authz, E9 mutation, E9-API, E10 release.
+
 ### Next
-- E4 DoD → PR → merge. Then E5–E9, E9-API, E10.
+- E5 DoD → PR → merge. Then E6–E9, E9-API, E10.

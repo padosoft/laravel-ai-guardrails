@@ -11,8 +11,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\AiGuardrails\Audit\ArrayInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\DatabaseInjectionAuditStore;
+use Padosoft\AiGuardrails\Audit\HygienicInjectionAuditStore;
 use Padosoft\AiGuardrails\Audit\NullInjectionAuditStore;
+use Padosoft\AiGuardrails\Audit\PromptHygiene;
 use Padosoft\AiGuardrails\Console\GuardrailsAuditCommand;
+use Padosoft\AiGuardrails\Console\GuardrailsPurgeCommand;
 use Padosoft\AiGuardrails\Console\GuardrailsSanitizeCommand;
 use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
@@ -136,7 +139,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 return new NullInjectionAuditStore;
             }
 
-            return match ($app['config']->get('ai-guardrails.audit.store', 'null')) {
+            $store = match ($app['config']->get('ai-guardrails.audit.store', 'null')) {
                 'array' => new ArrayInjectionAuditStore,
                 'database' => new DatabaseInjectionAuditStore(
                     self::storeConnection('ai-guardrails.audit.connection'),
@@ -144,6 +147,22 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ),
                 default => new NullInjectionAuditStore,
             };
+
+            // A null store never persists, so hygiene is a no-op there — only wrap a real store.
+            if ($store instanceof NullInjectionAuditStore) {
+                return $store;
+            }
+
+            // Audit data hygiene (E5): transform the prompt before it is persisted. The PII redactor is
+            // resolved INDEPENDENTLY of the output handler (audit_hygiene must work even with Control C
+            // off); PiiRedactionFactory keeps the optional-vendor reference inside src/Output.
+            $hygiene = new PromptHygiene(
+                (string) $app['config']->get('ai-guardrails.audit_hygiene.prompt_storage', 'redact'),
+                (int) $app['config']->get('ai-guardrails.audit_hygiene.truncate_at', 2000),
+                PiiRedactionFactory::make($app, true),
+            );
+
+            return new HygienicInjectionAuditStore($store, $hygiene);
         });
 
         $this->app->singleton(FirewallRejectionStore::class, static function ($app): FirewallRejectionStore {
@@ -375,6 +394,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 GuardrailsScreenCommand::class,
                 GuardrailsSanitizeCommand::class,
                 GuardrailsAuditCommand::class,
+                GuardrailsPurgeCommand::class,
             ]);
         }
 
