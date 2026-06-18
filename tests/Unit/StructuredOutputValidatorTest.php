@@ -63,4 +63,37 @@ final class StructuredOutputValidatorTest extends TestCase
         self::assertSame([], (new StructuredOutputValidator)->validate(['note' => 'hi'], $schema));
         self::assertArrayHasKey('note', (new StructuredOutputValidator)->validate(['note' => 123], $schema));
     }
+
+    /** Pins every `matchesType` arm so removing any (→ fail-closed `default => false`) is caught. */
+    public function test_matches_type_covers_every_schema_type(): void
+    {
+        $v = new StructuredOutputValidator;
+        $m = new \ReflectionMethod($v, 'matchesType');
+
+        self::assertTrue($m->invoke($v, 'string', 'x'));
+        self::assertFalse($m->invoke($v, 'string', 1));
+        self::assertTrue($m->invoke($v, 'integer', 1));
+        self::assertFalse($m->invoke($v, 'integer', 1.5));
+        self::assertTrue($m->invoke($v, 'number', 1));
+        self::assertTrue($m->invoke($v, 'number', 1.5));
+        self::assertFalse($m->invoke($v, 'number', '1'));
+        self::assertTrue($m->invoke($v, 'boolean', true));
+        self::assertFalse($m->invoke($v, 'boolean', 1));
+        self::assertTrue($m->invoke($v, 'array', [1, 2]));
+        self::assertFalse($m->invoke($v, 'array', ['a' => 1]));
+        self::assertTrue($m->invoke($v, 'object', ['a' => 1]));
+        self::assertFalse($m->invoke($v, 'object', [1, 2]));
+        self::assertTrue($m->invoke($v, 'null', null));
+        self::assertFalse($m->invoke($v, 'null', 0));
+        self::assertFalse($m->invoke($v, 'unknown_type', 'x')); // default → fail-closed
+    }
+
+    public function test_optional_field_absent_from_output_is_skipped(): void
+    {
+        // 'amount' is optional; absent → not type-checked (the `continue` must stand).
+        $errors = (new StructuredOutputValidator)->validate(['action' => 'refund'], $this->schema());
+
+        self::assertArrayNotHasKey('amount', $errors);
+        self::assertSame([], $errors);
+    }
 }

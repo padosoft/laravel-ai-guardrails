@@ -86,4 +86,44 @@ final class SchemaToolArgumentValidatorTest extends TestCase
 
         self::assertArrayHasKey('note', $errors);
     }
+
+    /**
+     * Exhaustively pins every `matchesType` arm (valid value → true, wrong value → false), so
+     * removing any arm — which would fall through to the fail-closed `default => false` — is caught.
+     */
+    public function test_matches_type_covers_every_schema_type(): void
+    {
+        $v = new SchemaToolArgumentValidator(rejectUnknown: false);
+        $m = new \ReflectionMethod($v, 'matchesType');
+
+        self::assertTrue($m->invoke($v, 'string', 'x'));
+        self::assertFalse($m->invoke($v, 'string', 1));
+        self::assertTrue($m->invoke($v, 'integer', 1));
+        self::assertFalse($m->invoke($v, 'integer', '1'));
+        self::assertFalse($m->invoke($v, 'integer', 1.5)); // a float is not an integer
+        self::assertTrue($m->invoke($v, 'number', 1));     // int is a number
+        self::assertTrue($m->invoke($v, 'number', 1.5));   // float is a number
+        self::assertFalse($m->invoke($v, 'number', '1'));
+        self::assertFalse($m->invoke($v, 'number', true)); // a bool is not a number
+        self::assertTrue($m->invoke($v, 'boolean', true));
+        self::assertTrue($m->invoke($v, 'boolean', false));
+        self::assertFalse($m->invoke($v, 'boolean', 1));
+        self::assertTrue($m->invoke($v, 'array', [1, 2]));
+        self::assertFalse($m->invoke($v, 'array', ['a' => 1]));
+        self::assertTrue($m->invoke($v, 'object', ['a' => 1]));
+        self::assertFalse($m->invoke($v, 'object', [1, 2]));
+        self::assertTrue($m->invoke($v, 'null', null));
+        self::assertFalse($m->invoke($v, 'null', 0));
+        self::assertFalse($m->invoke($v, 'unknown_type', 'x')); // default → fail-closed
+    }
+
+    public function test_optional_property_absent_from_arguments_is_skipped(): void
+    {
+        // 'amount' is an optional integer; when it is absent it must NOT be type-checked (no error).
+        $errors = (new SchemaToolArgumentValidator(rejectUnknown: false))
+            ->validate(new FakeOwnedTool, ['order_id' => 'A1']);
+
+        self::assertArrayNotHasKey('amount', $errors);
+        self::assertSame([], $errors);
+    }
 }

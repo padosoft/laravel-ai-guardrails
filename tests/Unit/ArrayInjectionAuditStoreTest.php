@@ -106,4 +106,50 @@ final class ArrayInjectionAuditStoreTest extends TestCase
 
         self::assertSame([['date' => '2026-01-01', 'total' => 1, 'blocked' => 1, 'allowed' => 0]], $trend);
     }
+
+    private function seeded(): ArrayInjectionAuditStore
+    {
+        $store = new ArrayInjectionAuditStore;
+        $store->append(new InjectionAttempt('a', true, 'rule_x', 'alice', $this->at('2026-01-01 00:00:00')));
+        $store->append(new InjectionAttempt('b', true, 'rule_y', 'bob', $this->at('2026-01-05 00:00:00')));
+        $store->append(new InjectionAttempt('c', false, null, 'alice', $this->at('2026-01-10 00:00:00')));
+
+        return $store;
+    }
+
+    public function test_query_filters_by_rule_id(): void
+    {
+        $page = $this->seeded()->query(new AuditQueryFilters(ruleId: 'rule_y'));
+
+        self::assertSame(['b'], array_map(static fn ($a) => $a->prompt, $page->items));
+    }
+
+    public function test_query_filters_by_principal_id(): void
+    {
+        $page = $this->seeded()->query(new AuditQueryFilters(principalId: 'alice'));
+
+        // newest-first; both alice rows, the bob row excluded.
+        self::assertSame(['c', 'a'], array_map(static fn ($a) => $a->prompt, $page->items));
+    }
+
+    public function test_query_filters_by_from_bound_inclusive(): void
+    {
+        // from = Jan 5 → excludes Jan 1 ('a'), includes Jan 5 ('b', boundary) and Jan 10 ('c').
+        $page = $this->seeded()->query(new AuditQueryFilters(from: $this->at('2026-01-05 00:00:00')));
+
+        self::assertSame(['c', 'b'], array_map(static fn ($a) => $a->prompt, $page->items));
+    }
+
+    public function test_query_filters_by_to_bound_inclusive(): void
+    {
+        // to = Jan 5 → includes Jan 1 ('a') and Jan 5 ('b', boundary), excludes Jan 10 ('c').
+        $page = $this->seeded()->query(new AuditQueryFilters(to: $this->at('2026-01-05 00:00:00')));
+
+        self::assertSame(['b', 'a'], array_map(static fn ($a) => $a->prompt, $page->items));
+    }
+
+    public function test_recent_limit_zero_returns_empty(): void
+    {
+        self::assertSame([], $this->seeded()->recent(0));
+    }
 }

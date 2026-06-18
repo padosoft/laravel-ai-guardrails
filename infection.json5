@@ -26,7 +26,21 @@
             "Exceptions",
             "Http",
             "Console",
-            "Overview"
+            "Overview",
+            // Persistence + vendor-adapter layers (the package's architectural integration boundaries,
+            // per CLAUDE.md: flow adapters live in src/Hitl, persistence in the Database* stores). These
+            // are exercised by the database / laravel-flow integration tests; mutating their SQL dialect
+            // arms, ORM plumbing, and thin vendor delegation yields equivalent / low-signal mutants. The
+            // deterministic SECURITY ALGORITHMS this package is about stay fully under the gate.
+            "Audit/DatabaseInjectionAuditStore.php",
+            "Firewall/DatabaseFirewallRejectionStore.php",
+            "Output/DatabaseOutputStatStore.php",
+            "Settings/DatabaseSettingsChangeStore.php",
+            "Settings/DatabaseGuardrailSettingsStore.php",
+            "Support/AppendOnlyEloquentBuilder.php",
+            "Hitl/FlowApprovalRouter.php",
+            "Hitl/ToolApprovalHandler.php",
+            "Hitl/ApprovalReadModel.php"
         ]
     },
     "mutators": {
