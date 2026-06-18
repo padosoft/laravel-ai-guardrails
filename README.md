@@ -175,7 +175,7 @@ A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). 
 
 | Method | Path | Route name | `schema` | Backing store / toggle |
 |---|---|---|---|---|
-| GET | `/overview` | `…overview` | `…v1.overview` | aggregates the controls + 24h injection counts |
+| GET | `/overview` | `…overview` | `…v1.overview` | aggregates each control's `enabled` + effective `mode` (enforce/monitor/off) + 24h injection counts + the active `ruleset_version` |
 | GET | `/audit` | `…audit.index` | `…v1.audit-list` | `audit.store` (null \| array \| database) — keyset paginated (`cursor`), filters `blocked`/`rule_id`/`principal_id`/`q`/`from`/`to` |
 | GET | `/audit/{id}` | `…audit.show` | `…v1.audit-detail` | full prompt + `matched_span`; 404 on unknown/non-numeric id |
 | GET | `/audit/trend` | `…audit.trend` | `…v1.audit-trend` | per-UTC-day SQL `GROUP BY` (dialect-safe); 30-day default window |

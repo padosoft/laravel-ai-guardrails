@@ -236,5 +236,14 @@
 - [x] **MSI ≥80% achieved in CI (PR #25).** Iterated 70.53% → 75.14% → 79.86% → **80%** (664 mutants killed). Mutation gate scoped to the deterministic security ALGORITHMS; excluded the presentation (Http/Console/Overview), persistence DAOs (Database* stores + Eloquent builder), and laravel-flow vendor adapters (architectural integration boundaries, integration-tested). Killed real mutants with tests: both schema validators' full matchesType arm coverage, Array store filter bounds, AiGuardrails legacy-flag composition, IsoDateParser rollover guards, PromptHygiene truncate floor, UnicodePromptNormalizer nfkc guard, ResolvesControlMode gate order. No production code changed — purely added coverage + config.
 - [ ] DoD loop → PR #25 merge. Then E9-API, E10.
 
+### Task E9 — MERGED (PR #25, squash `3b99710`, 2026-06-18). 4 CI rounds to reach 80% MSI; local review corrected (un-excluded AppendOnlyEloquentBuilder → re-excluded: its only mutants are equivalent default-param flips on always-throwing guards). Mutation gate green in CI.
+
+### Task E9-API — v2 envelope deltas (DONE locally, branch `feature/e9-api-deltas`)
+- [x] `OverviewAggregator`: each control entry now carries `mode` (resolved enforce|monitor|off via `ResolvesControlMode`, reflecting the master→enabled→modes.* gate), and the payload carries the active `ruleset_version` (so the admin can correlate audit rows — which already carry their own ruleset_version — with what's live). Additive → schema stays `…v1.overview` (backward-compatible; no consumer breakage).
+- [x] **Bug fix (review):** HITL defaults off (unlike other controls); using `ResolvesControlMode::for` directly would return `mode='enforce'` when `hitl.enabled` is absent, contradicting `enabled=false`. Fixed by short-circuiting to `ControlMode::Off` whenever `$masterOn && $controlOn` is already false — reusing the computed booleans rather than re-reading config. Added `test_overview_hitl_defaults_to_mode_off_when_unconfigured`.
+- [x] **Test gap (review):** Added `test_overview_master_kill_switch_sets_all_modes_to_off` — master `enabled=false` → all modes = 'off' end-to-end.
+- [x] **423 tests / 1087 assertions** GREEN; pint + phpstan level 8 clean.
+- [ ] DoD loop → PR. Then E10 release (tag SemVer + GitHub Release).
+
 ### Next
-- E9 DoD → merge. Then E9-API (v2 envelope deltas: `mode`, `ruleset_version` in payloads), E10 (release tag + GitHub Release).
+- E9-API DoD → merge. Then E10: tag (e.g. v0.3.0 — additive enterprise-hardening over v0.2.0) + GitHub Release.

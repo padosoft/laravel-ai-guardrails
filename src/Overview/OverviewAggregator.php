@@ -8,6 +8,8 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Config\Repository as Config;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
+use Padosoft\AiGuardrails\Support\ControlMode;
+use Padosoft\AiGuardrails\Support\ResolvesControlMode;
 
 /**
  * Aggregates control health + recent counts for the admin overview screen (GET /overview). Reads
@@ -50,6 +52,9 @@ final readonly class OverviewAggregator
                 // the admin should defer to /audit/trend for exact figures.
                 'sampled' => count($recent) >= $sampleSize,
             ],
+            // E9-API delta: the active screening ruleset version, so the admin can correlate audit
+            // rows (which carry their own ruleset_version) with what is live now.
+            'ruleset_version' => (string) $this->config->get('ai-guardrails.pattern_safety.ruleset_version', 'v1'),
         ];
     }
 
@@ -63,6 +68,13 @@ final readonly class OverviewAggregator
             'key' => $key,
             'label' => $label,
             'enabled' => $masterOn && $controlOn,
+            // E9-API delta: the resolved enforcement posture (enforce | monitor | off) for shadow-rollout
+            // visibility. Short-circuit to Off when already disabled (avoids the default-true fallback
+            // inside ResolvesControlMode, which would produce mode='enforce' for HITL when its
+            // enabled key is absent — HITL defaults off, unlike the other three controls).
+            'mode' => ($masterOn && $controlOn)
+                ? ResolvesControlMode::for($key, "ai-guardrails.{$key}.enabled")->value
+                : ControlMode::Off->value,
         ];
     }
 }
