@@ -161,6 +161,10 @@ php artisan ai-guardrails:sanitize "<script>steal()</script> ![x](http://evil/le
 
 # List recent injection-audit attempts (blocked and allowed)
 php artisan ai-guardrails:audit --limit=50
+
+# Apply the GDPR retention strategy to the audit table (actor-audited; the only sanctioned erasure path)
+php artisan ai-guardrails:purge --strategy=anonymize --days=365 --actor="ops:nightly"
+php artisan ai-guardrails:purge --dry-run   # report what would be affected, change nothing
 ```
 
 ## HTTP API surface (admin)
@@ -222,7 +226,11 @@ When a package is absent, `class_exists` guards bind null-object implementations
 
 ## The append-only injection audit
 
-The audit is the product value of Control B. Every screening attempt — blocked *and* allowed — is appended to an immutable store. The Eloquent model and its query builder **throw on update / delete / upsert / touch / increment / truncate**; the table has no `updated_at`. Timestamps are stored in UTC. (A sanctioned, audited retention/erasure maintenance command is part of the enterprise-hardening line.)
+The audit is the product value of Control B. Every screening attempt — blocked *and* allowed — is appended to an immutable store. The Eloquent model and its query builder **throw on update / delete / upsert / touch / increment / truncate**; the table has no `updated_at`. Timestamps are stored in UTC.
+
+**Data hygiene (`audit_hygiene.prompt_storage`).** Because the table captures raw prompts, the stored prompt is transformed before persistence: `redact` (default — composes `laravel-pii-redactor`), `hash` (`sha256:…`, correlate without keeping content), `truncate` (first `truncate_at` code points), or `raw`. Hygiene is applied at the store boundary so every write path is covered; domain events still carry the raw prompt in-process.
+
+**Retention / erasure (`retention.strategy`).** GDPR erasure on an append-only table goes through the sanctioned, actor-audited `ai-guardrails:purge` command — the **only** place rows leave the table. `anonymize` nulls the prompt + principal of rows older than `retention.days`, `purge` hard-deletes them, `keep` retains. Every run logs the actor, strategy, cutoff, and affected-row count.
 
 ## Domain events
 
