@@ -279,7 +279,7 @@ Every failure path **fails closed**. The master kill-switch and per-control togg
 
 - Control C rewrites `$response->text` and structured string fields; the model's **`toolCalls` are not sanitized** by C (they are governed by Controls A/D).
 - Cross-script homoglyphs are folded to a Latin skeleton before matching via a **curated** confusables map (`normalization.fold_confusables`, default on) — Cyrillic `а`/`о`/`е`…, Greek `ο`/`α`/`ρ`…. It is a high-value curated subset, not the full Unicode confusables data, so an exotic look-alike outside the map can still slip through; extend `ConfusablesFolder::MAP` for your threat model.
-- The HTML `allowlist` mode is a convenience, not HTMLPurifier-grade — for rendering rich untrusted HTML, use a dedicated sanitizer.
+- The HTML `allowlist` mode uses **HTMLPurifier** when `ezyang/htmlpurifier` is installed (robust parsing of malformed / entity-encoded / mutation-XSS markup), and gracefully falls back to the built-in `strip_tags` allowlist when it is absent. `escape` mode is unchanged.
 - Control D's full flow persistence (approval tokens, resume) is configured by the host application.
 
 ## Testing

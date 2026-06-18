@@ -82,6 +82,11 @@ final class ConventionsTest extends TestCase
             if (str_contains($content, 'Padosoft\\PiiRedactor') && ! str_contains($unix, '/src/Output/')) {
                 $violations[] = "{$file} references Padosoft\\PiiRedactor outside src/Output";
             }
+
+            // htmlpurifier (L2) may only be referenced inside the src/Output adapter dir.
+            if (str_contains($content, 'HTMLPurifier') && ! str_contains($unix, '/src/Output/')) {
+                $violations[] = "{$file} references HTMLPurifier outside src/Output";
+            }
         }
 
         self::assertSame([], $violations, "compose-not-couple boundary violated:\n".implode("\n", $violations));
