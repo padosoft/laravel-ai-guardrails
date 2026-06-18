@@ -147,3 +147,56 @@
 - **`--days=0` footgun (MEDIUM):** `max(0,0)=0` → `cutoff=now()` → `occurred_at < now()` matches EVERY row silently. Added guard: mutating runs require `--days >= 1`; `--dry-run` with `--days=0` is still allowed (preview only). Tests: `test_days_zero_is_rejected_for_a_mutating_run`, `test_days_zero_is_allowed_for_dry_run`.
 - **`transformsContent()` semantics (LOW):** The method reports mode CAPABILITY ("may change"), not runtime result. Clarified in docblock — `redact`+absent PII package returns `true` even though the null-object won't change the prompt. The decorator correctly uses a string-equality check on the actual output (not this method) to decide whether to drop the matched-span.
 - **Span-preserve regression guard (LOW):** Added `test_redact_with_null_pii_preserves_span_when_content_unchanged` — passes `NullPiiRedaction` (returns input unchanged) to `PromptHygiene('redact',...)` and asserts the matched-span is PRESERVED. Guards against a future refactor replacing the equality-check with `transformsContent()`.
+
+## 2026-06-19 — v1.1.0 spike: approvals payload + PII detector capability
+
+### Spike A — Can pending approvals expose tool name + scoped arguments?
+
+**A1: NO — the current read path cannot expose `tool` or `arguments`.**
+
+The key evidence chain:
+
+1. `ApprovalReadModel::pending()` (src/Hitl/ApprovalReadModel.php:42) performs a `->get(['id', 'run_id', 'step_name', 'status', 'expires_at', 'created_at'])` — the `payload` column of `flow_approvals` is **explicitly excluded** (`// Only the exposed columns — never pull token_hash / payload / actor into memory.`).
+
+2. Even if `payload` were fetched, it would not help: `FlowEngine::issueApprovalTokenForPausedStep()` (vendor/padosoft/laravel-flow/src/FlowEngine.php:2969-2972) only stores `['definition_name' => ..., 'step_name' => ...]` in `flow_approvals.payload` — it does NOT store the flow's input (tool, arguments, principal_id).
+
+3. The tool name and arguments DO live in `flow_runs.input` (JSON column, migration 2026_05_02_000001, confirmed present). `FlowApprovalRouter::route()` calls `Flow::execute(self::FLOW_NAME, ['tool' => $toolName, 'tool_class' => $toolClass, 'arguments' => $arguments, 'principal_id' => $principalId])` (src/Hitl/FlowApprovalRouter.php:37-43). The flow engine persists that input array in `flow_runs.input`. But `ApprovalReadModel` only queries `flow_approvals`, not `flow_runs`.
+
+**A2: PERSIST path recommended — via a JOIN on `flow_runs.input`, OR a new sidecar table.**
+
+At the point `ApprovalGatedTool::handle()` calls `$this->router->route(...)` (src/Hitl/ApprovalGatedTool.php:91-96), the following variables are fully in scope:
+- `$this->toolName` (string, line 49) — the tool name
+- `$request->toArray()` (array, line 94) — the scoped arguments after firewall rescoping
+
+Two additive options:
+
+**Option i — JOIN `flow_runs.input` in `ApprovalReadModel`:** Widen the `ApprovalReadModel::pending()` query to `JOIN flow_runs ON flow_approvals.run_id = flow_runs.id` and project `flow_runs.input->>'$.tool'` and `flow_runs.input->>'$.arguments'`. Portable across all four SQL dialects supported by the package. No new table; no schema migration. Risk: binds `ApprovalReadModel` to the laravel-flow internals schema.
+
+**Option ii — New append-only `ai_guardrails_hitl_requests` table** keyed by `run_id` (FK to `flow_runs`), storing `tool` (string), `arguments` (JSON), `principal_id`, `created_at`. Written in `FlowApprovalRouter::route()` after `Flow::execute()` returns the run id. No dependency on `flow_runs` schema internals; queryable independently of flow. Preferred for cleanliness and auditability.
+
+**Recommendation:** Option ii. The sidecar table is the cleaner boundary — `ApprovalReadModel` reads from OWN package tables; no JOIN into vendor internals; the row is append-only (consistent with Rule 20); adds `tool` + `arguments` + `principal_id` to the v1.1.0 pending-approval API response without touching laravel-flow.
+
+---
+
+### Spike B — Does the PII redactor expose per-detector counts?
+
+**B1: NO — the current `PiiRedaction` contract and `RealPiiRedaction` adapter do NOT expose per-detector counts.**
+
+`PiiRedaction` interface (src/Contracts/PiiRedaction.php) is:
+```php
+public function redact(string $text): string;
+```
+A single string in, a single string out. No counts, no report.
+
+`RealPiiRedaction::redact()` (src/Output/RealPiiRedaction.php:19) calls `$this->engine->redact($text)` which returns `string`. The per-detector breakdown is computed internally by `RedactorEngine` in the private `countsByDetector()` method (vendor/padosoft/laravel-pii-redactor/src/RedactorEngine.php:186-194) and is only surfaced in two ways:
+1. Via `RedactorEngine::scan(string $text): DetectionReport` — a SEPARATE call that returns `DetectionReport` with `countsByDetector(): array<string, int>`, `total(): int`, `detections(): list<Detection>`. This would require a DOUBLE PASS (scan then redact), which (a) is not exposed through the `PiiRedaction` contract and (b) carries a performance cost.
+2. Via the `PiiRedactionPerformed` event — fired by `RedactorEngine::redact()` only when `$auditTrailEnabled = true` (opt-in, default false). Even then the event is fired inside the vendor and not directly consumable by `GuardrailOutputMiddleware` without a listener bridge.
+
+`GuardrailOutputMiddleware::clean()` (src/Output/GuardrailOutputMiddleware.php:123-128) only checks `$redacted !== $sanitized` (boolean changed/unchanged) and records a single `OutputStatKind::PiiRedaction` counter — no breakdown by detector.
+
+**B2: DEGRADE — `pii.by_detector` must be `{}` for v1.1.0.**
+
+Reason: the `PiiRedaction` contract is a one-way string transform with no result metadata. Widening it to return a report DTO would be a breaking interface change and a scope creep for this spike. The correct path for per-detector counts would be either:
+- Extend `PiiRedaction` with a `redactWithReport(string): {text, counts}` method and a parallel `RealPiiRedactionWithReport` adapter that calls `$engine->scan()` + `$engine->redact()` in two passes; OR
+- Wire a listener for `PiiRedactionPerformed` (requires `audit_trail.enabled=true` on the engine).
+Both are non-trivial additive changes outside the v1.1.0 API scope. For now, the v1.1.0 `/output/stats` `pii` field returns the single aggregate `pii_redaction` counter (already stored) and `pii.by_detector` is explicitly `{}`.
