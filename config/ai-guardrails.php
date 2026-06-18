@@ -163,6 +163,13 @@ return [
     // Tool-level authorization (beyond owner-key re-scoping) + match semantics. Task E7.
     'tool_authorization' => [
         'enabled' => env('AI_GUARDRAILS_TOOL_AUTHZ_ENABLED', false),
+        // The Gate ability checked (with the tool class) before a guarded tool runs. Define it in the
+        // host: Gate::define('ai-guardrails:use-tool', fn ($user, string $toolClass) => ...). Fail-closed.
+        'ability' => env('AI_GUARDRAILS_TOOL_AUTHZ_ABILITY', 'ai-guardrails:use-tool'),
+        // Depth of owner-key re-scoping. 'recursive' (default) rewrites owner keys at ANY nesting
+        // depth so nested IDOR holes are closed too; 'top_level' only rewrites the top-level args.
+        // recursive only ever OVERWRITES an owner key the model already supplied (it never injects
+        // into nested objects), so it can only close an IDOR hole, never weaken a legitimate tool.
         'owner_key_depth' => env('AI_GUARDRAILS_OWNER_KEY_DEPTH', 'recursive'), // top_level | recursive
         'destructive_match' => env('AI_GUARDRAILS_DESTRUCTIVE_MATCH', 'exact'), // exact | substring
     ],

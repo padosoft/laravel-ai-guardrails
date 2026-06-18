@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails;
 
+use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\Registrar;
@@ -30,9 +31,12 @@ use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\PromptNormalizer;
 use Padosoft\AiGuardrails\Contracts\SettingsChangeStore;
 use Padosoft\AiGuardrails\Contracts\ToolArgumentValidator;
+use Padosoft\AiGuardrails\Contracts\ToolAuthorizer;
 use Padosoft\AiGuardrails\Exceptions\InvalidScreeningPattern;
+use Padosoft\AiGuardrails\Firewall\AllowAllToolAuthorizer;
 use Padosoft\AiGuardrails\Firewall\ArrayFirewallRejectionStore;
 use Padosoft\AiGuardrails\Firewall\DatabaseFirewallRejectionStore;
+use Padosoft\AiGuardrails\Firewall\GateToolAuthorizer;
 use Padosoft\AiGuardrails\Firewall\NullFirewallRejectionStore;
 use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
@@ -81,8 +85,13 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
         if ($firewallActive) {
             $this->app->singleton(ArgumentScoper::class, static function ($app): ArgumentScoper {
                 $ownerKeys = $app['config']->get('ai-guardrails.tool_firewall.owner_keys', []);
+                // E7: owner_key_depth=recursive re-scopes owner keys at any nesting depth, not just top-level.
+                // Fallback matches the published config default (recursive) and the fail-secure posture
+                // (a missing key resolves to MORE scoping, never less). recursive only ever closes an IDOR
+                // hole — it can't weaken a security-conscious tool. Only an explicit 'top_level' opts out.
+                $recursive = $app['config']->get('ai-guardrails.tool_authorization.owner_key_depth', 'recursive') !== 'top_level';
 
-                return new UserScopedArgumentScoper(is_array($ownerKeys) ? array_values($ownerKeys) : []);
+                return new UserScopedArgumentScoper(is_array($ownerKeys) ? array_values($ownerKeys) : [], $recursive);
             });
             $this->app->singleton(ToolArgumentValidator::class, static function ($app): ToolArgumentValidator {
                 $rejectUnknown = (bool) $app['config']->get('ai-guardrails.tool_firewall.reject_unknown_arguments', true);
@@ -286,9 +295,23 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             ResolvesControlMode::for('hitl', 'ai-guardrails.hitl.enabled')->enforces(),
         ));
 
+        // E7 — tool authorization gate. Bound to the Gate-backed authorizer when enabled, else the
+        // allow-all null-object. AiGuardrails only wraps with AuthorizedTool when authz is ENABLED.
+        $this->app->singleton(ToolAuthorizer::class, static function ($app): ToolAuthorizer {
+            if (! (bool) $app['config']->get('ai-guardrails.tool_authorization.enabled', false)) {
+                return new AllowAllToolAuthorizer;
+            }
+
+            return new GateToolAuthorizer(
+                $app->make(Gate::class),
+                (string) $app['config']->get('ai-guardrails.tool_authorization.ability', 'ai-guardrails:use-tool'),
+            );
+        });
+
         $this->app->singleton(AiGuardrails::class, static function ($app): AiGuardrails {
             $cfg = $app['config'];
             $destructive = $cfg->get('ai-guardrails.hitl.destructive_tools', []);
+            $authzEnabled = (bool) $cfg->get('ai-guardrails.tool_authorization.enabled', false);
 
             return new AiGuardrails(
                 $app->make(InjectionScreener::class),
@@ -308,6 +331,8 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ResolvesControlMode::for('tool_firewall', 'ai-guardrails.tool_firewall.enabled'),
                 ResolvesControlMode::for('hitl', 'ai-guardrails.hitl.enabled'),
                 self::eventDispatcher($app),
+                // Only wire the authorizer when enabled, so guard() wraps with AuthorizedTool only then.
+                $authzEnabled ? $app->make(ToolAuthorizer::class) : null,
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');

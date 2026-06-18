@@ -210,9 +210,24 @@ Every behaviour is a config toggle (`config/ai-guardrails.php`). The four contro
 | `hitl.destructive_tools` | `refund, delete, send_email` | Tool names treated as destructive. |
 | `hitl.fallback` | `deny` | When approval is unavailable: `deny` (refuse) or `pass` (execute). |
 | `audit.store` | `'null'` | `'null'` \| `'array'` \| `'database'` (string tokens). |
+| `tool_authorization.enabled` | `false` | Gate tool use behind a Laravel `Gate` ability (fail-closed) — separate from owner-key re-scoping. |
+| `tool_authorization.ability` | `ai-guardrails:use-tool` | The Gate ability checked (with the tool class) before a guarded tool runs. |
+| `tool_authorization.owner_key_depth` | `top_level` | `recursive` re-scopes owner keys at any nesting depth; `top_level` only at the top. |
 | `api.enabled` | `false` | The default-OFF HTTP admin API surface. |
 
-> The `modes`, `audit_hygiene`, `retention`, and `tool_authorization` config blocks are scaffolded for the enterprise-hardening line and are documented as they are wired in.
+### Tool authorization (Control A+)
+
+Owner-key re-scoping stops the model acting on **another** user's resource — it does **not** decide whether the principal may use the tool **at all**. Enable `tool_authorization.enabled` and define the Gate ability to add that second layer:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('ai-guardrails:use-tool', fn ($user, string $toolClass) => $user->mayUse($toolClass));
+```
+
+`AiGuardrails::guard()` then composes **authorize → re-scope → validate → run**; a denial throws `ToolNotAuthorized`. It **fails closed**: an undefined ability, an unauthenticated user, or a throwing policy all **deny**.
+
+> The `modes`, `audit_hygiene`, and `retention` config blocks are documented in their own sections above.
 
 ## Composing laravel-flow & laravel-pii-redactor
 
