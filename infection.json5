@@ -44,7 +44,12 @@
             "Support/AppendOnlyEloquentBuilder.php",
             "Hitl/FlowApprovalRouter.php",
             "Hitl/ToolApprovalHandler.php",
-            "Hitl/ApprovalReadModel.php"
+            "Hitl/ApprovalReadModel.php",
+            // CLI / diagnostic adapters that live in src/Hitl only to keep the laravel-flow reference
+            // inside the adapter boundary — same category as the excluded Console commands (their
+            // mutants are console-output strings + default-param flips, behaviourally low-signal).
+            "Hitl/HitlStatusCommand.php",
+            "Hitl/HitlInstallCommand.php"
         ]
     },
     "mutators": {
