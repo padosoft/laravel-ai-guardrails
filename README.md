@@ -238,7 +238,7 @@ composer require padosoft/laravel-flow          # enables Control D (human appro
 composer require padosoft/laravel-pii-redactor  # enables PII redaction in Control C
 ```
 
-When a package is absent, `class_exists` guards bind null-object implementations, and the boundary is enforced by an architecture test (flow is referenced only in `src/Hitl`, pii-redactor + HTMLPurifier only in `src/Output`).
+When a package is absent, `class_exists` guards bind null-object implementations, and the boundary is enforced by an architecture test (flow is referenced only in `src/Hitl`, pii-redactor + HTMLPurifier only in `src/Output`, and `laravel/mcp` only in `src/Mcp`).
 
 ### MCP surface
 
@@ -304,9 +304,9 @@ Every failure path **fails closed**. The master kill-switch and per-control togg
 ## Known limitations
 
 - Control C rewrites `$response->text` and structured string fields; the model's **`toolCalls`** are governed by Controls A/D and are **not sanitized by default**. An opt-in `output_handler.sanitize_tool_calls` flag (default off) adds a defense-in-depth pass that cleans the string leaves of tool-call arguments — enable it only when those arguments are rendered/logged, since rewriting them could otherwise alter a legitimate call.
-- Cross-script homoglyphs are folded to a Latin skeleton before matching via a **curated** confusables map (`normalization.fold_confusables`, default on) — Cyrillic `а`/`о`/`е`…, Greek `ο`/`α`/`ρ`…. It is a high-value curated subset, not the full Unicode confusables data, so an exotic look-alike outside the map can still slip through; extend `ConfusablesFolder::MAP` for your threat model.
+- Cross-script homoglyphs are folded to a Latin skeleton before matching via a **curated** confusables map (`normalization.fold_confusables`, default on) — Cyrillic `а`/`о`/`е`…, Greek `ο`/`α`/`ρ`…. It is a high-value curated subset, not the full Unicode confusables data, so an exotic look-alike outside the map can still slip through; extend `ConfusablesFolder` for a wider threat model.
 - The HTML `allowlist` mode uses **HTMLPurifier** when `ezyang/htmlpurifier` is installed (robust parsing of malformed / entity-encoded / mutation-XSS markup), and gracefully falls back to the built-in `strip_tags` allowlist when it is absent. `escape` mode is unchanged.
-- Control D's full flow persistence (approval tokens, resume) is configured by the host application.
+- Control D's flow persistence (approval tokens, resume) is provided by the host's `laravel-flow` install — made turnkey by `ai-guardrails:hitl-install` and verifiable by `ai-guardrails:hitl-status` (see [HITL setup](#hitl-setup-control-d)).
 
 ## Testing
 
