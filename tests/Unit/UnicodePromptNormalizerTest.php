@@ -75,4 +75,13 @@ final class UnicodePromptNormalizerTest extends TestCase
 
         self::assertSame('ignore', $out);
     }
+
+    public function test_nfkc_disabled_does_not_fold_fullwidth(): void
+    {
+        // Every pass off + nfkc=false → the fullwidth text is returned verbatim. Pins the
+        // `$this->nfkc && class_exists(...)` guard: a mutated `||` would NFKC-fold despite nfkc=false.
+        $normalizer = new UnicodePromptNormalizer(nfkc: false, stripZeroWidth: false, stripControl: false, casefold: false);
+
+        self::assertSame("\u{FF49}\u{FF47}\u{FF4E}", $normalizer->normalize("\u{FF49}\u{FF47}\u{FF4E}"));
+    }
 }

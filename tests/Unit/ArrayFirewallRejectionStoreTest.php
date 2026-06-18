@@ -78,4 +78,30 @@ final class ArrayFirewallRejectionStoreTest extends TestCase
         self::assertSame([1], array_map(static fn ($r) => $r->id, $third->items));
         self::assertNull($third->nextCursor);
     }
+
+    private function windowed(): ArrayFirewallRejectionStore
+    {
+        $store = new ArrayFirewallRejectionStore;
+        $store->record($this->rejection('jan1', '7', '2026-01-01 00:00:00'));
+        $store->record($this->rejection('jan5', '7', '2026-01-05 00:00:00'));
+        $store->record($this->rejection('jan10', '7', '2026-01-10 00:00:00'));
+
+        return $store;
+    }
+
+    public function test_query_filters_by_from_bound_inclusive(): void
+    {
+        // from = Jan 5 → excludes jan1, includes jan5 (boundary) + jan10.
+        $page = $this->windowed()->query(new FirewallQueryFilters(from: $this->at('2026-01-05 00:00:00')));
+
+        self::assertSame(['jan10', 'jan5'], array_map(static fn ($r) => $r->toolDescription, $page->items));
+    }
+
+    public function test_query_filters_by_to_bound_inclusive(): void
+    {
+        // to = Jan 5 → includes jan1 + jan5 (boundary), excludes jan10.
+        $page = $this->windowed()->query(new FirewallQueryFilters(to: $this->at('2026-01-05 00:00:00')));
+
+        self::assertSame(['jan5', 'jan1'], array_map(static fn ($r) => $r->toolDescription, $page->items));
+    }
 }

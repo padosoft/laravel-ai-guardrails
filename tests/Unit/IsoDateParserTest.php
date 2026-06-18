@@ -92,4 +92,25 @@ final class IsoDateParserTest extends TestCase
         self::assertNull(IsoDateParser::parseUtc(null));
         self::assertNull(IsoDateParser::parseUtc(12345));
     }
+
+    /**
+     * The explicit out-of-range guard must reject values the DateTimeImmutable constructor would
+     * silently ROLL OVER (24:00 → next day 00:00, 12:00:60 → next minute). These inputs distinguish
+     * the guard from the constructor's own validation, so they pin the `> 23`/`> 59` boundaries.
+     */
+    public function test_rejects_hour_24_that_would_roll_to_the_next_day(): void
+    {
+        self::assertNull(IsoDateParser::parseUtc('2026-01-15T24:00'));
+    }
+
+    public function test_rejects_second_60_that_would_roll_to_the_next_minute(): void
+    {
+        self::assertNull(IsoDateParser::parseUtc('2026-01-15T12:00:60'));
+    }
+
+    public function test_accepts_the_max_valid_time_of_day(): void
+    {
+        // 23:59:59 is the boundary that MUST be accepted (guards use strict `>`).
+        self::assertNotNull(IsoDateParser::parseUtc('2026-01-15T23:59:59'));
+    }
 }

@@ -31,3 +31,28 @@ jobs:
         run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress
       - name: PHPUnit
         run: vendor/bin/phpunit
+
+  mutation:
+    name: Mutation testing (Infection ≥80 MSI)
+    runs-on: ubuntu-latest
+    needs: [php]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          # Infection runs via the standalone PHAR (it cannot be Composer-installed alongside
+          # Symfony 8 / Laravel 13). pcov provides fast line coverage for the mutation analysis.
+          php-version: '8.4'
+          coverage: pcov
+          tools: composer:v2, infection
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress --no-ansi
+      - name: Infection (min MSI 80)
+        run: infection --min-msi=80 --threads=max --no-progress --no-interaction --show-mutations
+      - name: Upload Infection log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-log
+          path: infection.log
+          if-no-files-found: ignore

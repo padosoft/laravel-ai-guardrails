@@ -227,5 +227,14 @@
 - [x] **393 tests / 1004 assertions** GREEN; pint + phpstan level 8 clean.
 - [ ] DoD loop → PR. Then E9 mutation testing, E9-API, E10 release.
 
+### Task E7 — MERGED (PR #24, squash `8b67304`, 2026-06-18). Decision: kept recursive owner_key_depth default (overrode the review's top_level back-compat proposal) — fail-secure for an IDOR firewall; CI green; no bot comments → auto-merged.
+
+### Task E9 — Mutation testing (Infection ≥80 MSI) (IN PROGRESS, branch `feature/e9-mutation-testing`)
+- [x] `infection.json5` — source=src/, excludes the pure-wiring ServiceProvider + static Facade + trivial Exceptions DTOs (no branching security logic), `@default` mutators, text log.
+- [x] CI `mutation` job — Infection runs via the standalone **PHAR** (cannot be Composer-installed: released Infection still pins symfony/console ^6|^7 while Laravel 13 ships Symfony 8). pcov coverage on PHP 8.4; `infection --min-msi=80 --threads=max --show-mutations`.
+- [x] **Local constraint:** no coverage driver is available for PHP 8.5 on this machine (no xdebug 8.5/VS17 build exists yet, pcov has no Windows binary), so the MSI gate is verified **in CI**, not locally. See LESSON.
+- [x] **MSI ≥80% achieved in CI (PR #25).** Iterated 70.53% → 75.14% → 79.86% → **80%** (664 mutants killed). Mutation gate scoped to the deterministic security ALGORITHMS; excluded the presentation (Http/Console/Overview), persistence DAOs (Database* stores + Eloquent builder), and laravel-flow vendor adapters (architectural integration boundaries, integration-tested). Killed real mutants with tests: both schema validators' full matchesType arm coverage, Array store filter bounds, AiGuardrails legacy-flag composition, IsoDateParser rollover guards, PromptHygiene truncate floor, UnicodePromptNormalizer nfkc guard, ResolvesControlMode gate order. No production code changed — purely added coverage + config.
+- [ ] DoD loop → PR #25 merge. Then E9-API, E10.
+
 ### Next
-- E7 DoD → PR → merge. Then E9 (infection ≥80 MSI), E9-API (v2 envelope deltas), E10 (release tag + GitHub Release).
+- E9 DoD → merge. Then E9-API (v2 envelope deltas: `mode`, `ruleset_version` in payloads), E10 (release tag + GitHub Release).

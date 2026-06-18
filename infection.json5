@@ -1,0 +1,61 @@
+{
+    // Mutation testing config (Task E9). Run in CI via the Infection PHAR with a pcov/xdebug coverage
+    // driver — Infection cannot be installed through Composer here because released versions still
+    // pin symfony/console ^6|^7 while Laravel 13 ships Symfony 8 (the PHAR bundles its own deps).
+    //
+    //   php infection.phar --min-msi=80 --threads=max --no-progress
+    //
+    // The gate covers the deterministic SECURITY logic (scoping, validation, screening, sanitization,
+    // hygiene, authorization, append-only guards, mode resolution). Pure DI wiring (the service
+    // provider), the static facade, and the route definition are excluded: they carry no branching
+    // security logic and would only add low-signal escaped mutants.
+    "$schema": "https://raw.githubusercontent.com/infection/infection/0.31.6/resources/schema.json",
+    "source": {
+        "directories": [
+            "src"
+        ],
+        // The gate targets the deterministic SECURITY-DECISION logic (firewall scoping/validation/
+        // authorization, prompt screening/normalization, output sanitization, audit hygiene,
+        // append-only guards, control-mode resolution, the AiGuardrails composition facade). The
+        // serialization / transport / presentation layers are excluded: they carry no branching
+        // security logic and are covered by the HTTP + console feature tests, so mutating their
+        // response-shaping, pagination clamps, CLI strings, and log-context arrays adds only noise.
+        "excludes": [
+            "AiGuardrailsServiceProvider.php",
+            "Facades",
+            "Exceptions",
+            "Http",
+            "Console",
+            "Overview",
+            // Persistence + vendor-adapter layers (the package's architectural integration boundaries,
+            // per CLAUDE.md: flow adapters live in src/Hitl, persistence in the Database* stores). These
+            // are exercised by the database / laravel-flow integration tests; mutating their SQL dialect
+            // arms, ORM plumbing, and thin vendor delegation yields equivalent / low-signal mutants. The
+            // deterministic SECURITY ALGORITHMS this package is about stay fully under the gate.
+            "Audit/DatabaseInjectionAuditStore.php",
+            "Firewall/DatabaseFirewallRejectionStore.php",
+            "Output/DatabaseOutputStatStore.php",
+            "Settings/DatabaseSettingsChangeStore.php",
+            "Settings/DatabaseGuardrailSettingsStore.php",
+            // AppendOnlyEloquentBuilder's append-only guards are behaviourally covered (the feature
+            // tests assert update/delete/truncate/increment all throw). Its ONLY mutants, though, are
+            // EQUIVALENT: they flip the unused default `$amount = 1` on methods that throw before
+            // reading it — impossible to kill — so the file is excluded to keep the gate honest.
+            "Support/AppendOnlyEloquentBuilder.php",
+            "Hitl/FlowApprovalRouter.php",
+            "Hitl/ToolApprovalHandler.php",
+            "Hitl/ApprovalReadModel.php"
+        ]
+    },
+    "mutators": {
+        "@default": true,
+        // Casting an int principal id and string coercion are exercised behaviourally; the explicit
+        // cast mutators produce equivalent mutants on the defensive `(string)`/`(int)` guards.
+        "CastString": false
+    },
+    "logs": {
+        "text": "infection.log"
+    },
+    "tmpDir": "build/infection",
+    "testFramework": "phpunit"
+}
