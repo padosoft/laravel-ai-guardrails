@@ -40,7 +40,7 @@ $$
 \text{mode} = \begin{cases} \text{off} & \neg K \ \lor\ \neg e \\ m & \text{otherwise (default enforce)} \end{cases}
 $$
 
-`enabled` decides **whether** a control runs; `modes.<control>` decides **how** (block vs observe).
+`enabled` decides **whether** a control runs; the per-control `modes` entry decides **how** (block vs observe).
 
 ## What monitor does per control
 

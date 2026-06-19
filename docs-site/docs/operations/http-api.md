@@ -24,7 +24,7 @@ If `api.enabled` is true but `api.middleware` resolves to an empty list, the ser
 
 ## The envelope
 
-Every response is `{ "schema_version": "ai-guardrails.api.v1", "schema": "ai-guardrails.api.v1.<endpoint>", "data": { … } }`. `schema_version` is the contract a client pins; `schema` is a per-endpoint discriminator. Routes are named `ai-guardrails.api.*`.
+Every response is `{ "schema_version": "ai-guardrails.api.v1", "schema": "ai-guardrails.api.v1.endpoint_name", "data": { ... } }`. `schema_version` is the contract a client pins; `schema` is a per-endpoint discriminator. Routes are named `ai-guardrails.api.*`.
 
 ```mermaid
 flowchart LR

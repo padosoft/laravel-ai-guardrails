@@ -13,7 +13,7 @@ All events live under `Padosoft\AiGuardrails\Events` and are dispatched from the
 | `InjectionObserved` | `InjectionAttempt $attempt` | n/a — distinct class |
 | `ToolArgumentRejected` | `FirewallRejection $rejection`, `bool $enforced` | `true` blocked / `false` monitor |
 | `DestructiveToolRouted` | `string $toolName`, `int\|string\|null $principalId`, `string $runId`, `DateTimeImmutable $occurredAt` | n/a — enforce only |
-| `OutputSanitized` | `list<string> $kinds`, `DateTimeImmutable $occurredAt`, `bool $enforced` | `true` rewritten / `false` monitor |
+| `OutputSanitized` | `string[] $kinds`, `DateTimeImmutable $occurredAt`, `bool $enforced` | `true` rewritten / `false` monitor |
 | `SettingsChanged` | `?string $actorId`, `SettingsChange[] $changes`, `DateTimeImmutable $occurredAt` | n/a |
 
 ## DTO shapes

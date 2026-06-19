@@ -2,6 +2,10 @@
   "title": "laravel-ai-guardrails",
   "description": "Deterministic, offline-first prompt-injection guardrails for laravel/ai — four composable controls that treat everything the model touches as untrusted.",
   "url": "https://doc.laravel-ai-guardrails.padosoft.com",
+  "author": "Padosoft",
+  "organization": "Padosoft",
+  "license": "Apache-2.0",
+  "banner": "https://raw.githubusercontent.com/padosoft/laravel-ai-guardrails/main/resources/laravel-ai-guardrails-Banner.png",
   "src": "docs",
   "out": "_site",
   "base": "/",
@@ -32,33 +36,34 @@
       { "title": "Quickstart", "path": "/quickstart" },
       { "title": "Installation", "path": "/installation" }
     ]},
-    { "title": "The Four Controls", "icon": "shield", "children": [
-      { "title": "Overview", "path": "/controls/overview" },
-      { "title": "A — Tool Firewall", "path": "/controls/tool-firewall" },
-      { "title": "B — Input Screening + Audit", "path": "/controls/input-screening" },
-      { "title": "C — Output Handler", "path": "/controls/output-handler" },
-      { "title": "D — HITL Bridge", "path": "/controls/hitl-bridge" }
+    { "title": "Guides", "icon": "wrench", "children": [
+      { "title": "The four controls", "path": "/controls/overview" },
+      { "title": "Control A — Tool Firewall", "path": "/controls/tool-firewall" },
+      { "title": "Control B — Input Screening + Audit", "path": "/controls/input-screening" },
+      { "title": "Control C — Output Handler", "path": "/controls/output-handler" },
+      { "title": "Control D — HITL Bridge", "path": "/controls/hitl-bridge" },
+      { "title": "Wiring the agent middleware", "path": "/guides/middleware" },
+      { "title": "Guarding & authorizing tools", "path": "/guides/tools" },
+      { "title": "Human-in-the-loop approvals", "path": "/guides/hitl" },
+      { "title": "Domain events → SIEM/Slack", "path": "/guides/events" },
+      { "title": "The MCP surface", "path": "/guides/mcp" }
     ]},
-    { "title": "Concepts & Theory", "icon": "book-open", "children": [
+    { "title": "Concetti & Teoria", "icon": "book-open", "children": [
       { "title": "Threat model", "path": "/concepts/threat-model" },
       { "title": "Untrusted-input posture", "path": "/concepts/untrusted-input" },
       { "title": "Prompt normalization & confusables", "path": "/concepts/normalization" },
       { "title": "Append-only audit", "path": "/concepts/append-only" },
       { "title": "Enforce / monitor / off modes", "path": "/concepts/modes" }
     ]},
-    { "title": "Architecture", "icon": "network", "children": [
+    { "title": "Architettura", "icon": "network", "children": [
       { "title": "Overview", "path": "/architecture/overview" },
       { "title": "Request pipeline", "path": "/architecture/pipeline" },
       { "title": "Compose-not-couple", "path": "/architecture/compose-not-couple" },
       { "title": "Decision records (ADR)", "path": "/architecture/decisions" }
     ]},
-    { "title": "Guides", "icon": "wrench", "children": [
-      { "title": "Wiring the agent middleware", "path": "/guides/middleware" },
-      { "title": "Guarding & authorizing tools", "path": "/guides/tools" },
-      { "title": "Human-in-the-loop approvals", "path": "/guides/hitl" },
-      { "title": "Domain events → SIEM/Slack", "path": "/guides/events" },
-      { "title": "Audit hygiene & GDPR retention", "path": "/guides/retention" },
-      { "title": "The MCP surface", "path": "/guides/mcp" }
+    { "title": "Best Practices", "icon": "badge-check", "children": [
+      { "title": "Best practices", "path": "/reference/best-practices" },
+      { "title": "Audit hygiene & GDPR retention", "path": "/guides/retention" }
     ]},
     { "title": "Operations", "icon": "settings", "children": [
       { "title": "Configuration reference", "path": "/operations/configuration" },
@@ -66,15 +71,13 @@
       { "title": "Observability & mutation testing", "path": "/operations/observability" }
     ]},
     { "title": "Reference", "icon": "list", "children": [
+      { "title": "API overview", "path": "/reference/api" },
+      { "title": "PHP API", "path": "/reference/php-api" },
+      { "title": "CLI reference", "path": "/reference/cli" },
       { "title": "PHP facade", "path": "/reference/facade" },
       { "title": "Artisan commands", "path": "/reference/artisan" },
       { "title": "Domain events", "path": "/reference/events" },
-      { "title": "Versioning & releases", "path": "/reference/versioning" },
-      { "title": "Best practices", "path": "/reference/best-practices" }
-    ]},
-    { "title": "Links", "children": [
-      { "title": "GitHub", "path": "https://github.com/padosoft/laravel-ai-guardrails", "external": true },
-      { "title": "Packagist", "path": "https://packagist.org/packages/padosoft/laravel-ai-guardrails", "external": true }
+      { "title": "Versioning & releases", "path": "/reference/versioning" }
     ]}
   ],
   "plugins": {

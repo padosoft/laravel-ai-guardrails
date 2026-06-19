@@ -2,7 +2,7 @@ import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DOCS = join(process.cwd(), 'docs');
-const TAG = /<\/?[A-Z][A-Za-z0-9]*(\s|>|\/)/g;
+const TAG = /<\/?[A-Za-z][A-Za-z0-9-]*(\s|>|\/)/g;
 const bad = [];
 
 (function walk(d) {
@@ -13,7 +13,13 @@ const bad = [];
       continue;
     }
     if (!n.endsWith('.md')) continue;
+    let fenced = false;
     readFileSync(p, 'utf8').split('\n').forEach((l, i) => {
+      if (/^\s*```/.test(l)) {
+        fenced = !fenced;
+        return;
+      }
+      if (fenced) return;
       const m = l.match(TAG);
       if (m) bad.push(`${p}:${i + 1} ${m.join(' ')}`);
     });

