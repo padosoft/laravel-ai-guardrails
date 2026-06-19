@@ -71,11 +71,15 @@ final class OutputStatsApiByDetectorTest extends TestCase
         $store = $this->app->make(OutputStatStore::class);
         $store->record(OutputStatKind::PiiRedaction, 2); // no detector
 
-        $this->getJson('/ai-guardrails/api/output/stats')
+        $response = $this->getJson('/ai-guardrails/api/output/stats')
             ->assertOk()
             ->assertJsonPath('data.counts.pii_redaction', 2)
-            ->assertJsonPath('data.counts.pii.by_detector', [])
             ->assertJsonPath('data.total', 2);
+
+        // Legacy null-detector rows: by_detector must encode as a JSON OBJECT {}
+        // (not array []) so the response shape is stable. assertJsonPath cannot
+        // distinguish {} from [] after assoc decode, so assert the raw body.
+        $this->assertStringContainsString('"by_detector":{}', $response->getContent());
     }
 
     // ── Backward-compat: existing counts.* keys and total are unchanged ──────────
