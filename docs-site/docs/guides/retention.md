@@ -45,13 +45,26 @@ php artisan ai-guardrails:purge --strategy=purge --days=365 --actor="ops:nightly
 php artisan ai-guardrails:purge --dry-run
 ```
 
-| Strategy | Effect |
-|---|---|
-| `keep` | retain indefinitely (no-op) |
-| `anonymize` | null the prompt + principal of rows older than `retention.days` |
-| `purge` | hard-delete rows older than `retention.days` |
+| Strategy | Effect on audit table | Effect on HITL sidecar |
+|---|---|---|
+| `keep` | retain indefinitely (no-op) | retain indefinitely (no-op) |
+| `anonymize` | null the `prompt` + `principal_id` of rows older than `retention.days` | redact `arguments` to `{}` + null `principal_id`; keep `tool`, `run_id`, `occurred_at` |
+| `purge` | hard-delete rows older than `retention.days` | hard-delete rows older than `retention.days` |
 
-The command uses the **raw query builder** to bypass the immutable model — keeping the append-only invariant true for every other code path. A mutating run requires `--actor` and `--days >= 1`, requires `audit.store=database`, and logs the actor, strategy, cutoff, and affected-row count.
+The command uses the **raw query builder** to bypass the immutable models — keeping the append-only invariant true for every other code path. A mutating run requires `--actor` and `--days >= 1` and logs the actor, strategy, cutoff, and affected-row count **per table**.
+
+### Which tables are swept
+
+The command sweeps every table whose store is set to `database`:
+
+- **`audit.store = database`** → sweeps `ai_guardrails_injection_audit`
+- **`hitl_requests.store = database`** → sweeps `ai_guardrails_hitl_requests`
+
+At least one must be `database`; the command errors only if **neither** is on database. Both can be swept in the same run.
+
+### Sidecar anonymize — raw arguments by design
+
+The HITL request sidecar stores the **scoped** tool arguments verbatim so approvers can see exactly what will execute. Under `anonymize`, `arguments` is redacted to `{}` and `principal_id` is nulled, but `tool`, `run_id`, and `occurred_at` are preserved — the approval audit trail remains; the PII is gone. Under `purge`, the entire row is deleted.
 
 ::: callout warning
 - `--actor` is **mandatory** for a mutating run (omit only with `--dry-run`) — erasure must be accountable.

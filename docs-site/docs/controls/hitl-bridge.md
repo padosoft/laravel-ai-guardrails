@@ -43,6 +43,15 @@ sequenceDiagram
 | Match policy | `tool_authorization.destructive_match` — `exact` \| `substring` |
 | Unavailable fallback | `hitl.fallback` — `deny` (refuse) \| `pass` (execute) |
 | Execution allowlist | `hitl.allowed_tool_classes` — FQCNs the handler may run (empty = no restriction) |
+| HITL request sidecar | `hitl_requests.store` — `null` \| `array` \| `database`; records `tool`, `arguments`, `principal_id`, `occurred_at` at park-time |
+
+### HITL request sidecar and raw arguments
+
+At park-time, `ApprovalGatedTool` writes one row to the **append-only HITL request sidecar** (`ai_guardrails_hitl_requests`). The sidecar stores the **scoped** arguments (after Control A has re-written owner keys and stripped unknown fields) so that `GET /approvals` can surface them to a human approver.
+
+**Raw arguments are stored by design.** An approver must see exactly what will execute when they click "Approve" — presenting anything other than the literal execution arguments would undermine the human-in-the-loop guarantee. The sidecar is append-only (the model throws on update/delete) and is covered by the `ai-guardrails:purge` command for GDPR erasure — see [audit hygiene & retention](/guides/retention).
+
+Enable the sidecar via `hitl_requests.store=database` (default: `null`, off). When no sidecar row exists for a `run_id`, `GET /approvals` degrades gracefully to `tool: ""` and `arguments: {}`.
 
 ## Decision records
 
