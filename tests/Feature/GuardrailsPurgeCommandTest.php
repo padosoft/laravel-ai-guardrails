@@ -143,14 +143,6 @@ final class GuardrailsPurgeCommandTest extends TestCase
         self::assertCount(2, $this->rows());
     }
 
-    public function test_requires_database_store(): void
-    {
-        $this->app['config']->set('ai-guardrails.audit.store', 'array');
-
-        $this->artisan('ai-guardrails:purge', ['--strategy' => 'purge', '--days' => '30', '--actor' => 'x'])
-            ->assertFailed();
-    }
-
     public function test_days_zero_is_rejected_for_a_mutating_run(): void
     {
         $this->artisan('ai-guardrails:purge', ['--strategy' => 'purge', '--days' => '0', '--actor' => 'x'])
@@ -294,5 +286,21 @@ final class GuardrailsPurgeCommandTest extends TestCase
 
         $this->artisan('ai-guardrails:purge', ['--strategy' => 'purge', '--days' => '30', '--actor' => 'x'])
             ->assertFailed();
+    }
+
+    /**
+     * `keep` strategy is a true no-op: it must succeed (exit 0) and mutate nothing
+     * even when BOTH audit and hitl_requests stores are off-database.
+     * This proves the "neither table on database" guard is bypassed for `keep`.
+     */
+    public function test_keep_strategy_succeeds_when_both_stores_are_off_database(): void
+    {
+        $this->app['config']->set('ai-guardrails.audit.store', 'array');
+        $this->app['config']->set('ai-guardrails.hitl_requests.store', 'null');
+
+        $this->artisan('ai-guardrails:purge', ['--strategy' => 'keep'])->assertSuccessful();
+
+        // The audit table (still in-memory from setUp) must be untouched.
+        self::assertCount(2, $this->rows());
     }
 }

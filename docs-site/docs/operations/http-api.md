@@ -193,9 +193,10 @@ The sidecar is **default-OFF** (`hitl_requests.store = null`). Enable `array` or
 The following keys are **not** overridable at runtime — they are config/env-only and are silently dropped from a `PUT` body:
 
 - `audit.store`, `audit.table`, `audit.connection`
-- `firewall_log.store`, `firewall_log.table`
-- `output_stats.store`, `output_stats.table`
-- `settings.store`, `settings.table`
+- `firewall_log.store`, `firewall_log.table`, `firewall_log.connection`
+- `output_stats.store`, `output_stats.table`, `output_stats.connection`
+- `settings.store`, `settings.table`, `settings.connection`
+- `settings_audit.store`, `settings_audit.table`, `settings_audit.connection`
 - `hitl_requests.store`, `hitl_requests.table`, `hitl_requests.connection`
 
 These keys affect database routing and must be set via environment variables — changing them at runtime could corrupt data or split the audit trail across stores.

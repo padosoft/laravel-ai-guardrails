@@ -47,6 +47,13 @@ final class GuardrailsPurgeCommand extends Command
             return self::FAILURE;
         }
 
+        // `keep` is a true no-op regardless of which store is configured.
+        if ($strategy === 'keep') {
+            $this->info("Retention strategy is 'keep' — nothing purged.");
+
+            return self::SUCCESS;
+        }
+
         $auditOnDb = $this->config('audit.store', 'null') === 'database';
         $sidecarOnDb = $this->config('hitl_requests.store', 'null') === 'database';
 
@@ -59,12 +66,6 @@ final class GuardrailsPurgeCommand extends Command
         $daysOption = $this->option('days');
         $days = max(0, $daysOption !== null ? (int) $daysOption : (int) $this->config('retention.days', 365));
         $dryRun = (bool) $this->option('dry-run');
-
-        if ($strategy === 'keep') {
-            $this->info("Retention strategy is 'keep' — nothing purged.");
-
-            return self::SUCCESS;
-        }
 
         // Accountability: a mutating run must name an actor (skipped only for a read-only dry-run).
         $actor = $this->option('actor');
