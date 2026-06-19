@@ -21,8 +21,9 @@ use Illuminate\Support\Facades\Log;
  *
  * `retention.strategy`:
  *  - `keep`      — no-op (rows are retained indefinitely).
- *  - `anonymize` — null the prompt + principal of audit rows; redact arguments to {} + null
- *                  principal_id on sidecar rows; both older than `retention.days`.
+ *  - `anonymize` — set audit `prompt` to `'[anonymized]'` + null `principal_id` on audit rows;
+ *                  redact `arguments` to `{}` + null `principal_id` on sidecar rows;
+ *                  all rows older than `retention.days`.
  *  - `purge`     — hard-delete rows older than `retention.days` (both tables when on database).
  *
  * The command proceeds if AT LEAST ONE of the two tables is on `database`. If both are on database

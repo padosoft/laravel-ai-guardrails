@@ -277,7 +277,7 @@ The audit is the product value of Control B. Every screening attempt — blocked
 
 **Retention / erasure (`retention.strategy`).** GDPR erasure on the append-only tables goes through the sanctioned, actor-audited `ai-guardrails:purge` command — the **only** place rows leave either table. The command sweeps every store that is on `database` in a single run:
 
-- **Injection audit** (`audit.store=database`): `anonymize` nulls the `prompt` + `principal_id`; `purge` hard-deletes.
+- **Injection audit** (`audit.store=database`): `anonymize` sets `prompt` to `'[anonymized]'` and nulls `principal_id`; `purge` hard-deletes.
 - **HITL request sidecar** (`hitl_requests.store=database`, v1.1.0): `anonymize` redacts `arguments` to `{}` and nulls `principal_id` while keeping `tool`, `run_id`, `occurred_at` (the approval trail survives, PII is gone); `purge` hard-deletes. **Raw arguments are stored by design** — approvers must see exactly what will execute; the purge command is the GDPR answer.
 
 `keep` retains indefinitely. Every run logs the actor, strategy, cutoff, and affected-row count per table.

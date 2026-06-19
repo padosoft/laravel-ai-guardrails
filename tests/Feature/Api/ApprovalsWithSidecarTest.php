@@ -68,9 +68,20 @@ final class ApprovalsWithSidecarTest extends TestCase
         // arguments is a stdClass so it JSON-encodes as a named-key object (not [])
         $encodedArgs = json_encode($pending[0]['arguments']);
         self::assertSame('{"order_id":"X1"}', $encodedArgs);
+        // requested_ago: past timestamp → natural "X ago" phrasing (English locale default)
         self::assertArrayHasKey('requested_ago', $pending[0]);
+        self::assertIsString($pending[0]['requested_ago']);
         self::assertNotEmpty($pending[0]['requested_ago']);
+        self::assertStringEndsWith('ago', $pending[0]['requested_ago']);
+        // expires_in: future timestamp → natural "in X" / "X from now" phrasing
         self::assertArrayHasKey('expires_in', $pending[0]);
+        self::assertIsString($pending[0]['expires_in']);
+        self::assertNotEmpty($pending[0]['expires_in']);
+        $expiresIn = $pending[0]['expires_in'];
+        self::assertTrue(
+            str_starts_with($expiresIn, 'in ') || str_ends_with($expiresIn, 'from now'),
+            "expires_in should start with 'in ' or end with 'from now', got: '{$expiresIn}'"
+        );
         // Existing fields still present
         self::assertSame($approvalId, $pending[0]['approval_id']);
         self::assertSame($runId, $pending[0]['run_id']);

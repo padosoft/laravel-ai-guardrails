@@ -135,27 +135,30 @@ final class ApprovalReadModel
             }
         }
 
-        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-
         foreach ($pending as &$item) {
             $sid = $sidecar[(string) ($item['run_id'] ?? '')] ?? null;
             $item['tool'] = $sid['tool'] ?? '';
             $item['arguments'] = (object) ($sid['arguments'] ?? []);
-            $item['requested_ago'] = $this->relative($now, (string) ($item['created_at'] ?? ''));
+            $item['requested_ago'] = $this->relative((string) ($item['created_at'] ?? ''));
             $expiresAt = $item['expires_at'] ?? null;
-            $item['expires_in'] = $expiresAt !== null ? $this->relative($now, (string) $expiresAt) : null;
+            $item['expires_in'] = $expiresAt !== null ? $this->relative((string) $expiresAt) : null;
         }
         unset($item);
 
         return $pending;
     }
 
-    private function relative(DateTimeImmutable $now, string $isoString): string
+    private function relative(string $isoString): string
     {
         try {
             $dt = new DateTimeImmutable($isoString, new DateTimeZone('UTC'));
 
-            return Carbon::instance($dt)->diffForHumans(Carbon::instance($now));
+            // Call diffForHumans() without an explicit operand so Carbon uses the real wall-clock
+            // "now" as the reference point, yielding natural phrasing: "5 minutes ago" for past
+            // timestamps (requested_ago) and "in 28 minutes" / "28 minutes from now" for future
+            // timestamps (expires_in).  Passing $now explicitly produces "X minutes before/after"
+            // phrasing, which is less readable for API consumers.
+            return Carbon::instance($dt)->diffForHumans();
         } catch (\Throwable) {
             return '';
         }

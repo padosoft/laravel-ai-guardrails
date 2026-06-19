@@ -179,7 +179,7 @@ The sidecar is **default-OFF** (`hitl_requests.store = null`). Enable `array` or
 | --- | --- |
 | `tool_firewall.enabled`, `tool_firewall.reject_unknown_arguments`, `input_screen.enabled`, `output_handler.enabled`, `output_handler.sanitize_html`, `output_handler.neutralize_markdown`, `output_handler.redact_pii`, `hitl.enabled`, `normalization.enabled`, `normalization.nfkc`, `normalization.strip_zero_width`, `normalization.casefold`, `normalization.decode_base64_blobs`, `normalization.fold_confusables`, `tool_authorization.enabled` | boolean (`true`/`false`/`1`/`0`) |
 | `tool_firewall.owner_keys`, `hitl.destructive_tools` | array of non-empty strings |
-| `input_screen.patterns` | map `rule_id => regex`; **each pattern must be a fully-delimited PCRE string** (e.g. `/\bdrop\b/iu`) — the `/u` flag is required and the pattern must compile; a bad regex rejects the whole request (never stored) |
+| `input_screen.patterns` | map `rule_id => regex`; **each pattern must be a fully-delimited PCRE string with its own delimiters and flags** (e.g. `/\bdrop\b/iu`) that compiles — the screener runs patterns as-given under the existing `pcre.backtrack_limit` and fails closed on any `preg_match` error; a bad regex rejects the whole request (never stored) |
 | `input_screen.refusal_message` | UTF-8 string (≤ 2000 chars) |
 | `normalization.max_prompt_length` | integer `> 0` |
 | `retention.days` | integer `>= 0` |

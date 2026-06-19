@@ -35,7 +35,7 @@ flowchart LR
 The audit models throw on UPDATE/DELETE, so erasure goes through the sanctioned, **actor-audited** `ai-guardrails:purge` command — the only place rows leave the table:
 
 ```bash
-# Anonymize rows older than the retention window (null prompt + principal), keep the counts:
+# Anonymize rows older than the retention window (set prompt to '[anonymized]', null principal_id), keep the counts:
 php artisan ai-guardrails:purge --strategy=anonymize --days=365 --actor="ops:nightly"
 
 # Or hard-delete:
@@ -48,7 +48,7 @@ php artisan ai-guardrails:purge --dry-run
 | Strategy | Effect on audit table | Effect on HITL sidecar |
 |---|---|---|
 | `keep` | retain indefinitely (no-op) | retain indefinitely (no-op) |
-| `anonymize` | null the `prompt` + `principal_id` of rows older than `retention.days` | redact `arguments` to `{}` + null `principal_id`; keep `tool`, `run_id`, `occurred_at` |
+| `anonymize` | set `prompt` to `'[anonymized]'` + null `principal_id` on rows older than `retention.days` | redact `arguments` to `{}` + null `principal_id`; keep `tool`, `run_id`, `occurred_at` |
 | `purge` | hard-delete rows older than `retention.days` | hard-delete rows older than `retention.days` |
 
 The command uses the **raw query builder** to bypass the immutable models — keeping the append-only invariant true for every other code path. A mutating run requires `--actor` and `--days >= 1` and logs the actor, strategy, cutoff, and affected-row count **per table**.
