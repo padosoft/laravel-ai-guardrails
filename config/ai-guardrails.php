@@ -102,6 +102,11 @@ return [
             'modes.tool_firewall', 'modes.input_screen', 'modes.output_handler', 'modes.hitl',
             'normalization.enabled', 'pattern_safety.on_match_error',
             'tool_authorization.enabled', 'tool_authorization.owner_key_depth', 'tool_authorization.destructive_match',
+            // Task 5 — widened allow-list (each strictly validated by UpdateSettingsRequest).
+            'tool_firewall.owner_keys', 'input_screen.patterns', 'hitl.destructive_tools',
+            'normalization.nfkc', 'normalization.strip_zero_width', 'normalization.casefold',
+            'normalization.decode_base64_blobs', 'normalization.fold_confusables', 'normalization.max_prompt_length',
+            'audit_hygiene.prompt_storage', 'retention.days', 'retention.strategy',
         ],
     ],
 
