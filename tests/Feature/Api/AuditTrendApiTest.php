@@ -172,4 +172,48 @@ final class AuditTrendApiTest extends TestCase
         self::assertSame(0, $points[2]['observed']);
         self::assertSame(1, $points[2]['allowed']);
     }
+
+    /**
+     * Degenerate row: blocked=true AND rule_id=null.
+     *
+     * Before the SQL fix, a row with blocked=true AND rule_id=null was counted as BOTH blocked AND
+     * allowed (the old SQL `allowed` CASE was just `rule_id IS NULL` with no NOT-blocked guard).
+     * After the fix, it counts ONLY as blocked, and the invariant total === blocked + observed +
+     * allowed holds.
+     *
+     * The ArrayInjectionAuditStore (used by this feature test) already short-circuits correctly;
+     * this test proves parity with the DB path and documents the expected invariant at the API level.
+     */
+    public function test_trend_degenerate_row_blocked_true_rule_id_null_counts_only_as_blocked(): void
+    {
+        $store = $this->app->make(InjectionAuditStore::class);
+        $utc = $this->utc();
+
+        // degenerate: blocked=true, ruleId=null — must count as blocked ONLY (not allowed)
+        $store->append(new InjectionAttempt('degenerate', true, null, 'u0', new DateTimeImmutable('2026-06-01 10:00:00', $utc)));
+        // normal blocked: blocked=true, ruleId set
+        $store->append(new InjectionAttempt('normal blocked', true, 'rule_x', 'u1', new DateTimeImmutable('2026-06-01 11:00:00', $utc)));
+        // observed: blocked=false, ruleId set
+        $store->append(new InjectionAttempt('observed', false, 'rule_y', 'u2', new DateTimeImmutable('2026-06-01 12:00:00', $utc)));
+        // allowed: blocked=false, ruleId=null
+        $store->append(new InjectionAttempt('allowed', false, null, 'u3', new DateTimeImmutable('2026-06-01 13:00:00', $utc)));
+
+        $response = $this->getJson('/ai-guardrails/api/audit/trend?from=2026-06-01&to=2026-06-02')
+            ->assertOk();
+
+        $points = $response->json('data.points');
+        self::assertCount(1, $points, 'Expected exactly one day in the result');
+
+        $point = $points[0];
+        self::assertSame('2026-06-01', $point['date']);
+        self::assertSame(4, $point['total'], 'total must be 4');
+        self::assertSame(2, $point['blocked'], 'degenerate + normal blocked = 2 (degenerate must NOT leak into allowed)');
+        self::assertSame(1, $point['observed'], 'observed must be 1');
+        self::assertSame(1, $point['allowed'], 'allowed must be 1');
+        self::assertSame(
+            $point['total'],
+            $point['blocked'] + $point['observed'] + $point['allowed'],
+            'Invariant: total === blocked + observed + allowed',
+        );
+    }
 }

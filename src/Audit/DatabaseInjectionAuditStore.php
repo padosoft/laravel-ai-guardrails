@@ -101,13 +101,15 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
         $day = $this->dayExpression();
         $isBlocked = $this->blockedPredicate();
 
+        $notBlocked = $this->notBlockedPredicate();
+
         $rows = $this->baseQuery()
             ->selectRaw(
                 $day.' as day'
                 .', count(*) as total'
                 .', sum(case when '.$isBlocked.' then 1 else 0 end) as blocked'
-                .', sum(case when NOT '.$isBlocked.' AND rule_id IS NOT NULL then 1 else 0 end) as observed'
-                .', sum(case when rule_id IS NULL then 1 else 0 end) as allowed'
+                .', sum(case when '.$notBlocked.' AND rule_id IS NOT NULL then 1 else 0 end) as observed'
+                .', sum(case when '.$notBlocked.' AND rule_id IS NULL then 1 else 0 end) as allowed'
             )
             ->where('occurred_at', '>=', $since->setTimezone($utc)->format('Y-m-d H:i:s'))
             ->where('occurred_at', '<=', $until->setTimezone($utc)->format('Y-m-d H:i:s'))
@@ -158,6 +160,21 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
         return DB::connection($this->connection)->getDriverName() === 'pgsql'
             ? 'blocked = true'
             : 'blocked = 1';
+    }
+
+    /**
+     * Dialect-safe falsy test for the `blocked` column — the explicit complement of `blockedPredicate()`.
+     * Using an explicit `= false` / `= 0` form (rather than `NOT blocked = 1`) avoids any operator-
+     * precedence ambiguity across dialects and makes the three CASE branches mutually exclusive by
+     * construction: blocked / (not-blocked AND rule_id IS NOT NULL) / (not-blocked AND rule_id IS NULL).
+     *
+     * @return literal-string
+     */
+    private function notBlockedPredicate(): string
+    {
+        return DB::connection($this->connection)->getDriverName() === 'pgsql'
+            ? 'blocked = false'
+            : 'blocked = 0';
     }
 
     private function baseQuery(): Builder

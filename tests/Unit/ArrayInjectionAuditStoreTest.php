@@ -152,4 +152,39 @@ final class ArrayInjectionAuditStoreTest extends TestCase
     {
         self::assertSame([], $this->seeded()->recent(0));
     }
+
+    /**
+     * Degenerate row: blocked=true AND ruleId=null.
+     *
+     * The PHP short-circuit in trend() must count it as `blocked` only (not `allowed`),
+     * and the three-way invariant total === blocked + observed + allowed must hold.
+     */
+    public function test_trend_degenerate_row_blocked_true_rule_id_null_counts_only_as_blocked(): void
+    {
+        $store = new ArrayInjectionAuditStore;
+
+        // degenerate: blocked=true, ruleId=null — must count as blocked ONLY
+        $store->append(new InjectionAttempt('degenerate', true, null, null, $this->at('2026-05-01 10:00:00')));
+        // normal blocked: blocked=true, ruleId set
+        $store->append(new InjectionAttempt('normal blocked', true, 'rule_x', null, $this->at('2026-05-01 11:00:00')));
+        // observed: blocked=false, ruleId set
+        $store->append(new InjectionAttempt('observed', false, 'rule_y', null, $this->at('2026-05-01 12:00:00')));
+        // allowed: blocked=false, ruleId=null
+        $store->append(new InjectionAttempt('allowed', false, null, null, $this->at('2026-05-01 13:00:00')));
+
+        $trend = $store->trend($this->at('2026-05-01 00:00:00'), $this->at('2026-05-02 00:00:00'));
+
+        self::assertCount(1, $trend);
+        $point = $trend[0];
+        self::assertSame('2026-05-01', $point['date']);
+        self::assertSame(4, $point['total'], 'total must be 4');
+        self::assertSame(2, $point['blocked'], 'degenerate + normal blocked = 2');
+        self::assertSame(1, $point['observed'], 'observed must be 1');
+        self::assertSame(1, $point['allowed'], 'allowed must be 1 (degenerate row must NOT leak into allowed)');
+        self::assertSame(
+            $point['total'],
+            $point['blocked'] + $point['observed'] + $point['allowed'],
+            'Invariant: total === blocked + observed + allowed',
+        );
+    }
 }
