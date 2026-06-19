@@ -15,6 +15,7 @@ use InvalidArgumentException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
+use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\AiGuardrails\Events\DestructiveToolRouted;
 use Padosoft\AiGuardrails\Support\ControlMode;
 use Stringable;
@@ -50,6 +51,7 @@ final readonly class ApprovalGatedTool implements Tool
         private string $fallback = 'deny',
         private ControlMode $mode = ControlMode::Enforce,
         private ?Dispatcher $events = null,
+        private ?HitlRequestStore $requestStore = null,
     ) {
         if (! in_array($this->fallback, ['deny', 'pass'], true)) {
             throw new InvalidArgumentException(
@@ -108,6 +110,22 @@ final readonly class ApprovalGatedTool implements Tool
             $pending->runId,
             new DateTimeImmutable('now', new DateTimeZone('UTC')),
         ));
+
+        // Best-effort sidecar record (tool + scoped args at park-time for the /approvals read path).
+        // A store failure must NEVER break or un-park an already-routed destructive call.
+        if ($this->requestStore !== null) {
+            try {
+                $this->requestStore->record(
+                    $pending->runId,
+                    null,
+                    $this->toolName,
+                    $request->toArray(),
+                    $principal,
+                );
+            } catch (\Throwable) {
+                // intentionally swallowed — sidecar is best-effort
+            }
+        }
 
         // Return only the non-secret run reference. The plain-text approval token is intentionally
         // withheld from the model response to prevent token leakage via conversation logs or relay.

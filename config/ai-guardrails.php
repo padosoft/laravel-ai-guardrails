@@ -72,6 +72,14 @@ return [
         'table' => env('AI_GUARDRAILS_FIREWALL_TABLE', 'ai_guardrails_firewall_rejections'),
     ],
 
+    // Append-only HITL request sidecar — records tool + scoped arguments at park-time
+    // (consumed by GET /approvals to expose tool, arguments, relative times). Task 4.
+    'hitl_requests' => [
+        'store' => env('AI_GUARDRAILS_HITL_REQUESTS_STORE', 'null'), // null | array | database
+        'connection' => env('AI_GUARDRAILS_HITL_REQUESTS_CONNECTION'),
+        'table' => env('AI_GUARDRAILS_HITL_REQUESTS_TABLE', 'ai_guardrails_hitl_requests'),
+    ],
+
     // Append-only output-sanitization counter persistence (control C; consumed by GET /output/stats). Task 14.
     'output_stats' => [
         'store' => env('AI_GUARDRAILS_OUTPUT_STATS_STORE', 'null'), // null | array | database

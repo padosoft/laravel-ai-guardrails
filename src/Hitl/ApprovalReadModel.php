@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Hitl;
 
+use Carbon\Carbon;
+use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\Query\Builder;
+use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\LaravelFlow\Models\FlowApprovalRecord;
 use Padosoft\LaravelFlow\Models\FlowRunRecord;
 
@@ -15,9 +18,17 @@ use Padosoft\LaravelFlow\Models\FlowRunRecord;
  * approval/run ids — the operator approves/rejects by passing the token it already holds, and a host
  * dashboard can resolve full run details by `run_id`. Referenced only within the src/Hitl adapter
  * boundary; degrades to an empty list when flow is absent.
+ *
+ * Each pending item is enriched with tool + scoped arguments from the append-only sidecar store
+ * (recorded at park-time by ApprovalGatedTool), plus relative-time strings for requested_ago and
+ * expires_in.
  */
 final class ApprovalReadModel
 {
+    public function __construct(
+        private readonly ?HitlRequestStore $requestStore = null,
+    ) {}
+
     /** @return list<array<string,mixed>> */
     public function pending(int $limit = 50): array
     {
@@ -58,7 +69,62 @@ final class ApprovalReadModel
             ];
         }
 
+        return $this->enrich($pending);
+    }
+
+    /**
+     * Test helper: enrich a pre-built set of pending rows (bypasses the flow query).
+     * Only for use in tests where laravel-flow is not loaded.
+     *
+     * @param  list<array<string,mixed>>  $rows
+     * @return list<array<string,mixed>>
+     */
+    public function pendingWithStub(array $rows): array
+    {
+        return $this->enrich($rows);
+    }
+
+    /**
+     * Merge sidecar data (tool, arguments) and relative-time strings into each pending item.
+     *
+     * @param  list<array<string,mixed>>  $pending
+     * @return list<array<string,mixed>>
+     */
+    private function enrich(array $pending): array
+    {
+        if ($pending === []) {
+            return [];
+        }
+
+        $runIds = array_values(array_filter(array_column($pending, 'run_id'), 'is_string'));
+        $sidecar = ($this->requestStore !== null && $runIds !== [])
+            ? $this->requestStore->forRunIds($runIds)
+            : [];
+
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+        foreach ($pending as &$item) {
+            $sid = $sidecar[(string) ($item['run_id'] ?? '')] ?? null;
+            $item['tool'] = $sid['tool'] ?? '';
+            $item['arguments'] = $sid['arguments'] ?? [];
+            $item['requested_ago'] = $this->relative($now, (string) ($item['created_at'] ?? ''));
+            $expiresAt = $item['expires_at'] ?? null;
+            $item['expires_in'] = $expiresAt !== null ? $this->relative($now, (string) $expiresAt) : null;
+        }
+        unset($item);
+
         return $pending;
+    }
+
+    private function relative(DateTimeImmutable $now, string $isoString): string
+    {
+        try {
+            $dt = new DateTimeImmutable($isoString, new DateTimeZone('UTC'));
+
+            return Carbon::instance($dt)->diffForHumans(Carbon::instance($now));
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     private function iso(?\DateTimeInterface $value): ?string
@@ -67,6 +133,6 @@ final class ApprovalReadModel
             return null;
         }
 
-        return \DateTimeImmutable::createFromInterface($value)->setTimezone(new DateTimeZone('UTC'))->format(DATE_ATOM);
+        return DateTimeImmutable::createFromInterface($value)->setTimezone(new DateTimeZone('UTC'))->format(DATE_ATOM);
     }
 }
