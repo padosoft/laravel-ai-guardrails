@@ -73,6 +73,31 @@ final class ApprovalReadModel
     }
 
     /**
+     * Count of pending approvals for this package's flow definition, without fetching or
+     * enriching rows. Use this for the overview totals instead of count($this->pending()),
+     * which is capped at 50 and would undercount a large approval backlog.
+     */
+    public function pendingCount(): int
+    {
+        if (! class_exists(FlowApprovalRecord::class)) {
+            return 0;
+        }
+
+        try {
+            return (int) FlowApprovalRecord::query()
+                ->where('status', FlowApprovalRecord::STATUS_PENDING)
+                ->whereIn('run_id', static function (Builder $query): void {
+                    $query->select('id')
+                        ->from((new FlowRunRecord)->getTable())
+                        ->where('definition_name', FlowApprovalRouter::FLOW_NAME);
+                })
+                ->count();
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * Test helper: enrich a pre-built set of pending rows (bypasses the flow query).
      * Only for use in tests where laravel-flow is not loaded.
      *

@@ -68,7 +68,7 @@ final readonly class OverviewAggregator
                 'sampled' => count($recent) >= $sampleSize,
                 // v1.1 additions — backward-compatible new keys
                 'observed_24h' => count($observed24h),
-                'pending_approvals' => count($this->approvalReadModel->pending()),
+                'pending_approvals' => $this->approvalReadModel->pendingCount(),
             ],
             // E9-API delta: the active screening ruleset version, so the admin can correlate audit
             // rows (which carry their own ruleset_version) with what is live now.

@@ -16,4 +16,12 @@ final class ApprovalReadModelTest extends TestCase
         // must catch that and return [] rather than 500 the read-only endpoint.
         self::assertSame([], (new ApprovalReadModel)->pending());
     }
+
+    public function test_pending_count_degrades_to_zero_when_flow_tables_are_absent(): void
+    {
+        // Same degradation contract as pending() but for the count path — must return 0 (int)
+        // rather than throwing when the flow tables are not migrated.
+        self::assertSame(0, (new ApprovalReadModel)->pendingCount());
+    }
 }
+

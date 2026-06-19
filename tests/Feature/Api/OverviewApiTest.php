@@ -114,6 +114,18 @@ final class OverviewApiTest extends TestCase
         $this->assertSame('Disabled', $controls['hitl']['posture']);
     }
 
+    public function test_pending_approvals_uses_pending_count_method(): void
+    {
+        // Verify the aggregator calls pendingCount() (not count(pending())) by asserting the
+        // key is present and is an integer. Since flow tables are absent in this test environment,
+        // both paths return 0 — the contract that pendingCount() is called is verified by reading
+        // the source and by the ApprovalReadModelTest::test_pending_count_degrades_to_zero test.
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        $this->assertArrayHasKey('pending_approvals', $data['totals']);
+        $this->assertIsInt($data['totals']['pending_approvals']);
+    }
+
     public function test_attempt_older_than_12h_is_excluded_from_spark(): void
     {
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));

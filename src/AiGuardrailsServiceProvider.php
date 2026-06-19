@@ -469,6 +469,11 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 __DIR__.'/../database/migrations/create_ai_guardrails_hitl_requests_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 5).'_create_ai_guardrails_hitl_requests_table.php'
                 ),
+                // v1.1.0 additive: adds the nullable detector column for existing installs that already
+                // ran the create_ai_guardrails_output_stats migration without this column.
+                __DIR__.'/../database/migrations/add_detector_to_ai_guardrails_output_stats_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 6).'_add_detector_to_ai_guardrails_output_stats_table.php'
+                ),
             ], 'ai-guardrails-migrations');
 
             $this->commands([
