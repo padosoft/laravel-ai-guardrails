@@ -11,17 +11,22 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Sanctioned, actor-audited GDPR-retention maintenance for the append-only injection audit (Task E5).
+ * Sanctioned, actor-audited GDPR-retention maintenance for the append-only injection audit (Task E5)
+ * and the HITL request sidecar (Task 6 — GDPR gap closure for ai_guardrails_hitl_requests).
  *
- * The audit model refuses UPDATE and DELETE — this command is the ONLY place rows may be erased or
+ * Both audit models refuse UPDATE and DELETE — this command is the ONLY place rows may be erased or
  * anonymised, and it does so through the raw query builder (bypassing the immutable model) so the
  * append-only invariant still holds for every other code path. Every run is logged with the actor,
- * the strategy, the cutoff, and the affected-row count.
+ * the strategy, the cutoff, and the affected-row count per table.
  *
  * `retention.strategy`:
  *  - `keep`      — no-op (rows are retained indefinitely).
- *  - `anonymize` — null the prompt + principal of rows older than `retention.days` (keep the counts).
- *  - `purge`     — hard-delete rows older than `retention.days`.
+ *  - `anonymize` — null the prompt + principal of audit rows; redact arguments to {} + null
+ *                  principal_id on sidecar rows; both older than `retention.days`.
+ *  - `purge`     — hard-delete rows older than `retention.days` (both tables when on database).
+ *
+ * The command proceeds if AT LEAST ONE of the two tables is on `database`. If both are on database
+ * both are swept in the same run. If neither is on database the command errors (nothing to do).
  */
 final class GuardrailsPurgeCommand extends Command
 {
@@ -31,7 +36,7 @@ final class GuardrailsPurgeCommand extends Command
         {--actor= : Who is running this maintenance (required unless --dry-run); recorded in the audit log}
         {--dry-run : Report how many rows would be affected without modifying anything}';
 
-    protected $description = 'Apply the configured GDPR retention strategy to the append-only injection audit (actor-audited).';
+    protected $description = 'Apply the configured GDPR retention strategy to the append-only injection audit and HITL request sidecar (actor-audited).';
 
     public function handle(): int
     {
@@ -42,8 +47,11 @@ final class GuardrailsPurgeCommand extends Command
             return self::FAILURE;
         }
 
-        if ($this->config('audit.store', 'null') !== 'database') {
-            $this->error('ai-guardrails:purge requires audit.store=database (no persistent table otherwise).');
+        $auditOnDb = $this->config('audit.store', 'null') === 'database';
+        $sidecarOnDb = $this->config('hitl_requests.store', 'null') === 'database';
+
+        if (! $auditOnDb && ! $sidecarOnDb) {
+            $this->error('ai-guardrails:purge requires audit.store=database or hitl_requests.store=database (no persistent table otherwise).');
 
             return self::FAILURE;
         }
@@ -74,6 +82,28 @@ final class GuardrailsPurgeCommand extends Command
         }
 
         $cutoff = Carbon::now(new DateTimeZone('UTC'))->subDays($days)->format('Y-m-d H:i:s');
+        $actorStr = is_string($actor) ? trim($actor) : '';
+
+        // ── Audit table ───────────────────────────────────────────────────────
+        if ($auditOnDb) {
+            $this->sweepAuditTable($strategy, $days, $cutoff, $actorStr, $dryRun);
+        }
+
+        // ── HITL request sidecar ──────────────────────────────────────────────
+        if ($sidecarOnDb) {
+            $this->sweepSidecarTable($strategy, $days, $cutoff, $actorStr, $dryRun);
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function sweepAuditTable(
+        string $strategy,
+        int $days,
+        string $cutoff,
+        string $actor,
+        bool $dryRun,
+    ): void {
         $table = (string) $this->config('audit.table', 'ai_guardrails_injection_audit');
         $connection = $this->config('audit.connection');
         $connection = is_string($connection) && $connection !== '' ? $connection : null;
@@ -82,15 +112,13 @@ final class GuardrailsPurgeCommand extends Command
 
         if ($dryRun) {
             $count = $candidates()->count();
-            $this->info("[dry-run] would {$strategy} {$count} row(s) older than {$cutoff} UTC.");
+            $this->info("[dry-run] audit: would {$strategy} {$count} row(s) older than {$cutoff} UTC.");
 
-            return self::SUCCESS;
+            return;
         }
 
-        // Pre-audit: log the intent BEFORE the mutation so accountability is established even if the
-        // mutation is interrupted. A second post-run entry records the actual affected-row count.
         Log::info('laravel-ai-guardrails: retention maintenance starting.', [
-            'actor' => trim((string) $actor),
+            'actor' => $actor,
             'strategy' => $strategy,
             'days' => $days,
             'cutoff_utc' => $cutoff,
@@ -108,7 +136,7 @@ final class GuardrailsPurgeCommand extends Command
             ]);
 
         Log::info('laravel-ai-guardrails: retention maintenance applied.', [
-            'actor' => trim((string) $actor),
+            'actor' => $actor,
             'strategy' => $strategy,
             'days' => $days,
             'cutoff_utc' => $cutoff,
@@ -116,9 +144,57 @@ final class GuardrailsPurgeCommand extends Command
             'affected' => $affected,
         ]);
 
-        $this->info("{$strategy}: {$affected} row(s) older than {$cutoff} UTC (actor: ".trim((string) $actor).').');
+        $this->info("audit {$strategy}: {$affected} row(s) older than {$cutoff} UTC (actor: {$actor}).");
+    }
 
-        return self::SUCCESS;
+    private function sweepSidecarTable(
+        string $strategy,
+        int $days,
+        string $cutoff,
+        string $actor,
+        bool $dryRun,
+    ): void {
+        $table = (string) $this->config('hitl_requests.table', 'ai_guardrails_hitl_requests');
+        $connection = $this->config('hitl_requests.connection');
+        $connection = is_string($connection) && $connection !== '' ? $connection : null;
+
+        $candidates = fn () => DB::connection($connection)->table($table)->where('occurred_at', '<', $cutoff);
+
+        if ($dryRun) {
+            $count = $candidates()->count();
+            $this->info("[dry-run] hitl_requests: would {$strategy} {$count} row(s) older than {$cutoff} UTC.");
+
+            return;
+        }
+
+        Log::info('laravel-ai-guardrails: retention maintenance starting.', [
+            'actor' => $actor,
+            'strategy' => $strategy,
+            'days' => $days,
+            'cutoff_utc' => $cutoff,
+            'table' => $table,
+        ]);
+
+        // purge: hard-delete old rows.
+        // anonymize: redact arguments to {} and null principal_id; keep run_id, tool, occurred_at
+        //   so the approval trail survives but the PII is gone.
+        $affected = $strategy === 'purge'
+            ? $candidates()->delete()
+            : $candidates()->update([
+                'arguments' => '{}',
+                'principal_id' => null,
+            ]);
+
+        Log::info('laravel-ai-guardrails: retention maintenance applied.', [
+            'actor' => $actor,
+            'strategy' => $strategy,
+            'days' => $days,
+            'cutoff_utc' => $cutoff,
+            'table' => $table,
+            'affected' => $affected,
+        ]);
+
+        $this->info("hitl_requests {$strategy}: {$affected} row(s) older than {$cutoff} UTC (actor: {$actor}).");
     }
 
     private function config(string $key, mixed $default = null): mixed
