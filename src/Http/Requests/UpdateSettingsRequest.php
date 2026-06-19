@@ -6,6 +6,7 @@ namespace Padosoft\AiGuardrails\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\ValidationException;
+use Padosoft\AiGuardrails\Screening\PatternInjectionScreener;
 use Padosoft\AiGuardrails\Settings\OverridableSettings;
 
 /**
@@ -123,7 +124,7 @@ final class UpdateSettingsRequest extends FormRequest
     {
         return match ($type) {
             'bool' => $this->coerceBool($value),
-            'int' => is_int($value) || (is_string($value) && filter_var($value, FILTER_VALIDATE_INT) !== false)
+            'int' => is_int($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)
                 ? (int) $value
                 : new Invalid('must be an integer'),
             'int_positive' => $this->coerceIntRange($value, 1),
@@ -139,12 +140,15 @@ final class UpdateSettingsRequest extends FormRequest
     }
 
     /**
-     * Coerce an integer with an inclusive lower bound. Accepts a PHP int or its string form. Booleans
-     * are NOT integers here (is_int(true) === false) so `true` can never sneak in as `1`.
+     * Coerce an integer with an inclusive lower bound. Accepts a PHP int or a strictly-numeric integer
+     * string (no whitespace, no decimals, no trailing junk). Booleans are NOT integers here
+     * (is_int(true) === false) so `true` can never sneak in as `1`. Strings like " 5 ", "5.0", "5x"
+     * are rejected — filter_var(FILTER_VALIDATE_INT) would silently accept " 5 " and "5.0" which could
+     * mask a client bug or a type-confusion attack.
      */
     private function coerceIntRange(mixed $value, int $min): int|Invalid
     {
-        if (is_string($value) && filter_var($value, FILTER_VALIDATE_INT) !== false) {
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
             $value = (int) $value;
         }
 
@@ -181,10 +185,18 @@ final class UpdateSettingsRequest extends FormRequest
     }
 
     /**
-     * Coerce a map of rule_id => regex where EACH pattern must compile under the /u (Unicode) flag.
-     * Security-critical: an invalid regex must never be stored (it would fail-closed at match time but
-     * silently break a rule). Rejects a non-object, a list, an empty/non-string rule_id, or any pattern
-     * that does not compile. An empty map is accepted (clears the override).
+     * Coerce a map of rule_id => fully-delimited PCRE pattern (e.g. `/\bdrop\b/iu`). Patterns MUST be
+     * submitted in the same format the screener runs them — fully delimited with opening/closing
+     * delimiter and optional flags — matching the config defaults (e.g. `'/\bignore\s+...\b/iu'`).
+     *
+     * Validation reuses {@see PatternInjectionScreener::validatePatterns()}, which validates each pattern
+     * EXACTLY as the screener will run it (`@preg_match($pattern, '') === false`). This guarantees that
+     * stored patterns will not cause preg_match errors at screening time (which would fail-closed and
+     * break screening). On ANY invalid pattern the ENTIRE map is rejected (fail-closed, no partial write).
+     *
+     * Security-critical: an invalid regex must never be stored. Rejects a non-object, a list, an
+     * empty/non-string rule_id, any non-string pattern, or any pattern that does not compile.
+     * An empty map is accepted (clears the override).
      *
      * @return array<string,string>|Invalid
      */
@@ -198,7 +210,8 @@ final class UpdateSettingsRequest extends FormRequest
             return new Invalid('must be an object (string keys), not a list');
         }
 
-        $coerced = [];
+        // Structural checks: rule_ids must be non-empty strings, values must be strings.
+        $stringMap = [];
         foreach ($value as $ruleId => $pattern) {
             $ruleId = (string) $ruleId;
             if ($ruleId === '') {
@@ -207,14 +220,25 @@ final class UpdateSettingsRequest extends FormRequest
             if (! is_string($pattern)) {
                 return new Invalid("pattern for rule '{$ruleId}' must be a string");
             }
-            // A PCRE compile error makes preg_match return false (vs 0/1 for a successful match).
-            if (@preg_match('/'.$pattern.'/u', '') === false) {
-                return new Invalid("pattern for rule '{$ruleId}' is not a valid PCRE regex under the /u flag");
-            }
-            $coerced[$ruleId] = $pattern;
+            $stringMap[$ruleId] = $pattern;
         }
 
-        return $coerced;
+        if ($stringMap === []) {
+            return $stringMap; // empty map — clears the override, always valid.
+        }
+
+        // Delegate compilation validation to the screener's own validator. It runs each pattern
+        // AS-GIVEN (`@preg_match($pattern, '')`), matching exactly how the screener will run them
+        // at runtime. Any pattern that fails → reject the entire map (no partial write).
+        $patternErrors = PatternInjectionScreener::validatePatterns($stringMap);
+        if ($patternErrors !== []) {
+            $first = array_key_first($patternErrors);
+
+            return new Invalid("pattern for rule '{$first}' is not a valid PCRE regex: {$patternErrors[$first]}");
+        }
+
+        // Patterns are stored VERBATIM in the same delimited format as the config defaults.
+        return $stringMap;
     }
 
     private function coerceBool(mixed $value): bool|Invalid

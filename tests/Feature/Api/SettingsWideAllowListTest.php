@@ -6,7 +6,9 @@ namespace Padosoft\AiGuardrails\Tests\Feature\Api;
 
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\DB;
+use Padosoft\AiGuardrails\AiGuardrailsServiceProvider;
 use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
+use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Settings\ConfigGuardrailSettingsStore;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
@@ -93,19 +95,32 @@ final class SettingsWideAllowListTest extends TestCase
 
     public function test_put_valid_patterns_map_persists(): void
     {
+        // Patterns MUST be submitted in fully-delimited format (same as the config defaults and as the
+        // screener runs them). Body-only patterns (without delimiters) are rejected because they would
+        // cause preg_match errors at screening time, breaking screening entirely.
         $this->putJson('/ai-guardrails/api/settings', [
-            'settings' => ['input_screen.patterns' => ['custom' => '\bdrop\s+table\b']],
+            'settings' => ['input_screen.patterns' => ['custom' => '/\bdrop\b/iu']],
         ])->assertOk();
 
         $this->getJson('/ai-guardrails/api/settings')
             ->assertOk()
-            ->assertJsonPath('data.settings.input_screen.patterns.custom', '\bdrop\s+table\b');
+            ->assertJsonPath('data.settings.input_screen.patterns.custom', '/\bdrop\b/iu');
+    }
+
+    public function test_put_body_only_pattern_without_delimiters_returns_422(): void
+    {
+        // A body-only pattern (no delimiters) passes the old validator but would fail at screening time
+        // because the screener calls preg_match($pattern, ...) expecting a delimited pattern.
+        $this->putJson('/ai-guardrails/api/settings', [
+            'settings' => ['input_screen.patterns' => ['bad' => 'no-delimiters']],
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors('settings.input_screen.patterns');
     }
 
     public function test_put_invalid_regex_in_patterns_returns_422_and_nothing_stored(): void
     {
         $this->putJson('/ai-guardrails/api/settings', [
-            'settings' => ['input_screen.patterns' => ['bad' => '(?P<unclosed']],
+            'settings' => ['input_screen.patterns' => ['bad' => '/(?P<unclosed/']],
         ])->assertStatus(422)
             ->assertJsonValidationErrors('settings.input_screen.patterns');
 
@@ -118,9 +133,27 @@ final class SettingsWideAllowListTest extends TestCase
     public function test_put_patterns_as_list_returns_422(): void
     {
         $this->putJson('/ai-guardrails/api/settings', [
-            'settings' => ['input_screen.patterns' => ['\bfoo\b', '\bbar\b']],
+            'settings' => ['input_screen.patterns' => ['/\bfoo\b/u', '/\bbar\b/u']],
         ])->assertStatus(422)
             ->assertJsonValidationErrors('settings.input_screen.patterns');
+    }
+
+    public function test_put_mixed_patterns_map_no_partial_write(): void
+    {
+        // Fix 3: if ANY pattern is invalid the entire map must be rejected and NOTHING stored.
+        $this->putJson('/ai-guardrails/api/settings', [
+            'settings' => ['input_screen.patterns' => [
+                'good' => '/\bdrop\b/iu',
+                'bad' => '/(?P<unclosed/',
+            ]],
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors('settings.input_screen.patterns');
+
+        self::assertSame(
+            0,
+            DB::table('ai_guardrails_settings')->where('key', 'input_screen.patterns')->count(),
+            'No row must be stored when the map contains even one invalid pattern (no partial write).'
+        );
     }
 
     // ── int_positive (normalization.max_prompt_length) ───────────────────────────
@@ -314,5 +347,90 @@ final class SettingsWideAllowListTest extends TestCase
         $this->getJson('/ai-guardrails/api/settings')
             ->assertOk()
             ->assertJsonPath('data.settings.retention.days', 365);
+    }
+
+    // ── Fix 2: strict integer coercion (max_prompt_length) ───────────────────────
+
+    public function test_put_max_prompt_length_string_integer_accepted(): void
+    {
+        // A strictly-numeric integer string (no whitespace, no decimal point) must be coerced and accepted.
+        $this->putJson('/ai-guardrails/api/settings', [
+            'settings' => ['normalization.max_prompt_length' => '1000'],
+        ])->assertOk();
+
+        $this->getJson('/ai-guardrails/api/settings')
+            ->assertOk()
+            ->assertJsonPath('data.settings.normalization.max_prompt_length', 1000);
+    }
+
+    public function test_put_max_prompt_length_string_with_whitespace_is_accepted_after_trim(): void
+    {
+        // " 5 " with surrounding spaces is sent as a JSON string. Laravel's TrimStrings middleware
+        // trims it to "5" (a strictly-numeric string) BEFORE it reaches our validator. After trimming
+        // it is accepted and coerced to the integer 5. This is the correct end-to-end HTTP behaviour.
+        // The underlying coerceIntRange uses preg_match('/^-?\d+$/') rather than filter_var, so if a
+        // raw " 5 " ever reached it without trimming it would be rejected — verified by unit test.
+        $this->putJson('/ai-guardrails/api/settings', [
+            'settings' => ['normalization.max_prompt_length' => ' 5 '],
+        ])->assertOk();
+
+        $this->getJson('/ai-guardrails/api/settings')
+            ->assertOk()
+            ->assertJsonPath('data.settings.normalization.max_prompt_length', 5);
+    }
+
+    public function test_put_max_prompt_length_alphanumeric_string_returns_422(): void
+    {
+        // "5x" must be rejected — not a pure integer string, and TrimStrings cannot fix it.
+        $this->putJson('/ai-guardrails/api/settings', [
+            'settings' => ['normalization.max_prompt_length' => '5x'],
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors('settings.normalization.max_prompt_length');
+    }
+
+    // ── Fix 1 end-to-end: stored override flows into the screener at runtime ─────
+
+    /**
+     * Proves that a delimited pattern stored via PUT /settings is actually enforced by the screener on
+     * the next request — i.e. the format stored (delimited) matches the format the screener expects.
+     *
+     * The override is written to the DB, then we rebuild the screener singleton (simulating the
+     * next-boot overlay) by overlaying the stored value onto the config, forgetting the screener
+     * singleton, and re-registering — the same path the ServiceProvider's overlayRuntimeSettings()
+     * + register() use. POST /try/screen then proves the runtime effect.
+     */
+    public function test_stored_delimited_pattern_is_enforced_at_screening_time(): void
+    {
+        // 1. Store a delimited pattern via the settings API.
+        $this->putJson('/ai-guardrails/api/settings', [
+            'settings' => ['input_screen.patterns' => ['custom' => '/\bwipe\s+database\b/iu']],
+        ])->assertOk();
+
+        // 2. Simulate overlay: fetch the stored value and apply it to the config, then rebuild the
+        //    screener — mirrors what overlayRuntimeSettings() + a new boot cycle would do.
+        $stored = DB::table('ai_guardrails_settings')
+            ->where('key', 'input_screen.patterns')
+            ->value('value');
+
+        self::assertNotNull($stored, 'Pattern override must be persisted in the DB.');
+
+        /** @var array<string,string> $patterns */
+        $patterns = json_decode((string) $stored, true);
+        $this->app['config']->set('ai-guardrails.input_screen.patterns', $patterns);
+
+        // Forget and re-register the screener so it picks up the new config value.
+        $this->app->forgetInstance(InjectionScreener::class);
+        (new AiGuardrailsServiceProvider($this->app))->register();
+
+        // 3. Screen the matching prompt — must be BLOCKED with rule_id 'custom'.
+        $this->postJson('/ai-guardrails/api/try/screen', ['prompt' => 'please wipe database now'])
+            ->assertOk()
+            ->assertJsonPath('data.blocked', true)
+            ->assertJsonPath('data.rule_id', 'custom');
+
+        // 4. Screen a benign prompt — must be ALLOWED.
+        $this->postJson('/ai-guardrails/api/try/screen', ['prompt' => 'what is the refund policy?'])
+            ->assertOk()
+            ->assertJsonPath('data.blocked', false);
     }
 }
