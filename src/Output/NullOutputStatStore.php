@@ -9,12 +9,17 @@ use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 
 final class NullOutputStatStore implements OutputStatStore
 {
-    public function record(OutputStatKind $kind, int $count = 1): void
+    public function record(OutputStatKind $kind, int $count = 1, ?string $detector = null): void
     {
         // no-op
     }
 
     public function totals(?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
+    {
+        return [];
+    }
+
+    public function byDetector(?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
     {
         return [];
     }

@@ -224,12 +224,17 @@ final class GuardrailOutputMiddlewareTest extends TestCase
         // output). The response is still sanitized; the failure is swallowed (logged).
         $throwingStore = new class implements OutputStatStore
         {
-            public function record(OutputStatKind $kind, int $count = 1): void
+            public function record(OutputStatKind $kind, int $count = 1, ?string $detector = null): void
             {
                 throw new \RuntimeException('DB down');
             }
 
             public function totals(?\DateTimeImmutable $from = null, ?\DateTimeImmutable $to = null): array
+            {
+                return [];
+            }
+
+            public function byDetector(?\DateTimeImmutable $from = null, ?\DateTimeImmutable $to = null): array
             {
                 return [];
             }

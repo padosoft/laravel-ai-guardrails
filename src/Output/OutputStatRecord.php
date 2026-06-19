@@ -17,6 +17,7 @@ use LogicException;
  * @property int $id
  * @property string $kind
  * @property int $event_count
+ * @property string|null $detector
  * @property Carbon $occurred_at
  */
 final class OutputStatRecord extends Model
@@ -26,7 +27,7 @@ final class OutputStatRecord extends Model
     protected $table = 'ai_guardrails_output_stats';
 
     /** @var list<string> */
-    protected $fillable = ['kind', 'event_count', 'occurred_at'];
+    protected $fillable = ['kind', 'event_count', 'detector', 'occurred_at'];
 
     /** @var array<string,string> */
     protected $casts = [

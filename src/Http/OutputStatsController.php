@@ -44,11 +44,16 @@ final class OutputStatsController
             $counts[$kind] = $totals[$kind] ?? 0;
         }
 
+        // Per-detector PII breakdown (available-branch): populated when the pii-redactor exposes
+        // per-detector counts and the middleware records them with a non-null detector. When the
+        // redactor is absent or does not report per-detector counts, this is always {}.
+        $counts['pii'] = ['by_detector' => $store->byDetector($from, $to)];
+
         return Envelope::make(ApiSchema::SCHEMA_OUTPUT_STATS, [
             'from' => $from->format(DATE_ATOM),
             'to' => $to->format(DATE_ATOM),
             'counts' => $counts,
-            'total' => array_sum($counts),
+            'total' => array_sum(array_filter($counts, 'is_int')),
         ]);
     }
 }
