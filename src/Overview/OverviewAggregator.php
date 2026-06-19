@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Config\Repository as Config;
 use Padosoft\AiGuardrails\Audit\InjectionAttempt;
+use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Hitl\ApprovalReadModel;
 use Padosoft\AiGuardrails\Support\ControlMode;
@@ -23,6 +24,7 @@ final readonly class OverviewAggregator
         private InjectionAuditStore $audit,
         private Config $config,
         private ApprovalReadModel $approvalReadModel,
+        private ApprovalRouter $approvalRouter,
     ) {}
 
     /**
@@ -68,7 +70,13 @@ final readonly class OverviewAggregator
                 'sampled' => count($recent) >= $sampleSize,
                 // v1.1 additions — backward-compatible new keys
                 'observed_24h' => count($observed24h),
-                'pending_approvals' => $this->approvalReadModel->pendingCount(),
+                // Gate pending_approvals on HITL availability: mirrors ApprovalsController which gates
+                // the pending list on $router->isAvailable(). When HITL is disabled or flow is absent
+                // the router is NullApprovalRouter (isAvailable=false) and the queue must not leak
+                // stale state — return 0 to stay consistent with /approvals returning [].
+                'pending_approvals' => $this->approvalRouter->isAvailable()
+                    ? $this->approvalReadModel->pendingCount()
+                    : 0,
             ],
             // E9-API delta: the active screening ruleset version, so the admin can correlate audit
             // rows (which carry their own ruleset_version) with what is live now.

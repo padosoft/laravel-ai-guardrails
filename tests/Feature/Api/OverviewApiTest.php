@@ -8,7 +8,9 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Padosoft\AiGuardrails\Audit\InjectionAttempt;
+use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
+use Padosoft\AiGuardrails\Overview\OverviewAggregator;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 final class OverviewApiTest extends TestCase
@@ -124,6 +126,24 @@ final class OverviewApiTest extends TestCase
 
         $this->assertArrayHasKey('pending_approvals', $data['totals']);
         $this->assertIsInt($data['totals']['pending_approvals']);
+    }
+
+    public function test_pending_approvals_is_zero_when_hitl_disabled(): void
+    {
+        // Step 2 (P2): When hitl.enabled=false (or mode=off), the router is NullApprovalRouter
+        // (isAvailable=false) and pending_approvals MUST be 0 even if there are stale rows in the
+        // flow_approvals table. Consistent with /approvals returning [] when HITL is disabled.
+        $this->app['config']->set('ai-guardrails.hitl.enabled', false);
+
+        // Forget the router singleton so it re-resolves with the new config (NullApprovalRouter).
+        $this->app->forgetInstance(ApprovalRouter::class);
+        // Forget the aggregator singleton so it picks up the new router instance.
+        $this->app->forgetInstance(OverviewAggregator::class);
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        $this->assertSame(0, $data['totals']['pending_approvals'],
+            'pending_approvals must be 0 when HITL is disabled (consistent with /approvals returning []).');
     }
 
     public function test_attempt_older_than_12h_is_excluded_from_spark(): void

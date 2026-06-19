@@ -194,9 +194,16 @@ A single string in, a single string out. No counts, no report.
 
 `GuardrailOutputMiddleware::clean()` (src/Output/GuardrailOutputMiddleware.php:123-128) only checks `$redacted !== $sanitized` (boolean changed/unchanged) and records a single `OutputStatKind::PiiRedaction` counter — no breakdown by detector.
 
-**B2: DEGRADE — `pii.by_detector` must be `{}` for v1.1.0.**
+**B2: AVAILABLE branch implemented for v1.1.0 (updated 2026-06-19).**
 
-Reason: the `PiiRedaction` contract is a one-way string transform with no result metadata. Widening it to return a report DTO would be a breaking interface change and a scope creep for this spike. The correct path for per-detector counts would be either:
-- Extend `PiiRedaction` with a `redactWithReport(string): {text, counts}` method and a parallel `RealPiiRedactionWithReport` adapter that calls `$engine->scan()` + `$engine->redact()` in two passes; OR
-- Wire a listener for `PiiRedactionPerformed` (requires `audit_trail.enabled=true` on the engine).
-Both are non-trivial additive changes outside the v1.1.0 API scope. For now, the v1.1.0 `/output/stats` `pii` field returns the single aggregate `pii_redaction` counter (already stored) and `pii.by_detector` is explicitly `{}`.
+The initial spike concluded a degrade-only path was necessary. However, on closer inspection the
+pii-redactor exposes a clean `scan(string): DetectionReport` method that returns per-detector counts
+without modifying vendor internals. This enabled the **available** branch:
+
+- A new optional `ReportingPiiRedaction` contract (extends `PiiRedaction`) adds `redactWithReport(string): array{text: string, counts: array<string,int>}` performing a two-pass `scan()` + `redact()`.
+- `RealPiiRedactionWithReport` implements it, `class_exists`-guarded, confined to `src/Output`.
+- `GuardrailOutputMiddleware` checks `instanceof ReportingPiiRedaction`; when true, calls `redactWithReport()` and records one `OutputStatKind::PiiRedaction` row **per detector** using the nullable `detector` column (additive migration added in commit `1c439a4`).
+- `GET /output/stats` `data.counts.pii.by_detector` returns the per-detector map (or `{}` when no rows or redactor absent).
+- Both states tested: `redact_pii=off` → `{}`, `redact_pii=on` + detectors present → non-empty map.
+
+The nullable `detector` column was added as an **additive migration** (`add_detector_to_ai_guardrails_output_stats_table.php.stub`) for existing installs; fresh installs get it from the create-table stub.

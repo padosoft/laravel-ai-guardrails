@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
@@ -31,7 +31,7 @@ final class AddDetectorMigrationTest extends TestCase
      */
     private function createTableWithoutDetector(): void
     {
-        Schema::create('ai_guardrails_output_stats', function (\Illuminate\Database\Schema\Blueprint $table): void {
+        Schema::create('ai_guardrails_output_stats', function (Blueprint $table): void {
             $table->id();
             $table->string('kind')->index();
             $table->unsignedInteger('event_count')->default(1);

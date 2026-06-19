@@ -122,9 +122,18 @@ final class ApprovalReadModel
         }
 
         $runIds = array_values(array_filter(array_column($pending, 'run_id'), 'is_string'));
-        $sidecar = ($this->requestStore !== null && $runIds !== [])
-            ? $this->requestStore->forRunIds($runIds)
-            : [];
+        $sidecar = [];
+        if ($this->requestStore !== null && $runIds !== []) {
+            try {
+                $sidecar = $this->requestStore->forRunIds($runIds);
+            } catch (\Throwable) {
+                // Best-effort: sidecar table may not be migrated (hitl_requests.store=database but
+                // migration not yet run) or the DB may be transiently unavailable. Degrade to an empty
+                // sidecar map so each item falls back to tool='' / arguments={}, rather than 500-ing
+                // the read-only /approvals endpoint. Mirrors the best-effort write path in ApprovalGatedTool.
+                $sidecar = [];
+            }
+        }
 
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 

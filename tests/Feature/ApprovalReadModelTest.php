@@ -24,4 +24,3 @@ final class ApprovalReadModelTest extends TestCase
         self::assertSame(0, (new ApprovalReadModel)->pendingCount());
     }
 }
-
