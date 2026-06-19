@@ -19,9 +19,4 @@ final readonly class PiiRedactionReport
         public string $text,
         public array $countsByDetector,
     ) {}
-
-    public function hadRedactions(): bool
-    {
-        return $this->countsByDetector !== [];
-    }
 }

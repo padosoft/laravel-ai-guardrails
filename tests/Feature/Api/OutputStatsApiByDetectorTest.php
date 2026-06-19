@@ -44,10 +44,25 @@ final class OutputStatsApiByDetectorTest extends TestCase
 
     public function test_by_detector_is_empty_object_when_no_pii_rows(): void
     {
-        // No records at all → pii.by_detector must be {} (empty JSON object)
-        $this->getJson('/ai-guardrails/api/output/stats')
-            ->assertOk()
-            ->assertJsonPath('data.counts.pii.by_detector', []);
+        // No records at all → pii.by_detector must be {} (empty JSON object, NOT [])
+        $response = $this->getJson('/ai-guardrails/api/output/stats')->assertOk();
+
+        // Assert the raw response body encodes {} not [] — this is the backward-compat contract
+        // that clients reading the field as an object (not an array) rely on.
+        self::assertStringContainsString('"by_detector":{}', str_replace(' ', '', $response->getContent()));
+    }
+
+    public function test_by_detector_is_populated_object_when_detector_rows_exist(): void
+    {
+        $store = $this->app->make(OutputStatStore::class);
+        $store->record(OutputStatKind::PiiRedaction, 2, 'email');
+
+        $response = $this->getJson('/ai-guardrails/api/output/stats')->assertOk();
+
+        // Non-empty map must also encode as an object (not an array)
+        $raw = str_replace(' ', '', $response->getContent());
+        self::assertStringContainsString('"by_detector":{', $raw);
+        self::assertStringContainsString('"email":2', $raw);
     }
 
     public function test_by_detector_is_empty_when_pii_rows_have_no_detector(): void

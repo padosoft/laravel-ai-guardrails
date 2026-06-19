@@ -200,8 +200,8 @@ The initial spike concluded a degrade-only path was necessary. However, on close
 pii-redactor exposes a clean `scan(string): DetectionReport` method that returns per-detector counts
 without modifying vendor internals. This enabled the **available** branch:
 
-- A new optional `ReportingPiiRedaction` contract (extends `PiiRedaction`) adds `redactWithReport(string): array{text: string, counts: array<string,int>}` performing a two-pass `scan()` + `redact()`.
-- `RealPiiRedactionWithReport` implements it, `class_exists`-guarded, confined to `src/Output`.
+- A new optional `ReportingPiiRedaction` contract (extends `PiiRedaction`) adds `redactReport(string): PiiRedactionReport` performing a two-pass `scan()` + `redact()`.
+- `RealPiiRedaction` implements both `PiiRedaction` and `ReportingPiiRedaction`, `class_exists`-guarded, confined to `src/Output`.
 - `GuardrailOutputMiddleware` checks `instanceof ReportingPiiRedaction`; when true, calls `redactWithReport()` and records one `OutputStatKind::PiiRedaction` row **per detector** using the nullable `detector` column (additive migration added in commit `1c439a4`).
 - `GET /output/stats` `data.counts.pii.by_detector` returns the per-detector map (or `{}` when no rows or redactor absent).
 - Both states tested: `redact_pii=off` → `{}`, `redact_pii=on` + detectors present → non-empty map.

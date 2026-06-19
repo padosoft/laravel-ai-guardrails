@@ -108,8 +108,8 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
                 $day.' as day'
                 .', count(*) as total'
                 .', sum(case when '.$isBlocked.' then 1 else 0 end) as blocked'
+                .', sum(case when '.$notBlocked.' then 1 else 0 end) as allowed'
                 .', sum(case when '.$notBlocked.' AND rule_id IS NOT NULL then 1 else 0 end) as observed'
-                .', sum(case when '.$notBlocked.' AND rule_id IS NULL then 1 else 0 end) as allowed'
             )
             ->where('occurred_at', '>=', $since->setTimezone($utc)->format('Y-m-d H:i:s'))
             ->where('occurred_at', '<=', $until->setTimezone($utc)->format('Y-m-d H:i:s'))
@@ -123,8 +123,8 @@ final readonly class DatabaseInjectionAuditStore implements InjectionAuditStore
                 'date' => (string) $row->day,
                 'total' => (int) $row->total,
                 'blocked' => (int) $row->blocked,
-                'observed' => (int) $row->observed,
                 'allowed' => (int) $row->allowed,
+                'observed' => (int) $row->observed,
             ];
         }
 

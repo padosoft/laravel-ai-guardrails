@@ -19,7 +19,7 @@ Theme: **admin-enabling additive API** — all changes are backward-compatible a
 - `totals.pending_approvals` (`int`): count of currently pending HITL approvals; `0` when HITL unavailable.
 
 #### HTTP API — GET /audit/trend
-- `points[].observed` (`int`): per-day count of monitor-mode matches (`blocked = false AND rule_id IS NOT NULL`). The three-way invariant `total === blocked + observed + allowed` now holds for every point.
+- `points[].observed` (`int`): per-day count of monitor-mode matches (`blocked = false AND rule_id IS NOT NULL`). This is a **purely additive subset of `allowed`** (`observed ⊆ allowed`). The **v1.0 invariant `total === blocked + allowed` is preserved**; `allowed` retains its v1.0 meaning (every non-blocked attempt, including monitor-mode matches). Consumers wanting the disjoint "no rule matched" series compute `allowed - observed`.
 
 #### HTTP API — GET /output/stats
 - `counts.pii.by_detector` (`object`): map from detector name to redaction count (e.g. `{"email": 3, "phone": 2}`). Empty object `{}` when no per-detector data is available. `counts.pii_redaction` (the total) is unchanged.

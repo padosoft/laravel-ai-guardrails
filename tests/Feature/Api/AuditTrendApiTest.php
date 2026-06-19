@@ -12,12 +12,16 @@ use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Tests\TestCase;
 
 /**
- * Feature tests for the observed bucket added to GET /ai-guardrails/api/audit/trend.
+ * Feature tests for GET /ai-guardrails/api/audit/trend.
  *
- * Three-way split invariant: total === blocked + observed + allowed, where:
- *   blocked  = blocked = true (rule matched AND was blocked)
- *   observed = blocked = false AND rule_id IS NOT NULL (monitor-mode match — rule matched but NOT blocked)
- *   allowed  = rule_id IS NULL (no rule matched at all)
+ * v1.0 invariant (preserved): total === blocked + allowed.
+ *   blocked  = blocked = true
+ *   allowed  = NOT blocked (every non-blocked attempt — includes monitor-mode matches)
+ *
+ * v1.1.0 additive field: observed ⊆ allowed.
+ *   observed = blocked = false AND rule_id IS NOT NULL (monitor-mode match — detected but not blocked)
+ *
+ * A consumer wanting the disjoint "no rule matched" series computes: allowed - observed.
  */
 final class AuditTrendApiTest extends TestCase
 {
@@ -86,8 +90,14 @@ final class AuditTrendApiTest extends TestCase
         self::assertSame('2026-03-15', $point['date']);
         self::assertSame(3, $point['total'], 'total must be 3');
         self::assertSame(1, $point['blocked'], 'blocked must be 1');
+        // allowed = NOT blocked → observed + clean = 2 (v1.0 meaning: includes monitor-mode matches)
+        self::assertSame(2, $point['allowed'], 'allowed (NOT blocked) must be 2');
+        // observed is an additive subset of allowed
         self::assertSame(1, $point['observed'], 'observed (monitor-mode match) must be 1');
-        self::assertSame(1, $point['allowed'], 'allowed (no rule matched) must be 1');
+        // v1.0 invariant
+        self::assertSame($point['total'], $point['blocked'] + $point['allowed'], 'total === blocked + allowed');
+        // additive-subset constraint
+        self::assertLessThanOrEqual($point['allowed'], $point['observed'], 'observed <= allowed');
     }
 
     public function test_trend_backward_compat_keys_present(): void
@@ -145,57 +155,64 @@ final class AuditTrendApiTest extends TestCase
         self::assertCount(3, $points, 'Expected three days in the trend');
 
         foreach ($points as $point) {
-            $sum = $point['blocked'] + $point['observed'] + $point['allowed'];
+            // v1.0 invariant: total === blocked + allowed
             self::assertSame(
                 $point['total'],
-                $sum,
-                "Invariant violated for {$point['date']}: total={$point['total']} but blocked+observed+allowed={$sum}"
+                $point['blocked'] + $point['allowed'],
+                "v1.0 invariant violated for {$point['date']}: total={$point['total']} but blocked+allowed=".($point['blocked'] + $point['allowed'])
+            );
+            // additive-subset constraint: observed ⊆ allowed
+            self::assertLessThanOrEqual(
+                $point['allowed'],
+                $point['observed'],
+                "observed must be <= allowed for {$point['date']}"
             );
         }
 
-        // Verify specific expectations for each day
+        // Day 2026-04-01: 2 blocked, 1 observed, 2 clean → allowed=3 (observed+clean), observed=1
         self::assertSame('2026-04-01', $points[0]['date']);
         self::assertSame(5, $points[0]['total']);
         self::assertSame(2, $points[0]['blocked']);
-        self::assertSame(1, $points[0]['observed']);
-        self::assertSame(2, $points[0]['allowed']);
+        self::assertSame(3, $points[0]['allowed'], 'allowed = NOT blocked (observed + clean)');
+        self::assertSame(1, $points[0]['observed'], 'observed = monitor-mode matches only');
 
+        // Day 2026-04-02: 0 blocked, 3 observed, 0 clean → allowed=3 (all observed), observed=3
         self::assertSame('2026-04-02', $points[1]['date']);
         self::assertSame(3, $points[1]['total']);
         self::assertSame(0, $points[1]['blocked']);
-        self::assertSame(3, $points[1]['observed']);
-        self::assertSame(0, $points[1]['allowed']);
+        self::assertSame(3, $points[1]['allowed'], 'allowed = NOT blocked (all are observed)');
+        self::assertSame(3, $points[1]['observed'], 'observed = all 3 monitor-mode matches');
 
+        // Day 2026-04-03: 1 blocked, 0 observed, 1 clean → allowed=1 (clean only), observed=0
         self::assertSame('2026-04-03', $points[2]['date']);
         self::assertSame(2, $points[2]['total']);
         self::assertSame(1, $points[2]['blocked']);
-        self::assertSame(0, $points[2]['observed']);
-        self::assertSame(1, $points[2]['allowed']);
+        self::assertSame(1, $points[2]['allowed'], 'allowed = NOT blocked (clean only)');
+        self::assertSame(0, $points[2]['observed'], 'observed = no monitor-mode matches');
     }
 
     /**
      * Degenerate row: blocked=true AND rule_id=null.
      *
-     * Before the SQL fix, a row with blocked=true AND rule_id=null was counted as BOTH blocked AND
-     * allowed (the old SQL `allowed` CASE was just `rule_id IS NULL` with no NOT-blocked guard).
-     * After the fix, it counts ONLY as blocked, and the invariant total === blocked + observed +
-     * allowed holds.
+     * The degenerate row must count as `blocked` only (never as `allowed`).
+     * v1.0 invariant: total === blocked + allowed.
+     * observed is an additive SUBSET of allowed (observed ⊆ allowed).
      *
      * The ArrayInjectionAuditStore (used by this feature test) already short-circuits correctly;
-     * this test proves parity with the DB path and documents the expected invariant at the API level.
+     * this test documents the expected invariant at the API level.
      */
     public function test_trend_degenerate_row_blocked_true_rule_id_null_counts_only_as_blocked(): void
     {
         $store = $this->app->make(InjectionAuditStore::class);
         $utc = $this->utc();
 
-        // degenerate: blocked=true, ruleId=null — must count as blocked ONLY (not allowed)
+        // degenerate: blocked=true, ruleId=null — must count as blocked ONLY (NOT allowed)
         $store->append(new InjectionAttempt('degenerate', true, null, 'u0', new DateTimeImmutable('2026-06-01 10:00:00', $utc)));
         // normal blocked: blocked=true, ruleId set
         $store->append(new InjectionAttempt('normal blocked', true, 'rule_x', 'u1', new DateTimeImmutable('2026-06-01 11:00:00', $utc)));
-        // observed: blocked=false, ruleId set
+        // observed: blocked=false, ruleId set → allowed++ AND observed++ (observed ⊆ allowed)
         $store->append(new InjectionAttempt('observed', false, 'rule_y', 'u2', new DateTimeImmutable('2026-06-01 12:00:00', $utc)));
-        // allowed: blocked=false, ruleId=null
+        // clean: blocked=false, ruleId=null → allowed++ only
         $store->append(new InjectionAttempt('allowed', false, null, 'u3', new DateTimeImmutable('2026-06-01 13:00:00', $utc)));
 
         $response = $this->getJson('/ai-guardrails/api/audit/trend?from=2026-06-01&to=2026-06-02')
@@ -208,12 +225,13 @@ final class AuditTrendApiTest extends TestCase
         self::assertSame('2026-06-01', $point['date']);
         self::assertSame(4, $point['total'], 'total must be 4');
         self::assertSame(2, $point['blocked'], 'degenerate + normal blocked = 2 (degenerate must NOT leak into allowed)');
-        self::assertSame(1, $point['observed'], 'observed must be 1');
-        self::assertSame(1, $point['allowed'], 'allowed must be 1');
-        self::assertSame(
-            $point['total'],
-            $point['blocked'] + $point['observed'] + $point['allowed'],
-            'Invariant: total === blocked + observed + allowed',
-        );
+        // allowed = NOT blocked → observed + clean = 2 (v1.0 meaning restored)
+        self::assertSame(2, $point['allowed'], 'allowed (NOT blocked) must be 2 (observed + clean)');
+        // observed is an additive subset of allowed
+        self::assertSame(1, $point['observed'], 'observed must be 1 (monitor-mode match only)');
+        // v1.0 invariant
+        self::assertSame($point['total'], $point['blocked'] + $point['allowed'], 'Invariant: total === blocked + allowed');
+        // additive-subset constraint
+        self::assertLessThanOrEqual($point['allowed'], $point['observed'], 'observed must be <= allowed (observed ⊆ allowed)');
     }
 }

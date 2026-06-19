@@ -99,20 +99,25 @@ Each point in `data.points[]` now carries an `observed` bucket alongside the exi
 
 ### `points[].observed` (int)
 
-Count of attempts on that day where `blocked = false` AND `rule_id IS NOT NULL` — monitor-mode matches that were detected but not blocked.
+Count of attempts on that day where `blocked = false` AND `rule_id IS NOT NULL` — monitor-mode matches that were detected but not blocked. `observed` is a **subset of `allowed`** (`observed ⊆ allowed`); it is additive information and does not change the meaning of any existing field.
 
-### Three-way invariant
+### Invariant
 
-For every point: **`total === blocked + observed + allowed`**. This invariant holds for all rows including the degenerate case `blocked = true, rule_id = null` (which counts as `blocked` only, never as `allowed`).
+The **v1.0 invariant is preserved**: for every point **`total === blocked + allowed`**.
 
-| Bucket | Condition |
-|---|---|
-| `blocked` | `blocked = true` |
-| `observed` | `blocked = false` AND `rule_id IS NOT NULL` |
-| `allowed` | `blocked = false` AND `rule_id IS NULL` |
+- `allowed` retains its v1.0 meaning: every attempt that was **not blocked**, regardless of whether a rule matched. This means monitor-mode rows (rule matched, not blocked) are included in `allowed`, exactly as they were before v1.1.0.
+- `observed` is a new, purely additive field: the subset of `allowed` rows where a rule matched (`blocked = false AND rule_id IS NOT NULL`). Consumers that only need a disjoint "no rule matched at all" series can compute it as `allowed - observed`.
+
+| Bucket | Condition | Notes |
+|---|---|---|
+| `blocked` | `blocked = true` | Unchanged from v1.0 |
+| `allowed` | `blocked = false` | Unchanged from v1.0 — includes monitor-mode matches |
+| `observed` | `blocked = false` AND `rule_id IS NOT NULL` | New additive subset of `allowed` |
+
+The degenerate row `blocked = true, rule_id = null` counts as `blocked` only (never as `allowed`). The invariant `total === blocked + allowed` holds for all rows.
 
 ::: callout info
-`observed` was added in **v1.1.0**. The `date`, `total`, `blocked`, and `allowed` fields are unchanged. All existing clients remain compatible.
+`observed` was added in **v1.1.0**. The `date`, `total`, `blocked`, and `allowed` fields keep their **v1.0 meaning unchanged**. All existing clients remain compatible — `allowed` numbers are identical to v1.0 for the same data.
 :::
 
 ---
