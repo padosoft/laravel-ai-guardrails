@@ -160,7 +160,7 @@ return [
         'decode_base64_blobs' => false,
         // Maximum prompt length in Unicode code points (not bytes). Prompts exceeding this limit
         // are blocked with verdict 'too_long' before screening. 0 = unlimited.
-        'max_prompt_length' => env('AI_GUARDRAILS_MAX_PROMPT_LENGTH', 50000),
+        'max_prompt_length' => (int) env('AI_GUARDRAILS_MAX_PROMPT_LENGTH', 50000),
     ],
 
     // Regex safety. Patterns validated at boot; ReDoS guardrails applied. Task E2.
@@ -184,7 +184,7 @@ return [
 
     // GDPR-compatible retention for the append-only stores. Task E5.
     'retention' => [
-        'days' => env('AI_GUARDRAILS_RETENTION_DAYS', 365),
+        'days' => (int) env('AI_GUARDRAILS_RETENTION_DAYS', 365),
         'strategy' => env('AI_GUARDRAILS_RETENTION_STRATEGY', 'anonymize'), // anonymize | purge | keep
     ],
 

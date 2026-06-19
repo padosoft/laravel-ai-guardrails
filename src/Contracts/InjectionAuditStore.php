@@ -29,7 +29,7 @@ interface InjectionAuditStore
      * Three-way mutually exclusive split — invariant: total === blocked + observed + allowed.
      *   blocked  = blocked=true (rule matched AND was blocked)
      *   observed = blocked=false AND rule_id IS NOT NULL (monitor-mode match — detected but not blocked)
-     *   allowed  = rule_id IS NULL (no rule matched at all)
+     *   allowed  = NOT blocked AND rule_id IS NULL (no rule matched at all)
      *
      * @return list<array{date:string,total:int,blocked:int,observed:int,allowed:int}>
      */
