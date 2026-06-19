@@ -7,7 +7,11 @@ namespace Padosoft\AiGuardrails\Hitl;
 use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 
 /**
- * In-memory append-only HITL request sidecar store (tests / config default).
+ * In-memory append-only HITL request sidecar store.
+ *
+ * Used for tests and when `hitl_requests.store=array` is configured explicitly.
+ * This is NOT the package default — `hitl_requests.store` defaults to `'null'`
+ * (the NullHitlRequestStore), which silently discards all writes.
  */
 final class ArrayHitlRequestStore implements HitlRequestStore
 {
@@ -30,10 +34,14 @@ final class ArrayHitlRequestStore implements HitlRequestStore
             return [];
         }
 
+        // Build a lookup set once — O(runIds) — so the inner loop is O(1) per row
+        // instead of O(runIds) per row, giving O(rows + runIds) overall.
+        $wanted = array_flip($runIds);
+
         $map = [];
-        // Iterate in order; last write wins (most-recent wins for duplicate run_id).
+        // Iterate in insertion order; last write wins (most-recent wins for duplicate run_id).
         foreach ($this->rows as $row) {
-            if (in_array($row['run_id'], $runIds, true)) {
+            if (isset($wanted[$row['run_id']])) {
                 $map[$row['run_id']] = [
                     'tool' => $row['tool'],
                     'arguments' => $row['arguments'],

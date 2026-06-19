@@ -158,7 +158,13 @@ final class ApprovalReadModel
             // timestamps (requested_ago) and "in 28 minutes" / "28 minutes from now" for future
             // timestamps (expires_in).  Passing $now explicitly produces "X minutes before/after"
             // phrasing, which is less readable for API consumers.
-            return Carbon::instance($dt)->diffForHumans();
+            //
+            // Pin locale to 'en' per-call so the output is deterministic regardless of the host
+            // app locale — API consumers must not see locale-dependent strings here.
+            $carbon = Carbon::instance($dt);
+            $carbon->locale('en');
+
+            return $carbon->diffForHumans();
         } catch (\Throwable) {
             return '';
         }

@@ -23,7 +23,10 @@ return new class extends Migration
             // Nullable: populated only for PiiRedaction events when the pii-redactor exposes
             // per-detector counts. Null = detector breakdown unavailable (legacy rows or
             // redactor absent). Indexed so byDetector() GROUP BY queries remain O(log n).
-            $table->string('detector')->nullable()->index()->after('event_count');
+            // Use $table->index() without a hard-coded name so Laravel infers the name from
+            // the column list — symmetric with the dropIndex(['detector']) call in down().
+            $table->string('detector')->nullable()->after('event_count');
+            $table->index('detector');
         });
     }
 
@@ -34,7 +37,9 @@ return new class extends Migration
         }
 
         Schema::table('ai_guardrails_output_stats', function (Blueprint $table): void {
-            $table->dropIndex('ai_guardrails_output_stats_detector_index');
+            // Drop by column list so Laravel infers the name — portable across DB table prefixes
+            // and custom index naming conventions, symmetric with the index() call in up().
+            $table->dropIndex(['detector']);
             $table->dropColumn('detector');
         });
     }
