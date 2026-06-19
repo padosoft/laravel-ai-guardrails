@@ -44,7 +44,7 @@ flowchart LR
 | GET | `/audit/trend` | per-UTC-day counts (dialect-safe SQL) |
 | GET | `/firewall` | Control A rejections, keyset-paginated |
 | GET | `/output/stats` | per-kind output-sanitization counts |
-| GET | `/approvals` | pending HITL approvals |
+| GET | `/approvals` | pending HITL approvals — each item carries `tool`, scoped `arguments`, `requested_ago`, `expires_in` |
 | POST | `/approvals/{token}/approve\|reject` | resume/reject a parked tool (actor derived server-side) |
 | GET | `/settings` | effective overridable settings |
 | PUT | `/settings` | persist allow-listed, type-validated overrides; appends a change record |
@@ -54,6 +54,16 @@ flowchart LR
 ## Untrusted query params
 
 The list endpoints treat every query param as untrusted: keyset cursors are parsed as strictly-positive integers, `LIKE` metacharacters are escaped, dates are strict ISO-8601, repeated array params are ignored rather than 500-ing, and stored text is `mb_scrub`-bed before JSON encoding.
+
+## Approvals: tool, arguments and relative times
+
+Each `pending[]` item from `GET /approvals` carries the base fields `{approval_id, run_id, step_name, status, expires_at, created_at}` plus four enrichments: `tool` (the tool name), `arguments` (the **scoped** arguments as re-written by Control A), `requested_ago` (a relative human string from `created_at`), and `expires_in` (relative to `expires_at`, or `null` when the approval has no expiry).
+
+The underlying flow approval payload does **not** carry the tool name or arguments — they live in `flow_runs.input` and are not exposed by the read path. So the bridge persists them itself: at park-time `ApprovalGatedTool` appends one row to an **append-only sidecar** (`hitl_requests` store), and `GET /approvals` batch-joins it on `run_id`. The sidecar write is **best-effort** — a logging failure never un-parks or errors an already-parked approval.
+
+::: callout info
+The sidecar is **default-OFF** (`hitl_requests.store = null`). Enable `array` or `database` to populate `tool`/`arguments`; when no sidecar row exists for a `run_id`, the item degrades gracefully to `tool: ""` and `arguments: {}`.
+:::
 
 ## Settings audit
 

@@ -67,6 +67,8 @@ stateDiagram-v2
 
 Pending approvals and the approve/reject actions are exposed by `GET /approvals` and `POST /approvals/{token}/approve|reject` in the [admin API](/operations/http-api) — the decision actor is derived **server-side**, never trusted from the client.
 
+To show an operator *what* they are approving, each pending item also carries the `tool`, the scoped `arguments`, and relative `requested_ago` / `expires_in` times. These come from an append-only **sidecar** (`hitl_requests` store, default-OFF) the bridge writes at park-time — the flow payload alone does not expose them. Set `AI_GUARDRAILS_HITL_REQUESTS_STORE=database` (and run the published migration) to populate them; the write is best-effort and never blocks a parked call.
+
 ## Diagnostics
 
 `ai-guardrails:hitl-status` reports each prerequisite:

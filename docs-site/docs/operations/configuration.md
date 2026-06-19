@@ -50,6 +50,7 @@ Everything is a toggle in `config/ai-guardrails.php`. The four controls are **on
 | `audit.store` | `null` \| `array` \| `database` |
 | `firewall_log.store` | `null` \| `array` \| `database` |
 | `output_stats.store` | `null` \| `array` \| `database` |
+| `hitl_requests.store` | `null` \| `array` \| `database` |
 | `settings.store` | `config` \| `database` |
 | `settings_audit.store` | `null` \| `array` \| `database` |
 
