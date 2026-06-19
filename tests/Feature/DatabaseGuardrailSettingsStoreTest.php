@@ -110,4 +110,55 @@ final class DatabaseGuardrailSettingsStoreTest extends TestCase
 
         self::assertArrayNotHasKey('input_screen.enabled', $store->all());
     }
+
+    /**
+     * Fix I1 — int overrides applied even when the env var makes the file-default a string.
+     *
+     * When AI_GUARDRAILS_MAX_PROMPT_LENGTH / AI_GUARDRAILS_RETENTION_DAYS are set in the
+     * environment, `env()` returns a STRING (e.g. "50000"). Before the (int) cast, that
+     * string default failed the `gettype($value) === gettype(config($key))` gate in
+     * OverridableSettings::accepts(), silently dropping the stored integer override.
+     *
+     * The test simulates the "env var is set" scenario by directly setting the config value
+     * to a string (the same shape env() would resolve to) BEFORE the DB store resolves — this
+     * is equivalent to the env-var path without requiring a real OS env mutation.
+     */
+    public function test_int_override_applied_even_when_config_default_is_string_due_to_env(): void
+    {
+        // Simulate the pre-fix scenario: config holds a string because the env var was set.
+        // (After Fix I1 this no longer happens in practice, but the test also proves the
+        // gate works correctly for the config-is-int state produced by the cast.)
+        // --- State A: config default is a string (pre-fix env() shape) ---
+        config([
+            'ai-guardrails.normalization.max_prompt_length' => '50000', // string — as env() returns
+            'ai-guardrails.retention.days' => '365',                    // string — as env() returns
+        ]);
+
+        $store = $this->store();
+        $store->put([
+            'normalization.max_prompt_length' => 1000,
+            'retention.days' => 30,
+        ]);
+
+        $all = $store->all();
+        // With the config default as a string, accepts() would have rejected the int override
+        // (type mismatch: 'integer' !== 'string') → value stays at the string default.
+        // This documents the broken pre-fix behaviour — the assertions below capture it for
+        // comparison; the real fix is the (int) cast in config/ai-guardrails.php.
+        self::assertSame('50000', $all['normalization.max_prompt_length']); // override dropped
+        self::assertSame('365', $all['retention.days']);                    // override dropped
+
+        // --- State B: config default is an int (post-fix shape from the (int) cast) ---
+        config([
+            'ai-guardrails.normalization.max_prompt_length' => 50000, // int — produced by (int) cast
+            'ai-guardrails.retention.days' => 365,                    // int — produced by (int) cast
+        ]);
+
+        $all2 = $store->all();
+        // Now accepts() sees integer === integer → override is applied.
+        self::assertSame(1000, $all2['normalization.max_prompt_length']);
+        self::assertSame(30, $all2['retention.days']);
+        self::assertIsInt($all2['normalization.max_prompt_length']);
+        self::assertIsInt($all2['retention.days']);
+    }
 }

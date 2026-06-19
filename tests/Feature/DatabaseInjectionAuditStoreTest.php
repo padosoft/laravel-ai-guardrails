@@ -153,9 +153,10 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
             new DateTimeImmutable('2026-01-03 00:00:00', $utc),
         );
 
+        // v1.0 invariant: total === blocked + allowed; observed ⊆ allowed (additive subset)
         self::assertSame([
-            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'allowed' => 1],
-            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'allowed' => 0],
+            ['date' => '2026-01-01', 'total' => 2, 'blocked' => 1, 'allowed' => 1, 'observed' => 0],
+            ['date' => '2026-01-02', 'total' => 1, 'blocked' => 1, 'allowed' => 0, 'observed' => 0],
         ], $trend);
     }
 
@@ -223,5 +224,46 @@ final class DatabaseInjectionAuditStoreTest extends TestCase
 
         $this->expectException(LogicException::class);
         InjectionAuditRecord::query()->truncate();
+    }
+
+    /**
+     * Degenerate row: blocked=true AND rule_id=null.
+     *
+     * The SQL `allowed` CASE is `NOT blocked` — so a row with blocked=true AND rule_id=null
+     * counts as `blocked` only (never as `allowed`). The v1.0 invariant total === blocked + allowed
+     * holds. observed is an additive SUBSET of allowed (observed ⊆ allowed).
+     */
+    public function test_trend_degenerate_row_blocked_true_rule_id_null_counts_only_as_blocked(): void
+    {
+        $store = $this->store();
+        $utc = new DateTimeZone('UTC');
+
+        // degenerate: blocked=true, rule_id=null — must count as blocked ONLY (NOT allowed)
+        $store->append(new InjectionAttempt('degenerate', true, null, null, new DateTimeImmutable('2026-05-01 10:00:00', $utc)));
+        // normal blocked: blocked=true, ruleId set
+        $store->append(new InjectionAttempt('normal blocked', true, 'rule_x', null, new DateTimeImmutable('2026-05-01 11:00:00', $utc)));
+        // observed: blocked=false, ruleId set → allowed++ AND observed++ (observed ⊆ allowed)
+        $store->append(new InjectionAttempt('observed', false, 'rule_y', null, new DateTimeImmutable('2026-05-01 12:00:00', $utc)));
+        // clean: blocked=false, ruleId=null → allowed++ only (observed unchanged)
+        $store->append(new InjectionAttempt('allowed', false, null, null, new DateTimeImmutable('2026-05-01 13:00:00', $utc)));
+
+        $trend = $store->trend(
+            new DateTimeImmutable('2026-05-01 00:00:00', $utc),
+            new DateTimeImmutable('2026-05-02 00:00:00', $utc),
+        );
+
+        self::assertCount(1, $trend);
+        $point = $trend[0];
+        self::assertSame('2026-05-01', $point['date']);
+        self::assertSame(4, $point['total'], 'total must be 4');
+        self::assertSame(2, $point['blocked'], 'degenerate + normal blocked = 2');
+        // allowed = NOT blocked → observed + clean = 2 (v1.0 meaning restored)
+        self::assertSame(2, $point['allowed'], 'allowed (NOT blocked) must be 2 (observed + clean)');
+        // observed is an additive subset of allowed
+        self::assertSame(1, $point['observed'], 'observed must be 1 (monitor-mode match only)');
+        // v1.0 invariant
+        self::assertSame($point['total'], $point['blocked'] + $point['allowed'], 'Invariant: total === blocked + allowed');
+        // additive-subset constraint
+        self::assertLessThanOrEqual($point['allowed'], $point['observed'], 'observed must be <= allowed (observed ⊆ allowed)');
     }
 }

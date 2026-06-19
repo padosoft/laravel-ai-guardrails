@@ -23,6 +23,7 @@ use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
 use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
+use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
@@ -42,9 +43,13 @@ use Padosoft\AiGuardrails\Firewall\PassthroughArgumentScoper;
 use Padosoft\AiGuardrails\Firewall\PermissiveToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\SchemaToolArgumentValidator;
 use Padosoft\AiGuardrails\Firewall\UserScopedArgumentScoper;
+use Padosoft\AiGuardrails\Hitl\ApprovalReadModel;
 use Padosoft\AiGuardrails\Hitl\ApprovalRouterFactory;
+use Padosoft\AiGuardrails\Hitl\ArrayHitlRequestStore;
+use Padosoft\AiGuardrails\Hitl\DatabaseHitlRequestStore;
 use Padosoft\AiGuardrails\Hitl\HitlInstallCommand;
 use Padosoft\AiGuardrails\Hitl\HitlStatusCommand;
+use Padosoft\AiGuardrails\Hitl\NullHitlRequestStore;
 use Padosoft\AiGuardrails\Mcp\McpServerRegistrar;
 use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\DatabaseOutputStatStore;
@@ -198,6 +203,26 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             };
         });
 
+        $this->app->singleton(HitlRequestStore::class, static function ($app): HitlRequestStore {
+            // Master kill-switch off → no persistence side effects.
+            if (! (bool) $app['config']->get('ai-guardrails.enabled', true)) {
+                return new NullHitlRequestStore;
+            }
+
+            return match ($app['config']->get('ai-guardrails.hitl_requests.store', 'null')) {
+                'array' => new ArrayHitlRequestStore,
+                'database' => new DatabaseHitlRequestStore(
+                    self::storeConnection('ai-guardrails.hitl_requests.connection'),
+                    self::storeTable('ai-guardrails.hitl_requests.table', 'ai_guardrails_hitl_requests'),
+                ),
+                default => new NullHitlRequestStore,
+            };
+        });
+
+        $this->app->singleton(ApprovalReadModel::class, static function ($app): ApprovalReadModel {
+            return new ApprovalReadModel($app->make(HitlRequestStore::class));
+        });
+
         $this->app->singleton(OutputStatStore::class, static function ($app): OutputStatStore {
             // Master kill-switch off → no persistence side effects.
             if (! (bool) $app['config']->get('ai-guardrails.enabled', true)) {
@@ -340,6 +365,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 self::eventDispatcher($app),
                 // Only wire the authorizer when enabled, so guard() wraps with AuthorizedTool only then.
                 $authzEnabled ? $app->make(ToolAuthorizer::class) : null,
+                $app->make(HitlRequestStore::class),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
@@ -439,6 +465,14 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 ),
                 __DIR__.'/../database/migrations/create_ai_guardrails_settings_changes_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 4).'_create_ai_guardrails_settings_changes_table.php'
+                ),
+                __DIR__.'/../database/migrations/create_ai_guardrails_hitl_requests_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 5).'_create_ai_guardrails_hitl_requests_table.php'
+                ),
+                // v1.1.0 additive: adds the nullable detector column for existing installs that already
+                // ran the create_ai_guardrails_output_stats migration without this column.
+                __DIR__.'/../database/migrations/add_detector_to_ai_guardrails_output_stats_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 6).'_add_detector_to_ai_guardrails_output_stats_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

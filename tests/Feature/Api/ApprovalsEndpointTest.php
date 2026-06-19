@@ -68,12 +68,20 @@ final class ApprovalsEndpointTest extends TestCase
         $list = $this->getJson('/ai-guardrails/api/approvals')
             ->assertOk()
             ->assertJsonPath('schema', 'ai-guardrails.api.v1.approval-list')
-            ->assertJsonStructure(['data' => ['pending' => [['approval_id', 'run_id', 'step_name', 'status', 'expires_at', 'created_at']]]]);
+            ->assertJsonStructure(['data' => ['pending' => [['approval_id', 'run_id', 'step_name', 'status', 'expires_at', 'created_at', 'tool', 'requested_ago']]]]);
 
         $pending = $list->json('data.pending');
         self::assertCount(1, $pending);
         self::assertSame('pending', $pending[0]['status']);
         self::assertNotEmpty($pending[0]['run_id']);
+
+        // New sidecar-enriched fields — no sidecar store is bound on the live-flow path, so tool is
+        // the empty string, arguments encodes as {} (object, not []), and relative-time strings are set.
+        self::assertSame('', $pending[0]['tool']);
+        self::assertStringContainsString('"arguments":{}', $list->getContent());
+        self::assertArrayHasKey('requested_ago', $pending[0]);
+        self::assertNotEmpty($pending[0]['requested_ago']);
+        self::assertArrayHasKey('expires_in', $pending[0]);
 
         $this->postJson('/ai-guardrails/api/approvals/'.$token.'/approve', ['actor' => ['note' => 'looks ok']])
             ->assertOk()

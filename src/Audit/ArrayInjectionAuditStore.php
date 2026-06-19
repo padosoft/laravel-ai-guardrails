@@ -71,7 +71,7 @@ final class ArrayInjectionAuditStore implements InjectionAuditStore
     public function trend(DateTimeImmutable $since, DateTimeImmutable $until): array
     {
         $utc = new DateTimeZone('UTC');
-        /** @var array<string,array{date:string,total:int,blocked:int,allowed:int}> $buckets */
+        /** @var array<string,array{date:string,total:int,blocked:int,allowed:int,observed:int}> $buckets */
         $buckets = [];
 
         foreach ($this->attempts as $a) {
@@ -80,9 +80,23 @@ final class ArrayInjectionAuditStore implements InjectionAuditStore
             }
 
             $day = $a->occurredAt->setTimezone($utc)->format('Y-m-d');
-            $bucket = $buckets[$day] ?? ['date' => $day, 'total' => 0, 'blocked' => 0, 'allowed' => 0];
+            $bucket = $buckets[$day] ?? ['date' => $day, 'total' => 0, 'blocked' => 0, 'allowed' => 0, 'observed' => 0];
             $bucket['total']++;
-            $a->blocked ? $bucket['blocked']++ : $bucket['allowed']++;
+
+            if ($a->blocked) {
+                // blocked=true: rule matched AND was blocked
+                $bucket['blocked']++;
+            } else {
+                // blocked=false: no block occurred — counts as allowed regardless of rule match
+                $bucket['allowed']++;
+                if ($a->ruleId !== null) {
+                    // blocked=false AND ruleId set: monitor-mode match — detected but not blocked.
+                    // observed is a SUBSET of allowed (observed ⊆ allowed); the v1.0 invariant
+                    // total = blocked + allowed is preserved.
+                    $bucket['observed']++;
+                }
+            }
+
             $buckets[$day] = $bucket;
         }
 

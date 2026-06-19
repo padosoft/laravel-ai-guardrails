@@ -12,6 +12,7 @@ use Laravel\Ai\Contracts\Tool;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
@@ -57,6 +58,7 @@ final readonly class AiGuardrails
         private ?ControlMode $hitlMode = null,
         private ?Dispatcher $events = null,
         private ?ToolAuthorizer $toolAuthorizer = null,
+        private ?HitlRequestStore $hitlRequestStore = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -120,7 +122,7 @@ final readonly class AiGuardrails
         // Narrow to the literal union; any value other than 'pass' fails safe to 'deny'.
         $fallback = $this->hitlFallback === 'pass' ? 'pass' : 'deny';
 
-        return new ApprovalGatedTool($tool, $this->router, $this->resolver($principalResolver), $toolName, $fallback, $mode, $this->events);
+        return new ApprovalGatedTool($tool, $this->router, $this->resolver($principalResolver), $toolName, $fallback, $mode, $this->events, $this->hitlRequestStore);
     }
 
     /**

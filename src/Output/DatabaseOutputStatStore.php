@@ -21,7 +21,7 @@ final readonly class DatabaseOutputStatStore implements OutputStatStore
         private string $table,
     ) {}
 
-    public function record(OutputStatKind $kind, int $count = 1): void
+    public function record(OutputStatKind $kind, int $count = 1, ?string $detector = null): void
     {
         if ($count < 1) {
             return;
@@ -30,6 +30,7 @@ final readonly class DatabaseOutputStatStore implements OutputStatStore
         $this->newRecord()->fill([
             'kind' => $kind->value,
             'event_count' => $count,
+            'detector' => $detector,
             // Persist in UTC so timestamps are unambiguous across deployments/timezones.
             'occurred_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
         ])->save();
@@ -48,6 +49,23 @@ final readonly class DatabaseOutputStatStore implements OutputStatStore
         }
 
         return $totals;
+    }
+
+    public function byDetector(?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
+    {
+        $query = $this->baseQuery()
+            ->where('kind', OutputStatKind::PiiRedaction->value)
+            ->whereNotNull('detector');
+        $this->applyWindow($query, $from, $to);
+
+        $rows = $query->groupBy('detector')->selectRaw('detector, sum(event_count) as total')->get();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(string) $row->detector] = (int) $row->total;
+        }
+
+        return $out;
     }
 
     public function count(): int

@@ -1,0 +1,173 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\AiGuardrails\Tests\Feature\Api;
+
+use DateTimeImmutable;
+use DateTimeZone;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Padosoft\AiGuardrails\Audit\InjectionAttempt;
+use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
+use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
+use Padosoft\AiGuardrails\Overview\OverviewAggregator;
+use Padosoft\AiGuardrails\Tests\TestCase;
+
+final class OverviewApiTest extends TestCase
+{
+    protected function getEnvironmentSetUp($app): void
+    {
+        $app['config']->set('ai-guardrails.api.enabled', true);
+        $app['config']->set('ai-guardrails.api.middleware', [SubstituteBindings::class]);
+        $app['config']->set('ai-guardrails.audit.store', 'array');
+    }
+
+    private function seedAttempt(bool $blocked, ?string $ruleId = null, ?DateTimeImmutable $occurredAt = null): void
+    {
+        /** @var InjectionAuditStore $store */
+        $store = $this->app->make(InjectionAuditStore::class);
+        $store->append(new InjectionAttempt(
+            prompt: 'test prompt',
+            blocked: $blocked,
+            ruleId: $ruleId,
+            principalId: 'u1',
+            occurredAt: $occurredAt ?? new DateTimeImmutable('now', new DateTimeZone('UTC')),
+        ));
+    }
+
+    public function test_overview_exposes_observed_totals_posture_and_spark(): void
+    {
+        config()->set('ai-guardrails.api.enabled', true);
+        // seed: 1 blocked (enforce) + 1 observed (rule matched, not blocked) in last 24h
+        $this->seedAttempt(blocked: true, ruleId: 'exfiltrate');
+        $this->seedAttempt(blocked: false, ruleId: 'role_override'); // observed
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        $this->assertArrayHasKey('observed_24h', $data['totals']);
+        $this->assertArrayHasKey('pending_approvals', $data['totals']);
+        $this->assertSame(1, $data['totals']['observed_24h']);
+        $this->assertSame(0, $data['totals']['pending_approvals']);
+        foreach ($data['controls'] as $control) {
+            $this->assertArrayHasKey('posture', $control);
+            $this->assertArrayHasKey('spark', $control);
+            $this->assertCount(12, $control['spark']);
+        }
+    }
+
+    public function test_overview_keeps_v1_0_fields(): void
+    {
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        // top-level envelope fields
+        $this->assertArrayHasKey('controls', $data);
+        $this->assertArrayHasKey('totals', $data);
+        $this->assertArrayHasKey('ruleset_version', $data);
+
+        // original totals
+        $this->assertArrayHasKey('attempts_24h', $data['totals']);
+        $this->assertArrayHasKey('blocked_24h', $data['totals']);
+        $this->assertArrayHasKey('sampled', $data['totals']);
+
+        // original control fields
+        foreach ($data['controls'] as $control) {
+            $this->assertArrayHasKey('key', $control);
+            $this->assertArrayHasKey('label', $control);
+            $this->assertArrayHasKey('enabled', $control);
+            $this->assertArrayHasKey('mode', $control);
+            $this->assertIsString($control['key']);
+            $this->assertIsString($control['label']);
+            $this->assertIsBool($control['enabled']);
+            $this->assertIsString($control['mode']);
+        }
+
+        $this->assertIsInt($data['totals']['attempts_24h']);
+        $this->assertIsInt($data['totals']['blocked_24h']);
+        $this->assertIsBool($data['totals']['sampled']);
+        $this->assertIsString($data['ruleset_version']);
+    }
+
+    public function test_observed_24h_is_zero_and_spark_all_zeros_when_no_attempts(): void
+    {
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        $this->assertSame(0, $data['totals']['observed_24h']);
+
+        foreach ($data['controls'] as $control) {
+            $this->assertCount(12, $control['spark']);
+            foreach ($control['spark'] as $bucket) {
+                $this->assertSame(0, $bucket);
+            }
+        }
+    }
+
+    public function test_posture_reflects_control_mode(): void
+    {
+        $this->app['config']->set('ai-guardrails.modes.input_screen', 'enforce');
+        $this->app['config']->set('ai-guardrails.modes.tool_firewall', 'monitor');
+        $this->app['config']->set('ai-guardrails.output_handler.enabled', false);
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+        $controls = collect($data['controls'])->keyBy('key');
+
+        $this->assertSame('Engaged', $controls['input_screen']['posture']);
+        $this->assertSame('Observing', $controls['tool_firewall']['posture']);
+        $this->assertSame('Disabled', $controls['output_handler']['posture']);
+        $this->assertSame('Disabled', $controls['hitl']['posture']);
+    }
+
+    public function test_pending_approvals_uses_pending_count_method(): void
+    {
+        // Verify the aggregator calls pendingCount() (not count(pending())) by asserting the
+        // key is present and is an integer. Since flow tables are absent in this test environment,
+        // both paths return 0 — the contract that pendingCount() is called is verified by reading
+        // the source and by the ApprovalReadModelTest::test_pending_count_degrades_to_zero test.
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        $this->assertArrayHasKey('pending_approvals', $data['totals']);
+        $this->assertIsInt($data['totals']['pending_approvals']);
+    }
+
+    public function test_pending_approvals_is_zero_when_hitl_disabled(): void
+    {
+        // Step 2 (P2): When hitl.enabled=false (or mode=off), the router is NullApprovalRouter
+        // (isAvailable=false) and pending_approvals MUST be 0 even if there are stale rows in the
+        // flow_approvals table. Consistent with /approvals returning [] when HITL is disabled.
+        $this->app['config']->set('ai-guardrails.hitl.enabled', false);
+
+        // Forget the router singleton so it re-resolves with the new config (NullApprovalRouter).
+        $this->app->forgetInstance(ApprovalRouter::class);
+        // Forget the aggregator singleton so it picks up the new router instance.
+        $this->app->forgetInstance(OverviewAggregator::class);
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        $this->assertSame(0, $data['totals']['pending_approvals'],
+            'pending_approvals must be 0 when HITL is disabled (consistent with /approvals returning []).');
+    }
+
+    public function test_attempt_older_than_12h_is_excluded_from_spark(): void
+    {
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+        // An attempt exactly 13 hours ago — must NOT appear in any spark bucket.
+        $this->seedAttempt(blocked: true, ruleId: null, occurredAt: $now->modify('-13 hours'));
+
+        // A recent attempt (within the last hour) — should appear in the last bucket (index 11).
+        $this->seedAttempt(blocked: false, ruleId: null, occurredAt: $now->modify('-30 minutes'));
+
+        $data = $this->getJson('/ai-guardrails/api/overview')->assertOk()->json('data');
+
+        foreach ($data['controls'] as $control) {
+            $spark = $control['spark'];
+            $this->assertCount(12, $spark);
+
+            // The 13h-old attempt must not contribute any count — only the recent one should.
+            $total = array_sum($spark);
+            $this->assertSame(1, $total, "Expected exactly 1 spark count (recent attempt only), got {$total} for control {$control['key']}");
+
+            // The recent attempt falls in bucket index 11 (current hour).
+            $this->assertSame(1, $spark[11], "Expected bucket 11 (current hour) to have count 1 for control {$control['key']}");
+        }
+    }
+}

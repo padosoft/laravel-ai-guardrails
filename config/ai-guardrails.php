@@ -72,6 +72,14 @@ return [
         'table' => env('AI_GUARDRAILS_FIREWALL_TABLE', 'ai_guardrails_firewall_rejections'),
     ],
 
+    // Append-only HITL request sidecar — records tool + scoped arguments at park-time
+    // (consumed by GET /approvals to expose tool, arguments, relative times). Task 4.
+    'hitl_requests' => [
+        'store' => env('AI_GUARDRAILS_HITL_REQUESTS_STORE', 'null'), // null | array | database
+        'connection' => env('AI_GUARDRAILS_HITL_REQUESTS_CONNECTION'),
+        'table' => env('AI_GUARDRAILS_HITL_REQUESTS_TABLE', 'ai_guardrails_hitl_requests'),
+    ],
+
     // Append-only output-sanitization counter persistence (control C; consumed by GET /output/stats). Task 14.
     'output_stats' => [
         'store' => env('AI_GUARDRAILS_OUTPUT_STATS_STORE', 'null'), // null | array | database
@@ -94,6 +102,11 @@ return [
             'modes.tool_firewall', 'modes.input_screen', 'modes.output_handler', 'modes.hitl',
             'normalization.enabled', 'pattern_safety.on_match_error',
             'tool_authorization.enabled', 'tool_authorization.owner_key_depth', 'tool_authorization.destructive_match',
+            // Task 5 — widened allow-list (each strictly validated by UpdateSettingsRequest).
+            'tool_firewall.owner_keys', 'input_screen.patterns', 'hitl.destructive_tools',
+            'normalization.nfkc', 'normalization.strip_zero_width', 'normalization.casefold',
+            'normalization.decode_base64_blobs', 'normalization.fold_confusables', 'normalization.max_prompt_length',
+            'audit_hygiene.prompt_storage', 'retention.days', 'retention.strategy',
         ],
     ],
 
@@ -147,7 +160,7 @@ return [
         'decode_base64_blobs' => false,
         // Maximum prompt length in Unicode code points (not bytes). Prompts exceeding this limit
         // are blocked with verdict 'too_long' before screening. 0 = unlimited.
-        'max_prompt_length' => env('AI_GUARDRAILS_MAX_PROMPT_LENGTH', 50000),
+        'max_prompt_length' => (int) env('AI_GUARDRAILS_MAX_PROMPT_LENGTH', 50000),
     ],
 
     // Regex safety. Patterns validated at boot; ReDoS guardrails applied. Task E2.
@@ -171,7 +184,7 @@ return [
 
     // GDPR-compatible retention for the append-only stores. Task E5.
     'retention' => [
-        'days' => env('AI_GUARDRAILS_RETENTION_DAYS', 365),
+        'days' => (int) env('AI_GUARDRAILS_RETENTION_DAYS', 365),
         'strategy' => env('AI_GUARDRAILS_RETENTION_STRATEGY', 'anonymize'), // anonymize | purge | keep
     ],
 

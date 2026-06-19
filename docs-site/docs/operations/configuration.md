@@ -45,13 +45,16 @@ Everything is a toggle in `config/ai-guardrails.php`. The four controls are **on
 
 ## Stores (all default `null`)
 
-| Key | Values |
-|---|---|
-| `audit.store` | `null` \| `array` \| `database` |
-| `firewall_log.store` | `null` \| `array` \| `database` |
-| `output_stats.store` | `null` \| `array` \| `database` |
-| `settings.store` | `config` \| `database` |
-| `settings_audit.store` | `null` \| `array` \| `database` |
+| Key | Values | Notes |
+|---|---|---|
+| `audit.store` | `null` \| `array` \| `database` | Swept by `ai-guardrails:purge` |
+| `firewall_log.store` | `null` \| `array` \| `database` | |
+| `output_stats.store` | `null` \| `array` \| `database` | |
+| `hitl_requests.store` | `null` \| `array` \| `database` | Append-only HITL request sidecar; swept by `ai-guardrails:purge` (v1.1.0) |
+| `settings.store` | `config` \| `database` | |
+| `settings_audit.store` | `null` \| `array` \| `database` | |
+
+All store keys and their `table`/`connection` sub-keys are **infrastructure-only** — they cannot be overridden at runtime via `PUT /settings` (env/config only).
 
 ## Surfaces
 
@@ -64,6 +67,8 @@ Everything is a toggle in `config/ai-guardrails.php`. The four controls are **on
 ## Runtime overrides
 
 When `settings.store=database`, allow-listed keys can be changed at runtime via `PUT /settings`; the provider overlays them onto live config at boot (effective next boot). Every change is recorded to the [settings-change audit](/guides/events). See the [HTTP API](/operations/http-api).
+
+The allow-list covers all per-control enabled/mode booleans and enums, `input_screen.patterns`, `hitl.destructive_tools`, all `normalization.*` sub-toggles (`nfkc`, `strip_zero_width`, `casefold`, `decode_base64_blobs`, `fold_confusables`, `max_prompt_length`), `retention.days`/`strategy`, and `audit_hygiene.prompt_storage`. Infrastructure store keys are never overridable.
 
 ::: callout info
 Nested config defaults are **not** recursively restored by Laravel's package merge — if you override a block partially, supply every key you care about, or rely on the documented fail-closed defaults.

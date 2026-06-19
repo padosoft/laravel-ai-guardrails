@@ -52,7 +52,15 @@
             // inside the adapter boundary — same category as the excluded Console commands (their
             // mutants are console-output strings + default-param flips, behaviourally low-signal).
             "Hitl/HitlStatusCommand.php",
-            "Hitl/HitlInstallCommand.php"
+            "Hitl/HitlInstallCommand.php",
+            // New HITL request sidecar persistence layer (branch feature/core-v1.1.0-api).
+            // DatabaseHitlRequestStore: DB/SQL dialect IO-adapter — mirrors DatabaseInjectionAuditStore.php exclusion.
+            // HitlRequestRecord: Eloquent Model ORM plumbing — same IO-adapter category as the existing Database* stores.
+            // HitlRequestRecordBuilder: extends AppendOnlyEloquentBuilder — EQUIVALENT mutants only (same rationale as
+            // the AppendOnlyEloquentBuilder.php exclusion: the default-param flips on methods that throw are unkillable).
+            "Hitl/DatabaseHitlRequestStore.php",
+            "Hitl/HitlRequestRecord.php",
+            "Hitl/HitlRequestRecordBuilder.php"
         ]
     },
     "mutators": {

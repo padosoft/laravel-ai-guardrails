@@ -18,6 +18,7 @@ use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
 use Padosoft\AiGuardrails\Contracts\ReportingOutputSanitizer;
+use Padosoft\AiGuardrails\Contracts\ReportingPiiRedaction;
 use Padosoft\AiGuardrails\Events\OutputSanitized;
 use Padosoft\AiGuardrails\Support\ControlMode;
 
@@ -120,9 +121,34 @@ final readonly class GuardrailOutputMiddleware
             $sanitized = $this->sanitizer->sanitize($text);
         }
 
-        $redacted = $this->pii->redact($sanitized);
-        if ($redacted !== $sanitized) {
-            $this->recordStat(OutputStatKind::PiiRedaction, $kinds);
+        // When the pii-redactor implements ReportingPiiRedaction, use redactReport() to capture
+        // per-detector counts; otherwise fall back to plain redact() (no detector breakdown).
+        if ($this->pii instanceof ReportingPiiRedaction) {
+            $report = $this->pii->redactReport($sanitized);
+            $redacted = $report->text;
+            // Gate on actual text change so stats reflect real neutralisations (not detector reports
+            // on text that is ultimately unchanged).
+            if ($redacted !== $sanitized) {
+                // pii_redaction is appended to $kinds exactly ONCE per text, regardless of how many
+                // detectors fired. Per-detector store rows are written directly to skip the $kinds
+                // accumulation path in recordStat().
+                $kinds[] = OutputStatKind::PiiRedaction->value;
+                if ($report->countsByDetector !== []) {
+                    // One store row per detector.
+                    foreach ($report->countsByDetector as $detector => $n) {
+                        $this->recordStatDirect(OutputStatKind::PiiRedaction, $n, $detector);
+                    }
+                } else {
+                    // Text changed but no detector attribution → one aggregate row with detector=null
+                    // so pii_redaction total stays correct; by_detector silently omits it.
+                    $this->recordStatDirect(OutputStatKind::PiiRedaction);
+                }
+            }
+        } else {
+            $redacted = $this->pii->redact($sanitized);
+            if ($redacted !== $sanitized) {
+                $this->recordStat(OutputStatKind::PiiRedaction, $kinds);
+            }
         }
 
         return $apply ? $redacted : $text;
@@ -135,7 +161,7 @@ final readonly class GuardrailOutputMiddleware
      *
      * @param  list<string>  $kinds  accumulator (by ref)
      */
-    private function recordStat(OutputStatKind $kind, array &$kinds): void
+    private function recordStat(OutputStatKind $kind, array &$kinds, int $count = 1, ?string $detector = null): void
     {
         $kinds[] = $kind->value;
 
@@ -144,7 +170,28 @@ final readonly class GuardrailOutputMiddleware
         }
 
         try {
-            $this->stats->record($kind);
+            $this->stats->record($kind, $count, $detector);
+        } catch (\Throwable $e) {
+            Log::warning('laravel-ai-guardrails: failed to record an output stat.', [
+                'kind' => $kind->value,
+                'exception' => $e,
+            ]);
+        }
+    }
+
+    /**
+     * Write a stat row directly to the store WITHOUT touching the $kinds accumulator. Used for
+     * per-detector PiiRedaction rows so that pii_redaction appears in $kinds exactly once per text
+     * while the store still captures the per-detector breakdown.
+     */
+    private function recordStatDirect(OutputStatKind $kind, int $count = 1, ?string $detector = null): void
+    {
+        if ($this->stats === null) {
+            return;
+        }
+
+        try {
+            $this->stats->record($kind, $count, $detector);
         } catch (\Throwable $e) {
             Log::warning('laravel-ai-guardrails: failed to record an output stat.', [
                 'kind' => $kind->value,

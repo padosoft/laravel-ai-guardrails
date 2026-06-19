@@ -45,6 +45,8 @@ flowchart LR
 | `structured_validation_failure` | `validateStructured()` found a violation |
 | `pii_redaction` | the PII redactor changed the text |
 
+`pii_redaction` rows are optionally tagged with a **detector name** (e.g. `"email"`, `"phone"`, `"ssn"`) when `laravel-pii-redactor` supplies one. `GET /output/stats` surfaces this as `counts.pii.by_detector` — a map from detector name to count. When no detector tag is present (legacy rows or unknown detector), the row is counted in `pii_redaction` but not in `by_detector`.
+
 Config lives under `output_handler`: `sanitize_html`, `neutralize_markdown`, `html_mode` (`escape` \| `allowlist`), `redact_pii`, and the opt-in `sanitize_tool_calls`.
 
 ## Decision records

@@ -73,4 +73,26 @@ final class DatabaseOutputStatStoreTest extends TestCase
         $this->expectException(LogicException::class);
         OutputStatRecord::query()->delete();
     }
+
+    public function test_by_detector_groups_pii_rows_by_detector(): void
+    {
+        $store = $this->store();
+        $store->record(OutputStatKind::PiiRedaction, 2, 'email');
+        $store->record(OutputStatKind::PiiRedaction, 1, 'iban');
+        $store->record(OutputStatKind::PiiRedaction, 3); // null detector — excluded from byDetector
+
+        $byDetector = $store->byDetector();
+        self::assertSame(['email' => 2, 'iban' => 1], $byDetector);
+
+        // Total should still be 6 (all rows)
+        self::assertSame(6, $store->count());
+    }
+
+    public function test_by_detector_returns_empty_when_no_pii_rows(): void
+    {
+        $store = $this->store();
+        $store->record(OutputStatKind::HtmlStripped);
+
+        self::assertSame([], $store->byDetector());
+    }
 }

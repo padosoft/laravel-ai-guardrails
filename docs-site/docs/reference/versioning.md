@@ -18,6 +18,7 @@ Every behaviour-changing feature is a config toggle, default-safe, and tested in
 
 | Version | Theme |
 |---|---|
+| **v1.1.0** | Admin-enabling additive API: `observed` bucket in `/audit/trend`, `observed_24h` + `pending_approvals` in `/overview` totals, per-control `posture` + 12-bucket `spark` in `/overview` controls, `pii.by_detector` in `/output/stats`, `tool` + `arguments` + `requested_ago` + `expires_in` enrichment in `/approvals`, widened runtime-overridable settings (all `normalization.*` sub-toggles, `hitl.destructive_tools`), HITL request sidecar (`ai_guardrails_hitl_requests`) + GDPR purge coverage via `ai-guardrails:purge`. |
 | **v1.0.0** | Every documented limitation closed: cross-script confusables fold, HTMLPurifier-grade allowlist, opt-in tool-call sanitization, turnkey HITL commands, and the MCP surface. |
 | **v0.3.0** | Enterprise hardening: enforce/monitor/off modes, domain events, audit hygiene + GDPR retention, settings-change audit, tool authorization, the mutation-testing gate, and overview API deltas. |
 | **v0.2.0** | The admin HTTP API surface. |
