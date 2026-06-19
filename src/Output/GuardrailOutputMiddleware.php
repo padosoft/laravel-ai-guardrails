@@ -126,9 +126,22 @@ final readonly class GuardrailOutputMiddleware
         if ($this->pii instanceof ReportingPiiRedaction) {
             $report = $this->pii->redactReport($sanitized);
             $redacted = $report->text;
-            if ($report->hadRedactions()) {
-                foreach ($report->countsByDetector as $detector => $n) {
-                    $this->recordStat(OutputStatKind::PiiRedaction, $kinds, $n, $detector);
+            // Gate on actual text change so stats reflect real neutralisations (not detector reports
+            // on text that is ultimately unchanged).
+            if ($redacted !== $sanitized) {
+                // pii_redaction is appended to $kinds exactly ONCE per text, regardless of how many
+                // detectors fired. Per-detector store rows are written directly to skip the $kinds
+                // accumulation path in recordStat().
+                $kinds[] = OutputStatKind::PiiRedaction->value;
+                if ($report->countsByDetector !== []) {
+                    // One store row per detector.
+                    foreach ($report->countsByDetector as $detector => $n) {
+                        $this->recordStatDirect(OutputStatKind::PiiRedaction, $n, $detector);
+                    }
+                } else {
+                    // Text changed but no detector attribution → one aggregate row with detector=null
+                    // so pii_redaction total stays correct; by_detector silently omits it.
+                    $this->recordStatDirect(OutputStatKind::PiiRedaction);
                 }
             }
         } else {
@@ -152,6 +165,27 @@ final readonly class GuardrailOutputMiddleware
     {
         $kinds[] = $kind->value;
 
+        if ($this->stats === null) {
+            return;
+        }
+
+        try {
+            $this->stats->record($kind, $count, $detector);
+        } catch (\Throwable $e) {
+            Log::warning('laravel-ai-guardrails: failed to record an output stat.', [
+                'kind' => $kind->value,
+                'exception' => $e,
+            ]);
+        }
+    }
+
+    /**
+     * Write a stat row directly to the store WITHOUT touching the $kinds accumulator. Used for
+     * per-detector PiiRedaction rows so that pii_redaction appears in $kinds exactly once per text
+     * while the store still captures the per-detector breakdown.
+     */
+    private function recordStatDirect(OutputStatKind $kind, int $count = 1, ?string $detector = null): void
+    {
         if ($this->stats === null) {
             return;
         }

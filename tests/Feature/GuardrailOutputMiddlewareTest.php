@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\AiGuardrails\Tests\Feature;
 
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Support\Facades\Event;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\Data\Usage;
@@ -11,11 +13,14 @@ use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Padosoft\AiGuardrails\Contracts\OutputStatStore;
 use Padosoft\AiGuardrails\Contracts\PiiRedaction;
+use Padosoft\AiGuardrails\Contracts\ReportingPiiRedaction;
+use Padosoft\AiGuardrails\Events\OutputSanitized;
 use Padosoft\AiGuardrails\Output\ArrayOutputStatStore;
 use Padosoft\AiGuardrails\Output\GuardrailOutputMiddleware;
 use Padosoft\AiGuardrails\Output\HtmlMarkdownSanitizer;
 use Padosoft\AiGuardrails\Output\NullPiiRedaction;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
+use Padosoft\AiGuardrails\Output\PiiRedactionReport;
 use Padosoft\AiGuardrails\Support\ControlMode;
 use Padosoft\AiGuardrails\Tests\Doubles\AgentPromptFactory;
 use Padosoft\AiGuardrails\Tests\Doubles\AgentResponseFactory;
@@ -252,5 +257,151 @@ final class GuardrailOutputMiddlewareTest extends TestCase
         );
 
         self::assertStringContainsString('&lt;script&gt;', $response->text);
+    }
+
+    // ── ReportingPiiRedaction: multi-detector single-text path ───────────────────
+
+    /**
+     * Fix 1 + Fix 2: when a ReportingPiiRedaction fires two detectors on a single text,
+     * (a) pii_redaction total == sum of all detector counts,
+     * (b) by_detector reflects each detector separately,
+     * (c) the OutputSanitized event carries pii_redaction EXACTLY ONCE.
+     */
+    public function test_multi_detector_pii_records_correct_totals_and_kinds_once(): void
+    {
+        Event::fake();
+
+        $reportingPii = new class implements ReportingPiiRedaction
+        {
+            public function redact(string $text): string
+            {
+                return '[redacted]';
+            }
+
+            public function redactReport(string $text): PiiRedactionReport
+            {
+                // Simulate two detectors firing: email×2, phone×1.
+                return new PiiRedactionReport('[redacted]', ['email' => 2, 'phone' => 1]);
+            }
+        };
+
+        $stats = new ArrayOutputStatStore;
+        $middleware = new GuardrailOutputMiddleware(
+            new HtmlMarkdownSanitizer,
+            $reportingPii,
+            stats: $stats,
+            mode: ControlMode::Enforce,
+            events: $this->app->make(Dispatcher::class),
+        );
+
+        $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($p) => AgentResponseFactory::make('contact john@example.com or call 555-1234'),
+        );
+
+        // (a) pii_redaction total == 2 + 1 == 3
+        $totals = $stats->totals();
+        self::assertSame(3, $totals[OutputStatKind::PiiRedaction->value]);
+
+        // (b) by_detector reflects per-detector breakdown
+        self::assertSame(['email' => 2, 'phone' => 1], $stats->byDetector());
+
+        // (c) OutputSanitized event carries pii_redaction exactly once
+        Event::assertDispatched(OutputSanitized::class, static function (OutputSanitized $e): bool {
+            $piiEntries = array_filter($e->kinds, static fn (string $k): bool => $k === OutputStatKind::PiiRedaction->value);
+
+            return count($piiEntries) === 1;
+        });
+    }
+
+    /**
+     * Fix 2: text changed but countsByDetector is empty (engine changed text without detector
+     * attribution) → pii_redaction total == 1, by_detector == {}, $kinds has pii_redaction once.
+     */
+    public function test_pii_text_changed_no_detector_attribution_records_aggregate_row(): void
+    {
+        Event::fake();
+
+        $reportingPii = new class implements ReportingPiiRedaction
+        {
+            public function redact(string $text): string
+            {
+                return '[redacted]';
+            }
+
+            public function redactReport(string $text): PiiRedactionReport
+            {
+                // Text IS changed (different from $text) but no detector attribution.
+                return new PiiRedactionReport('[redacted]', []);
+            }
+        };
+
+        $stats = new ArrayOutputStatStore;
+        $middleware = new GuardrailOutputMiddleware(
+            new HtmlMarkdownSanitizer,
+            $reportingPii,
+            stats: $stats,
+            mode: ControlMode::Enforce,
+            events: $this->app->make(Dispatcher::class),
+        );
+
+        $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($p) => AgentResponseFactory::make('some sensitive text'),
+        );
+
+        // pii_redaction total == 1 (the single aggregate null-detector row)
+        $totals = $stats->totals();
+        self::assertSame(1, $totals[OutputStatKind::PiiRedaction->value]);
+
+        // by_detector == {} (null-detector row is silently omitted)
+        self::assertSame([], $stats->byDetector());
+
+        // OutputSanitized event carries pii_redaction exactly once
+        Event::assertDispatched(OutputSanitized::class, static function (OutputSanitized $e): bool {
+            $piiEntries = array_filter($e->kinds, static fn (string $k): bool => $k === OutputStatKind::PiiRedaction->value);
+
+            return count($piiEntries) === 1;
+        });
+    }
+
+    /**
+     * Fix 2: when text did NOT change (redactReport returned unchanged text), nothing is recorded.
+     */
+    public function test_pii_text_unchanged_records_nothing(): void
+    {
+        Event::fake();
+
+        $reportingPii = new class implements ReportingPiiRedaction
+        {
+            public function redact(string $text): string
+            {
+                return $text; // unchanged
+            }
+
+            public function redactReport(string $text): PiiRedactionReport
+            {
+                // Returns same text — even though a detector "reported" something; should not record.
+                return new PiiRedactionReport($text, ['phantom' => 1]);
+            }
+        };
+
+        $stats = new ArrayOutputStatStore;
+        $middleware = new GuardrailOutputMiddleware(
+            new HtmlMarkdownSanitizer,
+            $reportingPii,
+            stats: $stats,
+            mode: ControlMode::Enforce,
+            events: $this->app->make(Dispatcher::class),
+        );
+
+        $middleware->handle(
+            AgentPromptFactory::make('hi'),
+            static fn ($p) => AgentResponseFactory::make('clean text'),
+        );
+
+        // No stats written, no event dispatched.
+        self::assertSame(0, $stats->count());
+        Event::assertNotDispatched(OutputSanitized::class);
     }
 }

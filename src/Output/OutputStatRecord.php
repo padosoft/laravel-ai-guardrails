@@ -32,6 +32,7 @@ final class OutputStatRecord extends Model
     /** @var array<string,string> */
     protected $casts = [
         'event_count' => 'integer',
+        'detector' => 'string',
         'occurred_at' => 'immutable_datetime',
     ];
 

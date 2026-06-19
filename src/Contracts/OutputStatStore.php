@@ -15,6 +15,10 @@ interface OutputStatStore
      * When $detector is non-null, the row also carries a detector name so that
      * PiiRedaction events can be broken down by detector in GET /output/stats.
      * Existing call-sites that omit $detector continue to work unchanged.
+     *
+     * NOTE: $detector is only meaningful for OutputStatKind::PiiRedaction; byDetector() ignores
+     * the detector column for all other kinds, so passing it for other kinds has no observable
+     * effect but is not an error.
      */
     public function record(OutputStatKind $kind, int $count = 1, ?string $detector = null): void;
 

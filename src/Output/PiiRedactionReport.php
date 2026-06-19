@@ -24,9 +24,4 @@ final readonly class PiiRedactionReport
     {
         return $this->countsByDetector !== [];
     }
-
-    public function total(): int
-    {
-        return array_sum($this->countsByDetector);
-    }
 }
