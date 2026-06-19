@@ -13,7 +13,6 @@ interface HitlRequestStore
      */
     public function record(
         string $runId,
-        ?string $approvalId,
         string $tool,
         array $arguments,
         int|string|null $principalId,

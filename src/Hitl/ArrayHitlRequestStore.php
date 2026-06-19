@@ -11,14 +11,13 @@ use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
  */
 final class ArrayHitlRequestStore implements HitlRequestStore
 {
-    /** @var list<array{run_id:string,approval_id:string|null,tool:string,arguments:array<string,mixed>,principal_id:int|string|null}> */
+    /** @var list<array{run_id:string,tool:string,arguments:array<string,mixed>,principal_id:int|string|null}> */
     private array $rows = [];
 
-    public function record(string $runId, ?string $approvalId, string $tool, array $arguments, int|string|null $principalId): void
+    public function record(string $runId, string $tool, array $arguments, int|string|null $principalId): void
     {
         $this->rows[] = [
             'run_id' => $runId,
-            'approval_id' => $approvalId,
             'tool' => $tool,
             'arguments' => $arguments,
             'principal_id' => $principalId,

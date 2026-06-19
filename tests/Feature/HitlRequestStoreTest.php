@@ -40,8 +40,8 @@ final class HitlRequestStoreTest extends TestCase
     public function test_array_store_record_and_for_run_ids(): void
     {
         $store = new ArrayHitlRequestStore;
-        $store->record('run-1', 'appr-1', 'refund', ['order_id' => 'X1'], 9);
-        $store->record('run-2', 'appr-2', 'delete', ['id' => 5], null);
+        $store->record('run-1', 'refund', ['order_id' => 'X1'], 9);
+        $store->record('run-2', 'delete', ['id' => 5], null);
 
         $map = $store->forRunIds(['run-1', 'run-2', 'run-missing']);
 
@@ -55,8 +55,8 @@ final class HitlRequestStoreTest extends TestCase
     public function test_array_store_most_recent_wins_for_duplicate_run_id(): void
     {
         $store = new ArrayHitlRequestStore;
-        $store->record('run-1', 'appr-1', 'refund', ['x' => 1], null);
-        $store->record('run-1', 'appr-2', 'delete', ['y' => 2], null);
+        $store->record('run-1', 'refund', ['x' => 1], null);
+        $store->record('run-1', 'delete', ['y' => 2], null);
 
         $map = $store->forRunIds(['run-1']);
         self::assertSame('delete', $map['run-1']['tool']);
@@ -73,7 +73,7 @@ final class HitlRequestStoreTest extends TestCase
     public function test_database_store_record_and_for_run_ids(): void
     {
         $store = $this->store();
-        $store->record('run-A', 'appr-A', 'send_email', ['to' => 'foo@bar.com'], 42);
+        $store->record('run-A', 'send_email', ['to' => 'foo@bar.com'], 42);
 
         $map = $store->forRunIds(['run-A', 'run-missing']);
 
@@ -86,8 +86,8 @@ final class HitlRequestStoreTest extends TestCase
     public function test_database_store_most_recent_wins_for_duplicate_run_id(): void
     {
         $store = $this->store();
-        $store->record('run-X', 'appr-X1', 'refund', ['a' => 1], null);
-        $store->record('run-X', 'appr-X2', 'delete', ['b' => 2], null);
+        $store->record('run-X', 'refund', ['a' => 1], null);
+        $store->record('run-X', 'delete', ['b' => 2], null);
 
         $map = $store->forRunIds(['run-X']);
         self::assertSame('delete', $map['run-X']['tool']);
@@ -97,7 +97,7 @@ final class HitlRequestStoreTest extends TestCase
 
     public function test_model_update_throws(): void
     {
-        $this->store()->record('run-1', null, 'refund', [], null);
+        $this->store()->record('run-1', 'refund', [], null);
 
         $record = HitlRequestRecord::query()->firstOrFail();
         $this->expectException(LogicException::class);
@@ -106,7 +106,7 @@ final class HitlRequestStoreTest extends TestCase
 
     public function test_model_delete_throws(): void
     {
-        $this->store()->record('run-1', null, 'refund', [], null);
+        $this->store()->record('run-1', 'refund', [], null);
 
         $record = HitlRequestRecord::query()->firstOrFail();
         $this->expectException(LogicException::class);
@@ -115,7 +115,7 @@ final class HitlRequestStoreTest extends TestCase
 
     public function test_builder_mass_update_throws(): void
     {
-        $this->store()->record('run-1', null, 'refund', [], null);
+        $this->store()->record('run-1', 'refund', [], null);
 
         $this->expectException(LogicException::class);
         HitlRequestRecord::query()->update(['tool' => 'tampered']);
@@ -123,7 +123,7 @@ final class HitlRequestStoreTest extends TestCase
 
     public function test_builder_truncate_throws(): void
     {
-        $this->store()->record('run-1', null, 'refund', [], null);
+        $this->store()->record('run-1', 'refund', [], null);
 
         $this->expectException(LogicException::class);
         HitlRequestRecord::query()->truncate();

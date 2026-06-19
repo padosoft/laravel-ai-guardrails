@@ -15,7 +15,6 @@ use LogicException;
  *
  * @property int $id
  * @property string $run_id
- * @property string|null $approval_id
  * @property string $tool
  * @property array<string,mixed> $arguments
  * @property string|null $principal_id
@@ -28,7 +27,7 @@ final class HitlRequestRecord extends Model
     protected $table = 'ai_guardrails_hitl_requests';
 
     /** @var list<string> */
-    protected $fillable = ['run_id', 'approval_id', 'tool', 'arguments', 'principal_id', 'occurred_at'];
+    protected $fillable = ['run_id', 'tool', 'arguments', 'principal_id', 'occurred_at'];
 
     /** @var array<string,string> */
     protected $casts = [

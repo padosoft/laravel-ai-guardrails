@@ -106,7 +106,7 @@ final class ApprovalReadModel
         foreach ($pending as &$item) {
             $sid = $sidecar[(string) ($item['run_id'] ?? '')] ?? null;
             $item['tool'] = $sid['tool'] ?? '';
-            $item['arguments'] = $sid['arguments'] ?? [];
+            $item['arguments'] = (object) ($sid['arguments'] ?? []);
             $item['requested_ago'] = $this->relative($now, (string) ($item['created_at'] ?? ''));
             $expiresAt = $item['expires_at'] ?? null;
             $item['expires_in'] = $expiresAt !== null ? $this->relative($now, (string) $expiresAt) : null;

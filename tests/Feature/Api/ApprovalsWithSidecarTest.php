@@ -46,7 +46,7 @@ final class ApprovalsWithSidecarTest extends TestCase
         // Record a sidecar row
         $runId = 'run-abc-123';
         $approvalId = 'appr-1';
-        $this->sidecar->record($runId, $approvalId, 'refund', ['order_id' => 'X1'], 9);
+        $this->sidecar->record($runId, 'refund', ['order_id' => 'X1'], 9);
 
         // Seed the read model with a matching fake pending row
         $createdAt = new DateTimeImmutable('2 minutes ago', new DateTimeZone('UTC'));
@@ -65,7 +65,9 @@ final class ApprovalsWithSidecarTest extends TestCase
 
         self::assertCount(1, $pending);
         self::assertSame('refund', $pending[0]['tool']);
-        self::assertSame(['order_id' => 'X1'], $pending[0]['arguments']);
+        // arguments is a stdClass so it JSON-encodes as a named-key object (not [])
+        $encodedArgs = json_encode($pending[0]['arguments']);
+        self::assertSame('{"order_id":"X1"}', $encodedArgs);
         self::assertArrayHasKey('requested_ago', $pending[0]);
         self::assertNotEmpty($pending[0]['requested_ago']);
         self::assertArrayHasKey('expires_in', $pending[0]);
@@ -93,7 +95,8 @@ final class ApprovalsWithSidecarTest extends TestCase
 
         self::assertCount(1, $pending);
         self::assertSame('', $pending[0]['tool']);
-        self::assertSame([], $pending[0]['arguments']);
+        // Empty arguments must JSON-encode as {} (object), not [] (array)
+        self::assertStringContainsString('"arguments":{}', json_encode($pending[0]));
         self::assertNull($pending[0]['expires_in']); // expires_at was null
     }
 

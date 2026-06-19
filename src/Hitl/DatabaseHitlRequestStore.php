@@ -20,7 +20,7 @@ final readonly class DatabaseHitlRequestStore implements HitlRequestStore
         private string $table,
     ) {}
 
-    public function record(string $runId, ?string $approvalId, string $tool, array $arguments, int|string|null $principalId): void
+    public function record(string $runId, string $tool, array $arguments, int|string|null $principalId): void
     {
         $record = new HitlRequestRecord;
         $record->setTable($this->table);
@@ -31,7 +31,6 @@ final readonly class DatabaseHitlRequestStore implements HitlRequestStore
 
         $record->fill([
             'run_id' => $runId,
-            'approval_id' => $approvalId,
             'tool' => $tool,
             'arguments' => $arguments,
             'principal_id' => $principalId !== null ? (string) $principalId : null,

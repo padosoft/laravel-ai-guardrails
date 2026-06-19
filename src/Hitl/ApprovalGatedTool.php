@@ -117,7 +117,6 @@ final readonly class ApprovalGatedTool implements Tool
             try {
                 $this->requestStore->record(
                     $pending->runId,
-                    null,
                     $this->toolName,
                     $request->toArray(),
                     $principal,
