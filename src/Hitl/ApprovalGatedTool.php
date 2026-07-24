@@ -41,7 +41,7 @@ final readonly class ApprovalGatedTool implements Tool
 {
     /**
      * @param  Closure():(int|string|null)  $principalResolver
-     * @param  'deny'|'pass'  $fallback
+     * @param  string  $fallback  must be 'deny' (refuse) or 'pass' (execute); any other value is rejected by the constructor
      */
     public function __construct(
         private Tool $delegate,
