@@ -12,6 +12,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Padosoft\AiGuardrails\Contracts\GatedToolCallStore;
 use Padosoft\AiGuardrails\Contracts\GroundingProvenance;
 use Padosoft\AiGuardrails\Events\UntrustedGroundingToolGated;
 use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
@@ -68,6 +69,7 @@ final readonly class ProvenanceGatedTool implements Tool
         private array $gatingTiers,
         private ControlMode $mode = ControlMode::Enforce,
         private ?Dispatcher $events = null,
+        private ?GatedToolCallStore $store = null,
     ) {}
 
     public function description(): Stringable|string
@@ -84,14 +86,32 @@ final readonly class ProvenanceGatedTool implements Tool
         }
 
         $blocked = $this->mode->enforces();
+        $principal = ($this->principalResolver)();
+        $tiers = array_map(static fn (ProvenanceTier $tier): string => $tier->value, $offending);
+        $occurredAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
         $this->events?->dispatch(new UntrustedGroundingToolGated(
             $this->toolName,
-            ($this->principalResolver)(),
-            array_map(static fn (ProvenanceTier $tier): string => $tier->value, $offending),
+            $principal,
+            $tiers,
             $blocked,
-            new DateTimeImmutable('now', new DateTimeZone('UTC')),
+            $occurredAt,
         ));
+
+        // Best-effort: a store failure must never turn a gate decision into an
+        // exception the model sees. Losing a log row is bad; letting a logging
+        // outage change what the tool does is worse.
+        try {
+            $this->store?->record(new GatedToolCall(
+                $this->toolName,
+                $principal === null ? null : (string) $principal,
+                $tiers,
+                $blocked,
+                $occurredAt,
+            ));
+        } catch (\Throwable) {
+            // intentionally swallowed — see above
+        }
 
         if (! $blocked) {
             return $this->delegate->handle($request);

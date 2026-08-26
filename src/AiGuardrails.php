@@ -12,6 +12,7 @@ use Laravel\Ai\Contracts\Tool;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\GatedToolCallStore;
 use Padosoft\AiGuardrails\Contracts\GroundingProvenance;
 use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
@@ -68,6 +69,7 @@ final readonly class AiGuardrails
         private ?GroundingProvenance $groundingProvenance = null,
         private ?ControlMode $provenanceMode = null,
         private array $provenanceGatingTiers = [],
+        private ?GatedToolCallStore $gatedToolCallStore = null,
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -138,6 +140,7 @@ final readonly class AiGuardrails
             $this->provenanceGatingTiers,
             $mode,
             $this->events,
+            $this->gatedToolCallStore,
         );
     }
 

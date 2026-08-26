@@ -23,6 +23,8 @@ final class ApiSchema
 
     public const SCHEMA_FIREWALL = 'ai-guardrails.api.v1.firewall';
 
+    public const SCHEMA_PROVENANCE = 'ai-guardrails.api.v1.provenance';
+
     public const SCHEMA_OUTPUT_STATS = 'ai-guardrails.api.v1.output-stats';
 
     public const SCHEMA_APPROVAL_LIST = 'ai-guardrails.api.v1.approval-list';

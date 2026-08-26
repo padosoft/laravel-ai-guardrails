@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ---
 
+## v1.5.0 — 2026-08-26
+
+Theme: **somewhere to read Control P** — v1.4.0 shipped the gate and the event; this ships the log, the endpoint and the overview row, so a monitor rollout can actually be watched.
+
+### Added
+
+- **Control P decision log** (`provenance_log.store`, default `null`). The gate emitted `UntrustedGroundingToolGated` in both modes precisely so an operator could size the impact on real traffic before enforcing — and then had nowhere to read it. Now it records.
+  - `Contracts\GatedToolCallStore` + `Provenance\{Null,Array,Database}GatedToolCallStore`, mirroring the firewall's store trio down to the LIKE escaping and fetch-one-extra pagination, so this package has one persistence pattern rather than two.
+  - `Provenance\GatedToolCallRecord` / `…Builder` — append-only, updates and deletes throw, same as the firewall log.
+  - Migration stub `create_ai_guardrails_gated_tool_calls_table` (only needed by installs that set `provenance_log.store=database`). `blocked` is indexed, because "what would have been refused?" is the query the table exists for.
+- **`GET /provenance`** (`ai-guardrails.api.v1.provenance`) — filtered, keyset-paginated. `?blocked=0` is the monitor-rollout view. An unparseable `blocked` param means **no filter**, never `false`: silently defaulting to false would hide exactly the refused rows an operator opened the page for.
+- **Control P in `GET /overview`** — `controls[]` now carries a `provenance` entry with its posture, alongside A–D.
+
+### Fixed
+
+- The overview's `enabled` default treated any control other than `hitl` as on-by-default, which would have reported the (default-OFF) provenance gate as `enforce` the moment it appeared in the list. Both default-OFF controls are now named explicitly.
+
+### Notes
+
+- **The decision log is a record of DECISIONS, not of traffic**: a call the gate never touched records nothing, so the page is not buried under every tool invocation.
+- **No tool arguments are stored.** They are the model's — which is to say possibly the attacker's — and these rows land in an admin panel and a SIEM. A test asserts it rather than trusting the DTO shape, because "just add the args, it would help debugging" is exactly how this leaks later.
+- **A store failure never changes what the tool does.** Losing a log row is bad; letting a logging outage turn a gate decision into an exception the model sees is worse.
+
+---
+
 ## v1.4.0 — 2026-08-26
 
 Theme: **a fifth control** — Control P asks what the model was READING when it decided to call a tool, where Control D asks which tool it was.

@@ -22,6 +22,7 @@ use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\GatedToolCallStore;
 use Padosoft\AiGuardrails\Contracts\GroundingProvenance;
 use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
 use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
@@ -59,6 +60,9 @@ use Padosoft\AiGuardrails\Output\HtmlSanitizerFactory;
 use Padosoft\AiGuardrails\Output\NullOutputStatStore;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Output\PiiRedactionFactory;
+use Padosoft\AiGuardrails\Provenance\ArrayGatedToolCallStore;
+use Padosoft\AiGuardrails\Provenance\DatabaseGatedToolCallStore;
+use Padosoft\AiGuardrails\Provenance\NullGatedToolCallStore;
 use Padosoft\AiGuardrails\Provenance\NullGroundingProvenance;
 use Padosoft\AiGuardrails\Provenance\ProvenanceTier;
 use Padosoft\AiGuardrails\Screening\GuardrailInputMiddleware;
@@ -203,6 +207,22 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                     self::storeTable('ai-guardrails.firewall_log.table', 'ai_guardrails_firewall_rejections'),
                 ),
                 default => new NullFirewallRejectionStore,
+            };
+        });
+
+        $this->app->singleton(GatedToolCallStore::class, static function ($app): GatedToolCallStore {
+            // Master kill-switch off → no persistence side effects.
+            if (! (bool) $app['config']->get('ai-guardrails.enabled', true)) {
+                return new NullGatedToolCallStore;
+            }
+
+            return match ($app['config']->get('ai-guardrails.provenance_log.store', 'null')) {
+                'array' => new ArrayGatedToolCallStore,
+                'database' => new DatabaseGatedToolCallStore(
+                    self::storeConnection('ai-guardrails.provenance_log.connection'),
+                    self::storeTable('ai-guardrails.provenance_log.table', 'ai_guardrails_gated_tool_calls'),
+                ),
+                default => new NullGatedToolCallStore,
             };
         });
 
@@ -378,6 +398,7 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 $app->make(GroundingProvenance::class),
                 ResolvesControlMode::for('provenance', 'ai-guardrails.provenance.enabled'),
                 self::provenanceGatingTiers($cfg->get('ai-guardrails.provenance.gating_tiers', [])),
+                $app->make(GatedToolCallStore::class),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
@@ -520,6 +541,11 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 // ran the create_ai_guardrails_output_stats migration without this column.
                 __DIR__.'/../database/migrations/add_detector_to_ai_guardrails_output_stats_table.php.stub' => database_path(
                     'migrations/'.date('Y_m_d_His', time() + 6).'_add_detector_to_ai_guardrails_output_stats_table.php'
+                ),
+                // Control P decision log (default-OFF store, so this table is
+                // only needed by installs that set provenance_log.store=database).
+                __DIR__.'/../database/migrations/create_ai_guardrails_gated_tool_calls_table.php.stub' => database_path(
+                    'migrations/'.date('Y_m_d_His', time() + 7).'_create_ai_guardrails_gated_tool_calls_table.php'
                 ),
             ], 'ai-guardrails-migrations');
 

@@ -8,6 +8,7 @@ use Padosoft\AiGuardrails\Http\AuditController;
 use Padosoft\AiGuardrails\Http\FirewallController;
 use Padosoft\AiGuardrails\Http\OutputStatsController;
 use Padosoft\AiGuardrails\Http\OverviewController;
+use Padosoft\AiGuardrails\Http\ProvenanceController;
 use Padosoft\AiGuardrails\Http\SettingsController;
 use Padosoft\AiGuardrails\Http\TryController;
 
@@ -33,6 +34,11 @@ return static function (Registrar $router, string $prefix, array $middleware): v
 
         // Firewall rejections (Control A, append-only log).
         $router->get('/firewall', [FirewallController::class, 'index'])->name('firewall.index');
+
+        // Provenance-gate decisions (Control P, append-only log). `?blocked=0`
+        // is the monitor-rollout view: calls that RAN and would have been
+        // refused under enforcement.
+        $router->get('/provenance', [ProvenanceController::class, 'index'])->name('provenance.index');
 
         // Output-handler stats (Control C, per-kind counters).
         $router->get('/output/stats', [OutputStatsController::class, 'index'])->name('output.stats');
