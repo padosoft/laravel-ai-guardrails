@@ -5,7 +5,7 @@ description: Every config block in config/ai-guardrails.php.
 
 # Configuration reference
 
-Everything is a toggle in `config/ai-guardrails.php`. The four controls are **on by default**; the HITL bridge, HTTP API, and MCP surface are **default-OFF**. A master kill-switch sits on top.
+Everything is a toggle in `config/ai-guardrails.php`. Controls A–C are **on by default**; the HITL bridge, the provenance gate, the HTTP API, and the MCP surface are **default-OFF**. A master kill-switch sits on top.
 
 ## Master & controls
 

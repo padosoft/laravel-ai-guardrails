@@ -58,6 +58,23 @@ return [
         'allowed_tool_classes' => [],
     ],
 
+    // Control P — grounding provenance gate (default-OFF).
+    //
+    // Control D asks WHICH tool. This asks WHAT THE MODEL WAS READING when it decided to call one.
+    // Indirect prompt injection does not need the tool to look dangerous: it needs the text choosing
+    // the arguments to have been written by a stranger.
+    //
+    // This control is only as good as the labelling behind it. It reads tiers from the bound
+    // GroundingProvenance implementation; the default reports nothing, which gates nothing. Enabling
+    // it in an app whose retrieval layer never records a tier buys exactly zero.
+    'provenance' => [
+        'enabled' => env('AI_GUARDRAILS_PROVENANCE_ENABLED', false),
+        // Tiers that trigger the gate. 'machine_generated' is NOT gated by default: a summary of
+        // your own handbook is untrusted in principle but gating it would block most real agents on
+        // day one, which is how a control ends up switched off for good.
+        'gating_tiers' => ['untrusted_external'],
+    ],
+
     // Append-only injection audit persistence.
     'audit' => [
         'store' => env('AI_GUARDRAILS_AUDIT_STORE', 'null'), // null | array | database
@@ -99,7 +116,9 @@ return [
             'output_handler.enabled', 'output_handler.sanitize_html',
             'output_handler.neutralize_markdown', 'output_handler.redact_pii', 'output_handler.html_mode',
             'hitl.enabled', 'hitl.fallback',
+            'provenance.enabled',
             'modes.tool_firewall', 'modes.input_screen', 'modes.output_handler', 'modes.hitl',
+            'modes.provenance',
             'normalization.enabled', 'pattern_safety.on_match_error',
             'tool_authorization.enabled', 'tool_authorization.owner_key_depth', 'tool_authorization.destructive_match',
             // Task 5 — widened allow-list (each strictly validated by UpdateSettingsRequest).
@@ -140,6 +159,7 @@ return [
         'input_screen' => env('AI_GUARDRAILS_MODE_INPUT_SCREEN', 'enforce'),
         'output_handler' => env('AI_GUARDRAILS_MODE_OUTPUT_HANDLER', 'enforce'),
         'hitl' => env('AI_GUARDRAILS_MODE_HITL', 'enforce'),
+        'provenance' => env('AI_GUARDRAILS_MODE_PROVENANCE', 'enforce'),
     ],
 
     // Pre-screening normalization, applied BEFORE pattern matching to defeat trivial evasion. Task E1.

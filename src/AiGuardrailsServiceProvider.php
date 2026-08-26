@@ -22,6 +22,7 @@ use Padosoft\AiGuardrails\Console\GuardrailsScreenCommand;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\GroundingProvenance;
 use Padosoft\AiGuardrails\Contracts\GuardrailSettingsStore;
 use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\AiGuardrails\Contracts\InjectionAuditStore;
@@ -58,6 +59,8 @@ use Padosoft\AiGuardrails\Output\HtmlSanitizerFactory;
 use Padosoft\AiGuardrails\Output\NullOutputStatStore;
 use Padosoft\AiGuardrails\Output\PassthroughSanitizer;
 use Padosoft\AiGuardrails\Output\PiiRedactionFactory;
+use Padosoft\AiGuardrails\Provenance\NullGroundingProvenance;
+use Padosoft\AiGuardrails\Provenance\ProvenanceTier;
 use Padosoft\AiGuardrails\Screening\GuardrailInputMiddleware;
 use Padosoft\AiGuardrails\Screening\NullInjectionScreener;
 use Padosoft\AiGuardrails\Screening\NullPromptNormalizer;
@@ -340,6 +343,12 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
             );
         });
 
+        // Control P — the host binds its own implementation; the default reports
+        // nothing, which gates nothing. Deliberately fail-open: see
+        // NullGroundingProvenance for why a fail-closed default would be
+        // un-shippable rather than safe.
+        $this->app->bindIf(GroundingProvenance::class, NullGroundingProvenance::class);
+
         $this->app->singleton(AiGuardrails::class, static function ($app): AiGuardrails {
             $cfg = $app['config'];
             $destructive = $cfg->get('ai-guardrails.hitl.destructive_tools', []);
@@ -366,6 +375,9 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
                 // Only wire the authorizer when enabled, so guard() wraps with AuthorizedTool only then.
                 $authzEnabled ? $app->make(ToolAuthorizer::class) : null,
                 $app->make(HitlRequestStore::class),
+                $app->make(GroundingProvenance::class),
+                ResolvesControlMode::for('provenance', 'ai-guardrails.provenance.enabled'),
+                self::provenanceGatingTiers($cfg->get('ai-guardrails.provenance.gating_tiers', [])),
             );
         });
         $this->app->alias(AiGuardrails::class, 'ai-guardrails');
@@ -379,6 +391,41 @@ final class AiGuardrailsServiceProvider extends ServiceProvider
      * overlay (E6) that flips `events.enabled` after first resolution will NOT take effect until
      * the singleton is re-built (e.g., `app()->forgetInstance(...)` or a new request lifecycle).
      */
+    /**
+     * Parse the configured gating tiers, DROPPING anything unrecognised.
+     *
+     * Dropping rather than throwing is the right failure here: a typo in one
+     * tier name must not take the whole application down at boot. It does
+     * mean a typo silently narrows the gate, which is why an empty result
+     * leaves Control P inert rather than gating on some invented default —
+     * a control that gates on a tier nobody configured is worse than one
+     * that plainly does nothing.
+     *
+     * @return list<ProvenanceTier>
+     */
+    private static function provenanceGatingTiers(mixed $configured): array
+    {
+        if (! is_array($configured)) {
+            return [];
+        }
+
+        $tiers = [];
+
+        foreach ($configured as $value) {
+            if (! is_string($value)) {
+                continue;
+            }
+
+            $tier = ProvenanceTier::tryFrom($value);
+
+            if ($tier !== null) {
+                $tiers[$tier->value] = $tier;
+            }
+        }
+
+        return array_values($tiers);
+    }
+
     private static function eventDispatcher(Application $app): ?Dispatcher
     {
         if (! (bool) config('ai-guardrails.events.enabled', true)) {

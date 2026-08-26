@@ -76,7 +76,7 @@ Human-readable posture label derived from the control's effective mode and enabl
 Twelve-bucket hourly histogram for the trailing 12 hours. Bucket 11 = current UTC hour, bucket 0 = 11 hours ago. All values are non-negative integers.
 
 ::: callout info
-The injection audit store does not attribute attempts to a specific control, so **every control shares the same trailing-12h sparkline** (derived from all injection attempts). All four controls will show identical spark arrays until per-control attribution is wired in a future release.
+The injection audit store does not attribute attempts to a specific control, so **every control shares the same trailing-12h sparkline** (derived from all injection attempts). All controls will show identical spark arrays until per-control attribution is wired in a future release.
 :::
 
 ### `totals.observed_24h` (int)

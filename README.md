@@ -23,7 +23,7 @@
 
 - [Why it exists](#why-it-exists)
 - [What makes it different](#what-makes-it-different)
-- [The four controls](#the-four-controls)
+- [The five controls](#the-five-controls)
 - [Quick start](#quick-start)
 - [PHP surface](#php-surface)
 - [Wiring the agent middleware](#wiring-the-agent-middleware)
@@ -52,7 +52,7 @@
 
 `laravel-ai-guardrails` closes that gap with four **deterministic, offline, unit-testable** controls. No second LLM call, no network, no non-determinism — the audit trail is the product, not a regex you have to trust.
 
-> 📚 **Full documentation:** **[doc.laravel-ai-guardrails.padosoft.com](https://doc.laravel-ai-guardrails.padosoft.com)** — guides, the four controls in depth, architecture & ADRs, configuration reference, and the HTTP/MCP surfaces.
+> 📚 **Full documentation:** **[doc.laravel-ai-guardrails.padosoft.com](https://doc.laravel-ai-guardrails.padosoft.com)** — guides, the five controls in depth, architecture & ADRs, configuration reference, and the HTTP/MCP surfaces.
 
 ## What makes it different
 
@@ -63,7 +63,7 @@
 - **Composes, doesn't reinvent.** Optional [`padosoft/laravel-flow`](https://packagist.org/packages/padosoft/laravel-flow) for human approval and [`padosoft/laravel-pii-redactor`](https://packagist.org/packages/padosoft/laravel-pii-redactor) for PII — with graceful degradation when absent.
 - **Every feature is a toggle**, tested in both states, with a master kill-switch that degrades the whole package to pass-through.
 
-## The four controls
+## The five controls
 
 | | Control | What it does | Threat it closes |
 |---|---|---|---|
@@ -71,6 +71,7 @@
 | **B** | **Input Screening + Audit** | Normalizes the prompt (defeating homoglyph / zero-width / case evasion), screens it, **refuses before the model runs**, and append-only-logs every attempt. | Jailbreak / exfiltration prompts |
 | **C** | **Output Handler** | Treats the response as untrusted: escapes HTML, neutralizes markdown link/image exfil vectors, validates structured output, and redacts PII. | Stored-XSS / data-exfil / PII leakage in model output |
 | **D** | **HITL Bridge** | Routes destructive tool calls (refund/delete/email) through `laravel-flow`'s `approvalGate()` — a human approves before the action runs. | Unauthorized destructive actions |
+| **P** | **Provenance Gate** | Refuses a tool call the model decided on **while reading material nobody here wrote** — regardless of which tool it is. Reads tiers the host records at ingest; default-OFF, because it is only as good as that labelling. | Indirect prompt injection via retrieved content |
 
 ## Quick start
 
@@ -196,7 +197,7 @@ A read/config HTTP API for an admin panel (e.g. `laravel-ai-guardrails-admin`). 
 
 ## Configuration
 
-Every behaviour is a config toggle (`config/ai-guardrails.php`). The four controls are **on by default** (that is the point); the **HITL bridge** (`hitl.enabled`) and the **HTTP API** (`api.enabled`) are **default-OFF** because they need optional dependencies / explicit opt-in. A master kill-switch sits on top.
+Every behaviour is a config toggle (`config/ai-guardrails.php`). Controls A–C are **on by default** (that is the point); the **HITL bridge** (`hitl.enabled`), the **provenance gate** (`provenance.enabled`) and the **HTTP API** (`api.enabled`) are **default-OFF** because they need optional dependencies, host-side labelling, or explicit opt-in. A master kill-switch sits on top.
 
 | Key | Default | Purpose |
 |---|---|---|
@@ -293,6 +294,8 @@ Every guardrail decision dispatches a domain event from the **same code path** t
 | `Padosoft\AiGuardrails\Events\ToolArgumentRejected` | Control A found owner-key / schema violations in a tool call | `true` = call blocked; `false` = monitor, call proceeded |
 | `Padosoft\AiGuardrails\Events\DestructiveToolRouted` | Control D parked a destructive call for human approval (carries the non-secret run reference only) | n/a — enforce only |
 | `Padosoft\AiGuardrails\Events\OutputSanitized` | Control C neutralised HTML / markdown / structured / PII in a response (one event per response, deduped kinds) | `true` = text rewritten; `false` = monitor, text unchanged |
+| `Padosoft\AiGuardrails\Events\UntrustedGroundingToolGated` | Control P refused (or, in monitor, would have refused) a tool call grounded in externally-authored material | carries `$blocked` — `true` = refused; `false` = monitor, the call ran |
+| `Padosoft\AiGuardrails\Events\UntrustedGroundingToolGated` | Control P refused (or, in monitor, would have refused) a tool call grounded in externally-authored material | carries `$blocked` — `true` = refused; `false` = monitor, the call ran |
 
 In `monitor` mode the `Observed`/`Rejected`/`Sanitized` events still fire. The `$enforced` property on `ToolArgumentRejected` and `OutputSanitized` encodes the enforcement decision directly in the payload — listeners do not need to read the live config to distinguish a real block from a shadow observation.
 
@@ -306,6 +309,8 @@ In `monitor` mode the `Observed`/`Rejected`/`Sanitized` events still fire. The `
 | B | user prompts | normalize → screen → **refuse pre-model** → append-only audit; **fail closed** on PCRE errors |
 | C | model output (text + structured fields) | escape HTML / defang markdown & URI exfil vectors / validate structure / redact PII |
 | D | destructive tool calls | **human-gated** via `approvalGate()`; the plain-text token is never returned to the model |
+| P | the grounding the model read | refuse the call when a gating tier is present; **fails OPEN when nothing is labelled** — see the limitation below |
+| P | the grounding the model read | refuse the call when a gating tier is present; **fails OPEN when nothing is labelled** — see the limitation below |
 
 Every failure path **fails closed**. The master kill-switch and per-control toggles are tested in both states.
 
@@ -314,6 +319,8 @@ Every failure path **fails closed**. The master kill-switch and per-control togg
 - Control C rewrites `$response->text` and structured string fields; the model's **`toolCalls`** are governed by Controls A/D and are **not sanitized by default**. An opt-in `output_handler.sanitize_tool_calls` flag (default off) adds a defense-in-depth pass that cleans the string leaves of tool-call arguments — enable it only when those arguments are rendered/logged, since rewriting them could otherwise alter a legitimate call.
 - Cross-script homoglyphs are folded to a Latin skeleton before matching via a **curated** confusables map (`normalization.fold_confusables`, default on) — Cyrillic `а`/`о`/`е`…, Greek `ο`/`α`/`ρ`…. It is a high-value curated subset, not the full Unicode confusables data, so an exotic look-alike outside the map can still slip through; extend `ConfusablesFolder` for a wider threat model.
 - The HTML `allowlist` mode uses **HTMLPurifier** when `ezyang/htmlpurifier` is installed (robust parsing of malformed / entity-encoded / mutation-XSS markup), and gracefully falls back to the built-in `strip_tags` allowlist when it is absent. `escape` mode is unchanged.
+- **Control P is exactly as good as the labelling behind it, and no better.** The default `GroundingProvenance` reports nothing, so it gates nothing. That default is deliberate — a fail-closed one would gate every tool call in every app on the day they upgraded, which is how a control ends up switched off for good — but it means enabling `provenance.enabled` in an app whose retrieval layer records no tiers buys precisely zero. The work is the labelling; this control is the part that was easy. Related: `RequestGroundingProvenance` accumulates and does not know when one invocation ends, so a queue worker must `reset()` between jobs or one email-derived chunk gates every later job in that worker's life (safe, but it looks like a malfunction).
+- **Control P is exactly as good as the labelling behind it, and no better.** The default `GroundingProvenance` reports nothing, so it gates nothing. That default is deliberate — a fail-closed one would gate every tool call in every app on the day they upgraded, which is how a control ends up switched off for good — but it means enabling `provenance.enabled` in an app whose retrieval layer records no tiers buys precisely zero. The work is the labelling; this control is the part that was easy. Related: `RequestGroundingProvenance` accumulates and does not know when one invocation ends, so a queue worker must `reset()` between jobs or one email-derived chunk gates every later job in that worker's life (safe, but it looks like a malfunction).
 - Control D's flow persistence (approval tokens, resume) is provided by the host's `laravel-flow` install — made turnkey by `ai-guardrails:hitl-install` and verifiable by `ai-guardrails:hitl-status` (see [HITL setup](#hitl-setup-control-d)).
 
 ## Testing

@@ -229,7 +229,7 @@ where `observed` is a monitor-mode detection that was *not* blocked.
    composer require padosoft/laravel-ai-guardrails
    php artisan vendor:publish --tag=ai-guardrails-config
    ```
-   The four controls are **on by default** — that is the point. Optional: publish + migrate the audit
+   Controls A–C are **on by default** — that is the point. Optional: publish + migrate the audit
    table (`--tag=ai-guardrails-migrations`) and set `AI_GUARDRAILS_AUDIT_STORE=database` for a
    database-backed audit.
 
@@ -250,7 +250,7 @@ where `observed` is a monitor-mode detection that was *not* blocked.
    sanitize **automatically** — the input middleware refuses without ever invoking the model.
 :::
 
-**[→ Quickstart](/quickstart)** · **[→ Installation](/installation)** · **[→ The four controls](/controls/overview)**
+**[→ Quickstart](/quickstart)** · **[→ Installation](/installation)** · **[→ The five controls](/controls/overview)**
 
 ---
 
