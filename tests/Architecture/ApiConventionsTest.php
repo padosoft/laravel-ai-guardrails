@@ -64,6 +64,7 @@ final class ApiConventionsTest extends TestCase
             'ai-guardrails.api.audit.trend',
             'ai-guardrails.api.audit.show',
             'ai-guardrails.api.firewall.index',
+            'ai-guardrails.api.provenance.index',
             'ai-guardrails.api.output.stats',
             'ai-guardrails.api.approvals.index',
             'ai-guardrails.api.approvals.approve',

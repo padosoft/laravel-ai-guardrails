@@ -89,6 +89,16 @@ return [
         'table' => env('AI_GUARDRAILS_FIREWALL_TABLE', 'ai_guardrails_firewall_rejections'),
     ],
 
+    // Append-only Control P decision log (consumed by GET /provenance).
+    // Records BOTH refused and merely-observed calls: monitor mode exists so an
+    // operator can size the impact on real traffic before enforcing, and an
+    // event nobody can read afterwards does not let them do that.
+    'provenance_log' => [
+        'store' => env('AI_GUARDRAILS_PROVENANCE_STORE', 'null'), // null | array | database
+        'connection' => env('AI_GUARDRAILS_PROVENANCE_CONNECTION'),
+        'table' => env('AI_GUARDRAILS_PROVENANCE_TABLE', 'ai_guardrails_gated_tool_calls'),
+    ],
+
     // Append-only HITL request sidecar — records tool + scoped arguments at park-time
     // (consumed by GET /approvals to expose tool, arguments, relative times). Task 4.
     'hitl_requests' => [

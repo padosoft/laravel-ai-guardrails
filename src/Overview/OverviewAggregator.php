@@ -61,6 +61,7 @@ final readonly class OverviewAggregator
                 $this->control('input_screen', 'Input Screening', $in12h, $now),
                 $this->control('output_handler', 'Output Handler', $in12h, $now),
                 $this->control('hitl', 'HITL Bridge', $in12h, $now),
+                $this->control('provenance', 'Provenance Gate', $in12h, $now),
             ],
             'totals' => [
                 'attempts_24h' => count($in24h),
@@ -91,13 +92,18 @@ final readonly class OverviewAggregator
     private function control(string $key, string $label, array $in12h, DateTimeImmutable $now): array
     {
         $masterOn = (bool) $this->config->get('ai-guardrails.enabled', true);
-        $controlOn = (bool) $this->config->get("ai-guardrails.{$key}.enabled", $key !== 'hitl');
+        // HITL and the provenance gate both default OFF (they need, respectively,
+        // an optional dependency and host-side corpus labelling), so their absent
+        // key must not read as enabled the way the other three do.
+        $defaultOn = ! in_array($key, ['hitl', 'provenance'], true);
+        $controlOn = (bool) $this->config->get("ai-guardrails.{$key}.enabled", $defaultOn);
         $enabled = $masterOn && $controlOn;
 
         // E9-API delta: the resolved enforcement posture (enforce | monitor | off) for shadow-rollout
         // visibility. Short-circuit to Off when already disabled (avoids the default-true fallback
-        // inside ResolvesControlMode, which would produce mode='enforce' for HITL when its
-        // enabled key is absent — HITL defaults off, unlike the other three controls).
+        // inside ResolvesControlMode, which would produce mode='enforce' for HITL or
+        // the provenance gate when their enabled key is absent — both default off,
+        // unlike the other three controls).
         $mode = $enabled
             ? ResolvesControlMode::for($key, "ai-guardrails.{$key}.enabled")
             : ControlMode::Off;
