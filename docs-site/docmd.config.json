@@ -42,6 +42,7 @@
       { "title": "Control B — Input Screening + Audit", "path": "/controls/input-screening" },
       { "title": "Control C — Output Handler", "path": "/controls/output-handler" },
       { "title": "Control D — HITL Bridge", "path": "/controls/hitl-bridge" },
+      { "title": "Control P — Provenance Gate", "path": "/controls/provenance-gate" },
       { "title": "Wiring the agent middleware", "path": "/guides/middleware" },
       { "title": "Guarding & authorizing tools", "path": "/guides/tools" },
       { "title": "Human-in-the-loop approvals", "path": "/guides/hitl" },

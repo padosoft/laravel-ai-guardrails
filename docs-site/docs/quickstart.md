@@ -50,7 +50,7 @@ Junior-proof. Five steps from `composer require` to a guarded agent.
 That's it. Add the [agent middleware](/guides/middleware) to screen prompts and sanitize output automatically on every agent run.
 
 ::: callout info
-The four controls are **on by default** — that is the point. The **HITL bridge** (`hitl.enabled`) and the **HTTP API** (`api.enabled`) are default-OFF because they need optional dependencies or an explicit opt-in.
+Controls A–C are **on by default** — that is the point. The **HITL bridge** (`hitl.enabled`), the **provenance gate** (`provenance.enabled`) and the **HTTP API** (`api.enabled`) are default-OFF because they need optional dependencies, host-side labelling, or an explicit opt-in.
 :::
 
 ## What you just enabled
@@ -73,7 +73,7 @@ flowchart LR
 ::: card "Understand the controls" icon:lucide-shield
 A walkthrough of each defensive layer and the threat it closes.
 
-[The four controls →](/controls/overview)
+[The five controls →](/controls/overview)
 :::
 ::: card "Wire the middleware" icon:lucide-plug
 Screen prompts and sanitize output automatically on your agents.

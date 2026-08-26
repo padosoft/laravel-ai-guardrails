@@ -12,6 +12,7 @@ use Laravel\Ai\Contracts\Tool;
 use Padosoft\AiGuardrails\Contracts\ApprovalRouter;
 use Padosoft\AiGuardrails\Contracts\ArgumentScoper;
 use Padosoft\AiGuardrails\Contracts\FirewallRejectionStore;
+use Padosoft\AiGuardrails\Contracts\GroundingProvenance;
 use Padosoft\AiGuardrails\Contracts\HitlRequestStore;
 use Padosoft\AiGuardrails\Contracts\InjectionScreener;
 use Padosoft\AiGuardrails\Contracts\OutputSanitizer;
@@ -24,20 +25,25 @@ use Padosoft\AiGuardrails\Firewall\FirewalledTool;
 use Padosoft\AiGuardrails\Hitl\ApprovalGatedTool;
 use Padosoft\AiGuardrails\Output\OutputStatKind;
 use Padosoft\AiGuardrails\Output\StructuredOutputValidator;
+use Padosoft\AiGuardrails\Provenance\ProvenanceGatedTool;
+use Padosoft\AiGuardrails\Provenance\ProvenanceTier;
 use Padosoft\AiGuardrails\Screening\ScreenVerdict;
 use Padosoft\AiGuardrails\Support\ControlMode;
 
 /**
- * The package's single PHP entry point (Facade-backed). Composes the four controls: screen() &
+ * The package's single PHP entry point (Facade-backed). Composes the five controls: screen() &
  * sanitize() are deterministic; guard() wraps a tool with the firewall (Control A); routeForApproval()
  * wraps a destructive tool with the HITL bridge (Control D); validateStructured() validates structured
- * model output (Control C). When the master kill-switch is off, the wrappers return the tool untouched.
+ * model output (Control C); guard() additionally applies Control P, which refuses a tool call made
+ * while the model was reading material nobody in the organisation wrote. When the master kill-switch
+ * is off, the wrappers return the tool untouched.
  */
 final readonly class AiGuardrails
 {
     /**
      * @param  list<string>  $destructiveTools
      * @param  (Closure():(int|string|null))|null  $principalResolver
+     * @param  list<ProvenanceTier>  $provenanceGatingTiers
      */
     public function __construct(
         private InjectionScreener $screener,
@@ -59,6 +65,9 @@ final readonly class AiGuardrails
         private ?Dispatcher $events = null,
         private ?ToolAuthorizer $toolAuthorizer = null,
         private ?HitlRequestStore $hitlRequestStore = null,
+        private ?GroundingProvenance $groundingProvenance = null,
+        private ?ControlMode $provenanceMode = null,
+        private array $provenanceGatingTiers = [],
     ) {}
 
     public function screen(string $prompt): ScreenVerdict
@@ -93,11 +102,43 @@ final readonly class AiGuardrails
 
         // E7: when a tool authorizer is wired (tool_authorization.enabled), gate use of the tool BEFORE
         // re-scoping/validation. Disabled → no authorizer is injected, so the firewall stands alone.
-        if ($this->toolAuthorizer !== null) {
-            return new AuthorizedTool($firewalled, $this->toolAuthorizer, $tool::class);
+        $guarded = $this->toolAuthorizer !== null
+            ? new AuthorizedTool($firewalled, $this->toolAuthorizer, $tool::class)
+            : $firewalled;
+
+        return $this->applyProvenanceGate($guarded, $tool, $principalResolver);
+    }
+
+    /**
+     * Control P, applied OUTSIDE the firewall and the authorizer so it is the
+     * first thing consulted.
+     *
+     * The order matters and is worth stating: re-scoping and argument
+     * validation both assume the call is worth making, and both cost work. If
+     * the model was reading a stranger's email when it decided to call this,
+     * that question is settled before the arguments are worth looking at.
+     */
+    private function applyProvenanceGate(Tool $guarded, Tool $original, ?Closure $principalResolver): Tool
+    {
+        if ($this->groundingProvenance === null || $this->provenanceGatingTiers === []) {
+            return $guarded;
         }
 
-        return $firewalled;
+        $mode = $this->provenanceMode ?? ControlMode::Off;
+
+        if (! $mode->isActive()) {
+            return $guarded;
+        }
+
+        return new ProvenanceGatedTool(
+            $guarded,
+            $this->groundingProvenance,
+            $this->resolver($principalResolver),
+            $original::class,
+            $this->provenanceGatingTiers,
+            $mode,
+            $this->events,
+        );
     }
 
     /**

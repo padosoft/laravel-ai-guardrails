@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ---
 
+## v1.4.0 — 2026-08-26
+
+Theme: **a fifth control** — Control P asks what the model was READING when it decided to call a tool, where Control D asks which tool it was.
+
+### Added
+
+- **Control P — Provenance Gate (default-OFF)**: refuses a tool call the model decided on *while reading material nobody in the organisation wrote*. The attack it closes needs no jailbreak: somebody emails your support address, the mail is ingested and indexed, retrieval later pulls it in as grounding for an unrelated question from an unrelated user, and the model — which cannot distinguish the document it was asked to read from the operator who asked — follows the instruction inside it. Control A validated the arguments and found them well-formed, because they were.
+  - `Provenance\ProvenanceTier` — `trusted_internal` / `untrusted_external` / `machine_generated`, deliberately the same three tiers AskMyDocs assigns at ingest, so a labelled corpus needs no translation layer between two definitions of "trusted".
+  - `Contracts\GroundingProvenance` — one method, implemented by the host, because only the host knows its own retrieval pipeline. `Provenance\NullGroundingProvenance` (the default binding) and `Provenance\RequestGroundingProvenance` (a per-invocation accumulator) ship with it.
+  - `Provenance\ProvenanceGatedTool` — applied by `AiGuardrails::guard()` OUTSIDE the firewall and the authorizer, so the question is settled before the arguments are worth validating. Its refusal message deliberately does not name the source: naming it would confirm to whoever planted the content that it is in the corpus, a free oracle for tuning the next attempt.
+  - `Events\UntrustedGroundingToolGated` — carries the offending tiers and `$blocked`, and fires identically in `monitor`, so an operator can size the impact on real traffic before flipping the switch. No tool arguments are carried: they are the model's, which is to say possibly the attacker's, and this event lands in logs.
+  - Config: `provenance.enabled` (default `false`), `provenance.gating_tiers` (default `['untrusted_external']`), and `modes.provenance`. `machine_generated` is opt-in rather than default, because gating a summary of your own handbook would block most real agents on day one — which is how a control ends up switched off for good. An unrecognised tier name is dropped rather than fatal; a list that parses to nothing leaves the control inert rather than gating on an invented default.
+
+### Changed
+
+- The README and the doc site now say **five controls**, not four. Control P is a peer of A–D, not a sub-feature of D.
+
+### Known limitation (documented, not buried)
+
+- Control P **fails open** when nothing is labelled, and that is a deliberate trade rather than an oversight: a fail-closed default would gate every tool call in every app on the day they upgraded. The consequence is worth stating plainly — enabling it without host-side labelling buys precisely zero. The work is the labelling; this control is the part that was easy.
+- `RequestGroundingProvenance` accumulates and does not know when one invocation ends. In a queue worker, `reset()` between jobs is the caller's responsibility; without it one email-derived chunk gates every later job in that worker's lifetime. That fails toward *more* gating, so it is safe, but it looks like a malfunction.
+
+### Compatibility
+
+No existing behaviour changed: the control is default-OFF and the default provenance source reports nothing, so all 551 pre-existing tests pass unmodified.
+
+---
+
 ## v1.1.0 — 2026-06-19
 
 Theme: **admin-enabling additive API** — all changes are backward-compatible additive fields and new infrastructure; no existing behaviour changed.

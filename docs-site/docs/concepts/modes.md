@@ -17,7 +17,7 @@ Turning a guardrail to "block" on day one is risky: you don't yet know its false
 | `monitor` | yes | yes | no (shadow) |
 | `off` | no | no | no (pass-through) |
 
-Each of the four controls has its own dial under `modes.*` (`tool_firewall`, `input_screen`, `output_handler`, `hitl`), default `enforce`.
+Each of the five controls has its own dial under `modes.*` (`tool_firewall`, `input_screen`, `output_handler`, `hitl`, `provenance`), default `enforce`.
 
 ## Resolution gate
 
