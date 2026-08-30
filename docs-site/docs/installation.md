@@ -11,7 +11,7 @@ description: Requirements, optional dependencies, and publishing.
 |---|---|
 | PHP | `^8.3` (CI tests 8.3 / 8.4 / 8.5) |
 | Laravel | `13.x` |
-| `laravel/ai` | `^0.8` |
+| `laravel/ai` | `^0.8` \| `^0.9` \| `^0.10` \| `^0.11` |
 | `ext-mbstring` | required |
 | `ext-intl` | suggested — enables NFKC Unicode normalization (graceful fallback without it) |
 
