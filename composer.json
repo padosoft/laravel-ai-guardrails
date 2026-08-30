@@ -16,7 +16,7 @@
         "illuminate/console": "^13.0",
         "illuminate/database": "^13.0",
         "illuminate/support": "^13.0",
-        "laravel/ai": "^0.8"
+        "laravel/ai": "^0.8|^0.11"
     },
     "require-dev": {
         "ezyang/htmlpurifier": "^4.19",
